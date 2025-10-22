@@ -1,0 +1,309 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>在循环里的异步任务完成再进行其他操作 | lijianfei.com</title>
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1761120781074">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="在循环里的异步任务完成再进行其他操作 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <meta property="og:title" content="在循环里的异步任务完成再进行其他操作">
+    <meta property="og:description" content="前段时间对老代码的一些改造，这里记录一下。
+
+for循环里的异步任务完成再进行其他操作
+// 1.创建一个串行队列，保证for循环依次执行
+dispatch_queue_t serialQueue = dispatch_queue_crea...">
+    <meta property="og:type" content="Objc">
+    <meta property="og:url" content="https://lijianfei.com/post/zai-xun-huan-li-de-yi-bu-ren-wu-wan-cheng-zai-jin-xing-qi-ta-cao-zuo/">
+    <meta property="og:image" content=""/>
+    <meta property="og:image:width" content="800">
+    <meta property="og:image:height" content="500">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:title" content="在循环里的异步任务完成再进行其他操作">
+    <meta name="twitter:image" content="">
+    <meta name="twitter:image:width" content="800">
+
+    <meta name="description" content="前段时间对老代码的一些改造，这里记录一下。
+
+for循环里的异步任务完成再进行其他操作
+// 1.创建一个串行队列，保证for循环依次执行
+dispatch_queue_t serialQueue = dispatch_queue_crea..." />
+    <meta name="keywords" content="Objc" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1761120781074" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    <img src="https://ghchart.rshah.org/F15406/lijianfeigeek" style="max-width: 100%;height: auto;"/>
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              在循环里的异步任务完成再进行其他操作
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-10-15
+              </span>
+              <span>
+                3 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/objc/" class="post-tag">
+                  # Objc
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>前段时间对老代码的一些改造，这里记录一下。</p>
+<!-- more -->
+<p>for循环里的异步任务完成再进行其他操作</p>
+<pre><code>// 1.创建一个串行队列，保证for循环依次执行
+dispatch_queue_t serialQueue = dispatch_queue_create(&quot;serialQueue&quot;, DISPATCH_QUEUE_SERIAL);
+ 
+// 2.异步执行任务
+dispatch_async(serialQueue, ^{
+    // 3.创建一个数目为1的信号量，用于“卡”for循环，等上次循环结束在执行下一次的for循环
+    dispatch_semaphore_t sema = dispatch_semaphore_create(1);
+ 
+    for (int i = 0; i&lt;5; i++) {
+        // 开始执行for循环，让信号量-1，这样下次操作须等信号量&gt;=0才会继续,否则下次操作将永久停止
+        dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+        printf(&quot;信号量等待中\n&quot;);
+        // 模拟一个异步任务
+        NSMutableURLRequest *urlRequest = [[NSMutableURLRequest alloc] initWithURL:[NSURL URLWithString:@&quot;https://github.com&quot;]];
+        NSURLSession *session = [NSURLSession sharedSession];
+        NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:urlRequest completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        // 本次for循环的异步任务执行完毕，这时候要发一个信号，若不发，下次操作将永远不会触发
+            [tampArray addObject:@(i)];
+            NSLog(@&quot;本次耗时操作完成，信号量+1 %@\n&quot;,[NSThread currentThread]);
+            dispatch_semaphore_signal(sema);
+ 
+        }];
+        [dataTask resume];
+ 
+        NSLog(@&quot;上传动态照片到阿里云成功：%@&quot;, fileInfo.filePath);
+        NSString *imgUrl = fileInfo.object;
+        [self.imageUrls addObject:imgUrl];
+        if (self.imageUrls.count == self.imagePaths.count) {
+            // 上传动态照片到阿里云 完成
+        }
+ 
+    }
+ 
+    NSLog(@&quot;其他操作&quot;);
+    for (NSNumber *num in tampArray) {
+        NSLog(@&quot;所有操作完成后的操作---&gt;   %@\n&quot;,num);
+    }
+ 
+});
+</code></pre>
+<p>队列组处理for循环里的异步任务</p>
+<pre><code>// 创建队列组，可以使多个网络请求异步执行，执行完之后再进行操作
+dispatch_group_t group = dispatch_group_create();
+//创建全局队列
+dispatch_queue_t queue = dispatch_get_global_queue(0, 0);
+ 
+dispatch_group_async(group, queue, ^{
+    // 循环上传数据
+    for (int i = 0; i &lt; self.goodsArray.count; i++) {
+        //创建dispatch_semaphore_t对象
+        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+ 
+        [manager POST:urlStr parameters:dict progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+ 
+            // responseObject 返回的数据
+ 
+            // 请求成功发送信号量(+1)
+            dispatch_semaphore_signal(semaphore);
+ 
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            NSLog(@&quot;%@&quot;,error);
+            // 失败也请求成功发送信号量(+1)
+            dispatch_semaphore_signal(semaphore);
+        }];
+        //信号量减1，如果&gt;0，则向下执行，否则等待
+        dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+    }
+});
+ 
+// 当所有队列执行完成之后
+dispatch_group_notify(group, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+  // 执行下面的判断代码
+    if (state == self.goodsArray.count) {
+       // 返回主线程进行界面上的修改
+        dispatch_async(dispatch_get_main_queue(), ^{
+           …….
+        });
+    }else{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            …..
+        });
+    }
+});
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/mac-app-tui-jian-monitorcontrol-for-apple-silicon-and-intel/">
+              <h3 class="post-title">
+                Mac App 推荐：MonitorControl - for Apple Silicon and Intel
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>
