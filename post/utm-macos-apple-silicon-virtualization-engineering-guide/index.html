@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>驯服 Apple Silicon 虚拟化：UTM 双内核架构、Windows 11 ARM 驱网避坑与 utmctl 极客工作流 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1789218952078">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="驯服 Apple Silicon 虚拟化：UTM 双内核架构、Windows 11 ARM 驱网避坑与 utmctl 极客工作流 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/utm-macos-apple-silicon-virtualization-engineering-guide/">
+    <meta name="description" content="在 Apple Silicon（M 系列芯片）统治 Mac 生态的今天，虚拟化工具的选择一直是所有开发者与高级用户的必答题。长期以来，商业虚拟化软件凭借先发优势占据市场，但每年高昂的订阅费用、对历史操作系统的兼容断层，以及不可控的闭源黑盒机..." />
+    <meta name="keywords" content="UTM,QEMU,Windows 11,macOS,虚拟化,Apple Silicon" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="驯服 Apple Silicon 虚拟化：UTM 双内核架构、Windows 11 ARM 驱网避坑与 utmctl 极客工作流">
+    <meta property="og:description" content="在 Apple Silicon（M 系列芯片）统治 Mac 生态的今天，虚拟化工具的选择一直是所有开发者与高级用户的必答题。长期以来，商业虚拟化软件凭借先发优势占据市场，但每年高昂的订阅费用、对历史操作系统的兼容断层，以及不可控的闭源黑盒机...">
+    <meta property="og:url" content="https://lijianfei.com/post/utm-macos-apple-silicon-virtualization-engineering-guide/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/utm-macos-apple-silicon-virtualization-engineering-guide.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-09-08T02:20:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="UTM">
+    
+    <meta property="article:tag" content="QEMU">
+    
+    <meta property="article:tag" content="Windows 11">
+    
+    <meta property="article:tag" content="macOS">
+    
+    <meta property="article:tag" content="虚拟化">
+    
+    <meta property="article:tag" content="Apple Silicon">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="驯服 Apple Silicon 虚拟化：UTM 双内核架构、Windows 11 ARM 驱网避坑与 utmctl 极客工作流">
+    <meta name="twitter:description" content="在 Apple Silicon（M 系列芯片）统治 Mac 生态的今天，虚拟化工具的选择一直是所有开发者与高级用户的必答题。长期以来，商业虚拟化软件凭借先发优势占据市场，但每年高昂的订阅费用、对历史操作系统的兼容断层，以及不可控的闭源黑盒机...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/utm-macos-apple-silicon-virtualization-engineering-guide.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "驯服 Apple Silicon 虚拟化：UTM 双内核架构、Windows 11 ARM 驱网避坑与 utmctl 极客工作流",
+      "description": "在 Apple Silicon（M 系列芯片）统治 Mac 生态的今天，虚拟化工具的选择一直是所有开发者与高级用户的必答题。长期以来，商业虚拟化软件凭借先发优势占据市场，但每年高昂的订阅费用、对历史操作系统的兼容断层，以及不可控的闭源黑盒机...",
+      "image": "https://lijianfei.com/post-images/utm-macos-apple-silicon-virtualization-engineering-guide.png",
+      "datePublished": "2026-09-08T02:20:00.000Z",
+      "dateModified": "2026-09-08T02:20:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/utm-macos-apple-silicon-virtualization-engineering-guide/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "UTM",
+          "item": "https://lijianfei.com/tag/utm/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "驯服 Apple Silicon 虚拟化：UTM 双内核架构、Windows 11 ARM 驱网避坑与 utmctl 极客工作流",
+          "item": "https://lijianfei.com/post/utm-macos-apple-silicon-virtualization-engineering-guide/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1789218952078" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              驯服 Apple Silicon 虚拟化：UTM 双内核架构、Windows 11 ARM 驱网避坑与 utmctl 极客工作流
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-09-08
+              </span>
+              <span>
+                19 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/utm/" class="post-tag">
+                  # UTM
+                </a>
+              
+                <a href="https://lijianfei.com/tag/qemu/" class="post-tag">
+                  # QEMU
+                </a>
+              
+                <a href="https://lijianfei.com/tag/windows-11/" class="post-tag">
+                  # Windows 11
+                </a>
+              
+                <a href="https://lijianfei.com/tag/macos/" class="post-tag">
+                  # macOS
+                </a>
+              
+                <a href="https://lijianfei.com/tag/xu-ni-hua/" class="post-tag">
+                  # 虚拟化
+                </a>
+              
+                <a href="https://lijianfei.com/tag/apple-silicon/" class="post-tag">
+                  # Apple Silicon
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/utm-macos-apple-silicon-virtualization-engineering-guide.png" alt="驯服 Apple Silicon 虚拟化：UTM 双内核架构、Windows 11 ARM 驱网避坑与 utmctl 极客工作流" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在 Apple Silicon（M 系列芯片）统治 Mac 生态的今天，虚拟化工具的选择一直是所有开发者与高级用户的必答题。长期以来，商业虚拟化软件凭借先发优势占据市场，但每年高昂的订阅费用、对历史操作系统的兼容断层，以及不可控的闭源黑盒机制，始终让追求掌控力的极客们心存芥蒂。</p>
+<p>开源社区给出的最完美答卷正是 <a href="https://github.com/utmapp/UTM"><strong>UTM</strong></a>（官方站点：<a href="https://mac.getutm.app/">mac.getutm.app</a>）。</p>
+<p>UTM 绝非简单的“QEMU 界面套壳”，而是一款专为 macOS 与 Apple Silicon 原生打造的现代化全功能虚拟化中枢。它创新性地采用了 <strong>“Apple Virtualization 原生轻量管线 + QEMU TCG/HVF 全功能指令集仿真”</strong> 的双内核引擎，向下能榨干 M 芯片硬件虚拟化的极限能耗比，向上能跨架构模拟运行 30 余种历史古董与异构指令集系统，甚至通过 <code>utmctl</code> 提供了开箱即用的无头（Headless）自动化编排能力。</p>
+<p>本文将从底层架构拆解、实战装机避坑、Rosetta 2 Linux 跨指令转译以及 CLI 自动化四个维度，系统性剖析 UTM 的工程设计与最佳实践。</p>
+<!-- more -->
+<hr>
+<h2 id="1-核心架构全景双引擎的分工与底层拓扑">1. 核心架构全景：双引擎的分工与底层拓扑</h2>
+<p>面对虚拟机任务时，不同场景对性能与兼容性的要求天差地别：有些场景追求极致的 CPU 吞吐与零资源浪费（如运行 ARM64 Linux 编译代码），而另一些场景则需要精准的硬件外设仿真与跨架构指令翻译（如调试 x86 驱动或运行老旧 Windows 软件）。</p>
+<p>UTM 在底层设计上彻底解耦了这两类诉求，构建了一套灵活的双引擎拓扑：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Host[&quot;macOS Host (Apple Silicon M 系列)&quot;]
+        UI[&quot;UTM 桌面工作台 (SwiftUI / AppKit 响应层)&quot;]
+        CLI[&quot;utmctl 命令行编排中枢 (/usr/local/bin/utmctl)&quot;]
+        Config[&quot;虚拟机配置规范 (.utm Bundle / config.plist)&quot;]
+    end
+
+    subgraph Engines[&quot;UTM 调度与执行引擎层&quot;]
+        AppleVZ[&quot;【引擎 A】Apple Virtualization.framework&lt;br/&gt;(轻量原生超低开销)&quot;]
+        QEMUEngine[&quot;【引擎 B】QEMU 核心引擎 (v8.x+)&lt;br/&gt;(全功能仿真与外设矩阵)&quot;]
+    end
+
+    subgraph DriversA[&quot;Apple VZ 虚拟化外设管线&quot;]
+        VirtioFS[&quot;VirtioFS 共享目录 (零拷贝高速挂载)&quot;]
+        VZRosetta[&quot;Rosetta 2 for Linux (binfmt_misc x86_64 转译)&quot;]
+        VZNet[&quot;VirtIO Network / Bridged 网卡&quot;]
+    end
+
+    subgraph DriversB[&quot;QEMU 硬件仿真与通信矩阵&quot;]
+        HVF[&quot;Hypervisor.framework (ARM64 硬件直通加速)&quot;]
+        TCG[&quot;TCG 动态重编译器 (30+ 异构 CPU 仿真: x86/PPC/MIPS/RISC-V)&quot;]
+        SPICE[&quot;SPICE 协议通道 (剪贴板双向同步 / 动态分辨率自适应)&quot;]
+        USBRedir[&quot;USB 2.0/3.0 硬件透传 (USBMux / IOKit)&quot;]
+    end
+
+    subgraph Guests[&quot;目标虚拟机生态 (Guest OS)&quot;]
+        macOSGuest[&quot;macOS Monterey ~ Sequoia 沙箱&quot;]
+        LinuxARM[&quot;Linux ARM64 (Ubuntu / Debian / Alpine)&quot;]
+        Win11ARM[&quot;Windows 11 on ARM64&quot;]
+        LegacyOS[&quot;Windows 98/XP / Mac OS 9 PPC / RISC-V Linux&quot;]
+    end
+
+    UI --&gt; Config
+    CLI --&gt; Config
+    Config --&gt;|原生虚拟化模式| AppleVZ
+    Config --&gt;|全功能仿真模式| QEMUEngine
+
+    AppleVZ --&gt; VirtioFS
+    AppleVZ --&gt; VZRosetta
+    AppleVZ --&gt; VZNet
+
+    QEMUEngine --&gt; HVF
+    QEMUEngine --&gt; TCG
+    QEMUEngine --&gt; SPICE
+    QEMUEngine --&gt; USBRedir
+
+    VZNet &amp; VirtioFS &amp; VZRosetta --&gt; LinuxARM
+    AppleVZ --&gt; macOSGuest
+    HVF &amp; SPICE --&gt; Win11ARM
+    TCG &amp; USBRedir --&gt; LegacyOS
+</code></pre>
+<h3 id="11-引擎-aapple-virtualizationvz原生管线">1.1 引擎 A：Apple Virtualization（<code>vz</code>）原生管线</h3>
+<p>Apple 从 macOS Monterey 开始引入了系统级高级虚拟化框架 <code>Virtualization.framework</code>。UTM 完整接入了这一管线：</p>
+<ul>
+<li><strong>极小宿主开销</strong>：完全由系统内核级 Hypervisor 调度，几乎没有额外的进程内存驻留，发热与电池消耗极低；</li>
+<li><strong>macOS-on-macOS 原生沙箱</strong>：在 Mac 上虚拟运行另一个全新 macOS 实例的最优方案，天然支持从官方 IPSW 固件一键还原，非常适合安全漏洞验证与多版本 Xcode 兼容测试；</li>
+<li><strong>VirtioFS 极限文件 I/O</strong>：通过内核级共享内存通信，宿主机文件夹与 Linux 客户机之间的文件读写延迟远低于传统的 Samba 或 WebDAV。</li>
+</ul>
+<h3 id="12-引擎-bqemu-hvf-tcg-全功能矩阵">1.2 引擎 B：QEMU HVF + TCG 全功能矩阵</h3>
+<p>针对 Windows 体系与复杂外设场景，UTM 调用内置的 QEMU 进程集群：</p>
+<ul>
+<li><strong>HVF 硬件加速</strong>：当客户机与宿主机指令集一致（如在 M1/M2/M3/M4 上运行 ARM64 Windows 11 或 Linux）时，通过 macOS 的 <code>Hypervisor.framework</code> 直通硬件虚拟化扩展，指令执行效率逼近物理机；</li>
+<li><strong>TCG 跨指令集转译</strong>：基于 Tiny Code Generator，即使在 ARM 架构的 Mac 上，也能动态反编译并执行 x86_64、PowerPC、MIPS、SPARC 等异构机器码。这是复古操作系统爱好者与嵌入式底层开发者的无可替代之选；</li>
+<li><strong>SPICE 协议栈解耦</strong>：通过 Unix Domain Socket 与 SPICE Agent 协同，实现了客户机与宿主机之间平滑的动态分辨率热调整、光标穿透以及音视频低延迟推流。</li>
+</ul>
+<hr>
+<h2 id="2-选型指南两大引擎的能力边界与场景矩阵">2. 选型指南：两大引擎的能力边界与场景矩阵</h2>
+<p>很多用户在 UTM 创建虚拟机向导的“虚拟化（Virtualize）”与“模拟（Emulate）”选项前感到困惑。下表清晰梳理了日常关键场景的最佳技术路径：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">业务需求 / 目标系统</th>
+<th style="text-align:left">推荐引擎模式</th>
+<th style="text-align:left">底层驱动栈</th>
+<th style="text-align:left">核心优势</th>
+<th style="text-align:left">关键局限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Windows 11 on ARM64</strong></td>
+<td style="text-align:left"><strong>QEMU (HVF 虚拟化)</strong></td>
+<td style="text-align:left">VirtIO 网卡/磁盘 + SPICE Guest Tools</td>
+<td style="text-align:left">图形丝滑、支持剪贴板无缝双向复制、外设透传成熟</td>
+<td style="text-align:left">首次安装需手动避坑 OOBE 联网检测</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Linux 开发/编译机</strong></td>
+<td style="text-align:left"><strong>Apple Virtualization</strong></td>
+<td style="text-align:left">VirtioFS + VirtIO Net + Rosetta 2</td>
+<td style="text-align:left">磁盘 I/O 极快、支持直接运行 x86_64 二进制、内存占用极低</td>
+<td style="text-align:left">不支持复杂的古董硬件端口仿真</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>macOS 独立沙箱验证</strong></td>
+<td style="text-align:left"><strong>Apple Virtualization</strong></td>
+<td style="text-align:left">Apple VZ 原生管线 (IPSW 还原)</td>
+<td style="text-align:left">苹果官方原生认证、支持 iCloud/Apple ID 登录测试</td>
+<td style="text-align:left">仅支持 Apple Silicon 宿主机，且只支持 macOS 12+</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>老旧 x86_64 软件/系统</strong></td>
+<td style="text-align:left"><strong>QEMU (TCG 模拟)</strong></td>
+<td style="text-align:left">纯软件 CPU 指令集动态重编译</td>
+<td style="text-align:left">无需物理 x86 机器即可运行特定旧软件</td>
+<td style="text-align:left">CPU 消耗较大，仅适合非高算力场景</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>外接硬件调试 (USB 透传)</strong></td>
+<td style="text-align:left"><strong>QEMU (HVF 虚拟化)</strong></td>
+<td style="text-align:left">libusb / IOKit USB 端口重定向</td>
+<td style="text-align:left">可将串口线、加密狗、STM32 烧录器直接注入客户机</td>
+<td style="text-align:left">需在 Host 授予底层设备访问权限</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="3-核心实战避坑windows-11-arm64-极速装机与网络死锁破解">3. 核心实战避坑：Windows 11 ARM64 极速装机与网络死锁破解</h2>
+<p>在 Apple Silicon Mac 上通过 UTM 安装 Windows 11 ARM64 时，超过 80% 的用户都会卡在同一个环节：<strong>Windows 11 强制要求联网才能完成开机向导（OOBE），但此时虚拟机中尚未安装 VirtIO 网络驱动，形成了无法联网也无法装驱动的“死锁”</strong>。</p>
+<p>以下是标准规范的避坑与配置全流程：</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant User as 极客用户
+    participant VM as Windows 11 虚拟机
+    participant UTM as UTM 控制台
+    participant CD as 驱动镜像 (Guest Tools)
+
+    User-&gt;&gt;UTM: 新建虚拟机 (Virtualize -&gt; Windows -&gt; 勾选 Install Windows 11)
+    UTM-&gt;&gt;UTM: 自动下载并挂载 spice-guest-tools.iso
+    UTM-&gt;&gt;VM: 引导启动安装程序 (WinPE)
+    VM--&gt;&gt;User: 完成磁盘分区与文件复制，重启进入 OOBE 向导
+    Note over VM,User: ⚠️ 遇到死锁：提示“让我们为你连接到网络”，无“下一步”按钮！
+    User-&gt;&gt;VM: 按下组合键 Shift + F10 (Mac 上通常为 Fn + Shift + F10)
+    VM--&gt;&gt;User: 呼出命令提示符 (cmd.exe)
+    User-&gt;&gt;VM: 执行指令: OOBE\BYPASSNRO
+    VM-&gt;&gt;VM: 自动重启并重新加载 OOBE 流程
+    User-&gt;&gt;VM: 此时网络页面新增按钮：“我没有 Internet 连接” -&gt; 继续受限设置
+    VM--&gt;&gt;User: 顺利建立本地账户，进入 Windows 11 桌面
+    Note over User,VM: ⚠️ 此时桌面分辨率固定在 1024x768 且无网络
+    User-&gt;&gt;VM: 打开“此电脑”，双击已挂载的 CD 驱动器 (UTM / SPICE)
+    User-&gt;&gt;VM: 双击运行 spice-guest-tools-xxx.exe
+    VM-&gt;&gt;VM: 批量静默安装 Red Hat VirtIO 网卡、QXL 显示适配器与 SPICE Agent
+    VM--&gt;&gt;User: 屏幕瞬间自适应 Mac Retina 分辨率，网络连接成功建立！
+</code></pre>
+<h3 id="31-实操命令详解">3.1 实操命令详解</h3>
+<p>在 OOBE 欢迎界面（或提示“正在检查更新”界面），按快捷键呼出终端后，输入并回车：</p>
+<pre><code class="language-cmd">OOBE\BYPASSNRO
+</code></pre>
+<blockquote>
+<p>[!TIP]<br>
+<strong>Mac 键盘快捷键提示</strong>：如果按 <code>Shift + F10</code> 没有反应，是因为 macOS 系统将 F10 映射为了静音或多任务快捷键。此时请按住 <code>Fn</code> 键，即输入 <code>Fn + Shift + F10</code>。</p>
+</blockquote>
+<p>该命令会在 Windows 注册表 <code>HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE</code> 中将 <code>BypassNRO</code> 键值设为 <code>1</code> 并触发系统即刻重启。重启后网络检查页面底部将出现“<strong>我没有 Internet 连接</strong>”，点击即可创建纯净本地账户，彻底跳过微软强制在线账号登录。</p>
+<h3 id="32-驱动与分辨率自适应注入">3.2 驱动与分辨率自适应注入</h3>
+<p>进入桌面后，打开内置 CD 驱动器中的安装程序：</p>
+<pre><code class="language-cmd">D:\spice-guest-tools-0.164.4.exe
+</code></pre>
+<p>安装完成后无需重启，UTM 窗口的分辨率就会跟随你拉伸窗口边缘实时自适应缩放（Retina 像素级匹配），宿主机与虚拟机之间的文件拖拽与剪贴板实时互通也将即刻生效。</p>
+<hr>
+<h2 id="4-linux-进阶杀招apple-vz-rosetta-2-的跨指令集降维打击">4. Linux 进阶杀招：Apple VZ + Rosetta 2 的跨指令集降维打击</h2>
+<p>在 ARM64 Mac 上做开发，日常构建大多可以直接使用 Linux aarch64 镜像。但如果遇到必须依赖特定 x86_64 预编译二进制（如特定商用数据库客户端、闭源构建链、旧版 Android NDK 编译工具）时，通常有两条路：</p>
+<ol>
+<li><strong>全系统 QEMU x86 仿真</strong>：极其缓慢，CPU 发热剧烈；</li>
+<li><strong>Apple Virtualization + Rosetta 2 for Linux</strong>：这是苹果为开发生态打造的“降维打击”杀招。</li>
+</ol>
+<pre><code class="language-mermaid">flowchart LR
+    HostM[Apple Silicon Host] --&gt;|暴露 Rosetta 共享运行时| VirtIOFS_Rosetta[&quot;VirtioFS 共享通道 (/run/rosetta)&quot;]
+    VirtIOFS_Rosetta --&gt; GuestLinux[&quot;ARM64 Linux 虚拟机 (Kernel 5.15+)&quot;]
+
+    subgraph GuestLinuxInside[&quot;客户机内部执行流&quot;]
+        UserExec[&quot;用户运行: ./x86_64_app&quot;] --&gt; KernelCheck{&quot;Linux 内核 binfmt_misc 匹配 ELF 头？&quot;}
+        KernelCheck --&gt;|是 (x86_64 ELF)| RosettaBin[&quot;调用挂载的 /media/rosetta/rosetta 转译器&quot;]
+        KernelCheck --&gt;|否 (ARM64 ELF)| NativeCore[&quot;ARM64 物理硬件直接执行&quot;]
+        RosettaBin --&gt;|Apple JIT 极速翻译| NativeCore
+    end
+</code></pre>
+<h3 id="41-utm-配置步骤">4.1 UTM 配置步骤</h3>
+<ol>
+<li>在 UTM 中创建 Linux 虚拟机时，在“虚拟化（Virtualization）”页面勾选 <strong>“使用 Apple Virtualization”</strong>；</li>
+<li>勾选 <strong>“Enable Rosetta (x86_64 emulation)”</strong> 开关。</li>
+</ol>
+<h3 id="42-客户机内一键注册-binfmt_misc">4.2 客户机内一键注册 binfmt_misc</h3>
+<p>系统启动后，苹果会将 Rosetta 运行时挂载在专用的 VirtioFS 挂载点上。在 Ubuntu / Debian 客户机终端执行以下指令完成内核级挂载与注册：</p>
+<pre><code class="language-bash"># 1. 创建挂载目标目录
+sudo mkdir -p /media/rosetta
+
+# 2. 将宿主机 Rosetta 运行时挂载至客户机
+sudo mount -t virtiofs rosetta /media/rosetta
+
+# 3. 注册内核二进制格式解析器 (binfmt_misc)
+sudo /usr/sbin/update-binfmts --install rosetta /media/rosetta/rosetta \
+    --magic &quot;\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00&quot; \
+    --mask &quot;\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff&quot; \
+    --credentials yes --preserve no --fix-binary yes
+</code></pre>
+<p>验证测试：</p>
+<pre><code class="language-bash"># 检查是否成功注册
+ls -l /proc/sys/fs/binfmt_misc/rosetta
+
+# 现在你可以在该 ARM64 虚拟机内直接执行任何 x86_64 Linux ELF 程序或运行 amd64 Docker 镜像！
+docker run --platform linux/amd64 -it --rm alpine uname -m
+# 输出: x86_64
+</code></pre>
+<blockquote>
+<p>[!TIP]<br>
+<strong>持久化自动挂载</strong>：为了防止重启后失效，可将 <code>rosetta /media/rosetta virtiofs ro,nofail 0 0</code> 追加写入 <code>/etc/fstab</code>，并确保 <code>binfmt_misc</code> 服务随系统自启。</p>
+</blockquote>
+<hr>
+<h2 id="5-极客工作流utmctl-命令行无头编排与自动化">5. 极客工作流：<code>utmctl</code> 命令行无头编排与自动化</h2>
+<p>UTM 不仅是一个图形客户端，其安装包内嵌了一个极其强悍的原生命令行管理工具 <code>utmctl</code>。</p>
+<h3 id="51-环境初始化">5.1 环境初始化</h3>
+<p>为了在终端任何路径直接调用，首先配置软链接：</p>
+<pre><code class="language-bash">sudo ln -sf /Applications/UTM.app/Contents/MacOS/utmctl /usr/local/bin/utmctl
+</code></pre>
+<h3 id="52-核心指令速查表">5.2 核心指令速查表</h3>
+<pre><code class="language-bash"># 1. 枚举宿主机上所有已登记的虚拟机及其 UUID
+utmctl list
+
+# 输出示例:
+# 4F6E3B81-54D0-4E8B-A32B-3F49A6BC191E  Ubuntu-Server-24.04 (stopped)
+# 8A7F2D10-3C1E-4B9F-8E5A-1D2C3B4E5F6A  Windows-11-ARM      (running)
+
+# 2. 无头静默启动（不弹出任何 GUI 窗口，作为纯后台守护进程运行）
+utmctl start &quot;Ubuntu-Server-24.04&quot;
+
+# 3. 实时查询客户机网络 IP 地址 (依赖虚拟机内已安装的 Guest Agent)
+utmctl ip-address &quot;Ubuntu-Server-24.04&quot;
+
+# 4. 挂起保存状态 (Suspend to disk)
+utmctl suspend &quot;Ubuntu-Server-24.04&quot;
+
+# 5. 优雅关机 / 强制断电
+utmctl stop &quot;Ubuntu-Server-24.04&quot;
+
+# 6. 秒级完整克隆虚拟机 (快速创建干净的测试实例)
+utmctl clone &quot;Ubuntu-Server-24.04&quot; &quot;Ubuntu-Test-Bench&quot;
+</code></pre>
+<h3 id="53-自动化开发机唤醒脚本示例">5.3 自动化开发机唤醒脚本示例</h3>
+<p>利用 <code>utmctl</code> 与 SSH 的协同，可以轻松编写一键唤醒并自动连接至沙箱虚拟机的工程脚本：</p>
+<pre><code class="language-bash">#!/usr/bin/env bash
+set -euo pipefail
+
+VM_NAME=&quot;Ubuntu-Server-24.04&quot;
+SSH_USER=&quot;developer&quot;
+
+echo &quot;==&gt; 正在检查虚拟机 [${VM_NAME}] 状态...&quot;
+STATUS=$(utmctl status &quot;${VM_NAME}&quot; 2&gt;/dev/null || echo &quot;not_found&quot;)
+
+if [[ &quot;${STATUS}&quot; != &quot;started&quot; ]]; then
+    echo &quot;==&gt; 正在后台启动虚拟机...&quot;
+    utmctl start &quot;${VM_NAME}&quot;
+    echo &quot;==&gt; 等待网络与 Guest Agent 就绪...&quot;
+    
+    IP=&quot;&quot;
+    for i in {1..30}; do
+        IP=$(utmctl ip-address &quot;${VM_NAME}&quot; 2&gt;/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)
+        if [[ -n &quot;${IP}&quot; ]]; then
+            break
+        fi
+        sleep 1
+    done
+else
+    IP=$(utmctl ip-address &quot;${VM_NAME}&quot; | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+fi
+
+if [[ -z &quot;${IP}&quot; ]]; then
+    echo &quot;❌ 获取虚拟机 IP 失败，请检查 Guest Agent 是否运行。&quot;
+    exit 1
+fi
+
+echo &quot;✅ 虚拟机就绪，目标 IP: ${IP}，正在建立 SSH 连接...&quot;
+exec ssh &quot;${SSH_USER}@${IP}&quot;
+</code></pre>
+<hr>
+<h2 id="6-性能调优与硬件拓扑避坑秘籍">6. 性能调优与硬件拓扑避坑秘籍</h2>
+<p>在 Apple Silicon 统一内存（Unified Memory）架构与大小核（Performance / Efficiency Cores）拓扑下，不恰当的资源分配会导致宿主机与虚拟机出现“双重假死”。</p>
+<h3 id="61-cpu-核心拓扑黄金法则">6.1 CPU 核心拓扑黄金法则</h3>
+<blockquote>
+<p>[!WARNING]<br>
+<strong>绝对禁止给虚拟机全额分配所有 CPU 核心！</strong></p>
+<p>例如在配备 12 核（8 性能核 + 4 能效核）的 M3 Pro 上，很多用户为了追求性能，直接在 UTM 设置中分配了 12 核心。这将导致 macOS 宿主机的系统调度器、WindowServer 渲染进程以及音频引擎失去 CPU 缓冲裕量，在虚拟机编译代码或高负载时，整个 Mac 桌面会出现明显的掉帧与卡顿。</p>
+</blockquote>
+<p><strong>推荐分配公式</strong>：</p>
+<ul>
+<li><strong>最大允许分配核心数</strong> <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mo>≤</mo></mrow><annotation encoding="application/x-tex">\le</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7719400000000001em;vertical-align:-0.13597em;"></span><span class="mrel">≤</span></span></span></span> <strong>宿主机物理性能核（P-Core）数量 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">- 1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.72777em;vertical-align:-0.08333em;"></span><span class="mord">−</span><span class="mord">1</span></span></span></span></strong>；</li>
+<li>8 核 CPU（4P + 4E）：给虚拟机分配 <strong>3 ~ 4 核心</strong>；</li>
+<li>12 核 CPU（8P + 4E）：给虚拟机分配 <strong>4 ~ 6 核心</strong>；</li>
+<li>16 核 CPU（12P + 4E）：给虚拟机分配 <strong>8 核心</strong>。</li>
+</ul>
+<h3 id="62-内存配额与-apfs-稀疏存储优化">6.2 内存配额与 APFS 稀疏存储优化</h3>
+<blockquote>
+<p>[!IMPORTANT]<br>
+<strong>内存安全水位线</strong>：<br>
+虚拟机的最大内存分配绝对不要超过物理内存的 <strong>70%</strong>。在 16GB 内存机型上，建议虚拟机分配不超过 <strong>8GB</strong>；在 32GB 机型上，建议不超过 <strong>16GB ~ 20GB</strong>。一旦虚拟机分配过高触发 macOS 内存压缩与宿主机 Swap，由于虚拟机本身内存无法被压缩换出，Mac 将迅速发生严重内存颠簸（Memory Thrashing）。</p>
+</blockquote>
+<p><strong>磁盘文件存储最佳实践</strong>：</p>
+<ul>
+<li>UTM 默认将虚拟机封装为 <code>.utm</code> 包（存放在 <code>~/Library/Containers/com.utmapp.UTM/Data/Documents/</code>）。</li>
+<li>底层磁盘镜像采用 <code>qcow2</code> 或 raw 格式。由于 macOS 默认的文件系统是 <strong>APFS（Apple File System）</strong>，具备天然的 <strong>写时复制（Copy-on-Write）</strong> 特性：
+<ul>
+<li>如果你需要备份或创建测试分支，在 Finder 中对 <code>.utm</code> 执行 <code>⌘D</code> 复制，由于 APFS 共享物理 Block，复制操作将在 <strong>0.1 秒内完成</strong>，且在数据发生修改前<strong>完全不占用任何新增磁盘空间</strong>！</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2 id="7-全景横评utm-与主流-mac-虚拟化工具矩阵">7. 全景横评：UTM 与主流 Mac 虚拟化工具矩阵</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评估维度</th>
+<th style="text-align:left">UTM (开源全能)</th>
+<th style="text-align:left">Parallels Desktop 19/20</th>
+<th style="text-align:left">VMware Fusion Pro</th>
+<th style="text-align:left">OrbStack (专注容器与轻量 Linux)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>软件协议 / 费用</strong></td>
+<td style="text-align:left"><strong>完全开源免费 (Apache-2.0)</strong></td>
+<td style="text-align:left">商业闭源 (每年 ¥600+ 持续订阅)</td>
+<td style="text-align:left">商业软件 (个人免费需注册 Broadcom)</td>
+<td style="text-align:left">商业闭源 (个人免费，商业订阅)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>底层核心架构</strong></td>
+<td style="text-align:left"><strong>Apple VZ + QEMU 双引擎</strong></td>
+<td style="text-align:left">专有 Hypervisor 核心</td>
+<td style="text-align:left">专有 Hypervisor 核心</td>
+<td style="text-align:left">极简轻量 MicroVM 内核</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Windows 11 支持</strong></td>
+<td style="text-align:left">良好 (支持 SPICE 驱动，无原生 3D 加速)</td>
+<td style="text-align:left">极佳 (DirectX 11 硬件级 3D 渲染)</td>
+<td style="text-align:left">良好 (初步支持 3D 加速)</td>
+<td style="text-align:left">不支持 Windows</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>macOS 沙箱虚拟化</strong></td>
+<td style="text-align:left"><strong>支持 (通过 Apple Virtualization)</strong></td>
+<td style="text-align:left">支持</td>
+<td style="text-align:left">支持有限</td>
+<td style="text-align:left">不支持</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>古董与异构架构</strong></td>
+<td style="text-align:left"><strong>支持 30+ 种架构 (x86/PPC/RISC-V)</strong></td>
+<td style="text-align:left">仅支持 ARM64 虚拟机</td>
+<td style="text-align:left">仅支持 ARM64 虚拟机</td>
+<td style="text-align:left">仅支持 Linux (通过 Rosetta 支持 amd64)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>自动化 CLI 支持</strong></td>
+<td style="text-align:left"><strong>内置 <code>utmctl</code> (支持无头/自动化)</strong></td>
+<td style="text-align:left">内置 <code>prlctl</code></td>
+<td style="text-align:left">内置 <code>vmrun</code></td>
+<td style="text-align:left">内置 <code>orb</code> CLI (交互极其顺滑)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>隐私与遥测</strong></td>
+<td style="text-align:left"><strong>100% 本地运行，零上报</strong></td>
+<td style="text-align:left">包含用户体验改进计划与激活验证</td>
+<td style="text-align:left">需登录 Broadcom 账户与遥测</td>
+<td style="text-align:left">包含部分遥测更新检查</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="8-总结">8. 总结</h2>
+<p>在 macOS 闭源商业生态的大环境下，UTM 凭借极高的架构开放性与扎实的工程实现，为广大开发者提供了不可多得的自由空间：</p>
+<ul>
+<li>当你需要极致性能时，切换到 <strong>Apple Virtualization</strong> 引擎，配合 <strong>VirtioFS</strong> 与 <strong>Rosetta 2</strong>，在几秒内就能拉起一台轻量级 Linux 编译服务器；</li>
+<li>当你需要兼容旧世界时，切换到 <strong>QEMU</strong> 引擎，凭借几十年积累的设备模型与指令集模拟矩阵，你的 Apple Silicon Mac 能够跨越时空，唤醒从 Windows 98 到 RISC-V Linux 的任何操作系统；</li>
+<li>当你需要把虚拟机集成到自动化工作流中，<code>utmctl</code> 随时准备着提供稳健的无头控制。</li>
+</ul>
+<p>它不强制你订阅，不追踪你的隐私，把硬件虚拟化的掌控权完完整整地交还到了极客手中。</p>
+<hr>
+<blockquote>
+<p><strong>项目链接</strong>：<a href="https://github.com/utmapp/UTM">GitHub - utmapp/UTM</a><br>
+<strong>官方站点</strong>：<a href="https://mac.getutm.app/">mac.getutm.app</a><br>
+<strong>开源协议</strong>：Apache License 2.0<br>
+<strong>支持平台</strong>：macOS 11+（全量支持 Apple Silicon 与 Intel 架构）、iOS / iPadOS（UTM SE）</p>
+</blockquote>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#1-%E6%A0%B8%E5%BF%83%E6%9E%B6%E6%9E%84%E5%85%A8%E6%99%AF%E5%8F%8C%E5%BC%95%E6%93%8E%E7%9A%84%E5%88%86%E5%B7%A5%E4%B8%8E%E5%BA%95%E5%B1%82%E6%8B%93%E6%89%91">1. 核心架构全景：双引擎的分工与底层拓扑</a>
+<ul>
+<li><a href="#11-%E5%BC%95%E6%93%8E-aapple-virtualizationvz%E5%8E%9F%E7%94%9F%E7%AE%A1%E7%BA%BF">1.1 引擎 A：Apple Virtualization（<code>vz</code>）原生管线</a></li>
+<li><a href="#12-%E5%BC%95%E6%93%8E-bqemu-hvf-tcg-%E5%85%A8%E5%8A%9F%E8%83%BD%E7%9F%A9%E9%98%B5">1.2 引擎 B：QEMU HVF + TCG 全功能矩阵</a></li>
+</ul>
+</li>
+<li><a href="#2-%E9%80%89%E5%9E%8B%E6%8C%87%E5%8D%97%E4%B8%A4%E5%A4%A7%E5%BC%95%E6%93%8E%E7%9A%84%E8%83%BD%E5%8A%9B%E8%BE%B9%E7%95%8C%E4%B8%8E%E5%9C%BA%E6%99%AF%E7%9F%A9%E9%98%B5">2. 选型指南：两大引擎的能力边界与场景矩阵</a></li>
+<li><a href="#3-%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%E9%81%BF%E5%9D%91windows-11-arm64-%E6%9E%81%E9%80%9F%E8%A3%85%E6%9C%BA%E4%B8%8E%E7%BD%91%E7%BB%9C%E6%AD%BB%E9%94%81%E7%A0%B4%E8%A7%A3">3. 核心实战避坑：Windows 11 ARM64 极速装机与网络死锁破解</a>
+<ul>
+<li><a href="#31-%E5%AE%9E%E6%93%8D%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3">3.1 实操命令详解</a></li>
+<li><a href="#32-%E9%A9%B1%E5%8A%A8%E4%B8%8E%E5%88%86%E8%BE%A8%E7%8E%87%E8%87%AA%E9%80%82%E5%BA%94%E6%B3%A8%E5%85%A5">3.2 驱动与分辨率自适应注入</a></li>
+</ul>
+</li>
+<li><a href="#4-linux-%E8%BF%9B%E9%98%B6%E6%9D%80%E6%8B%9Bapple-vz-rosetta-2-%E7%9A%84%E8%B7%A8%E6%8C%87%E4%BB%A4%E9%9B%86%E9%99%8D%E7%BB%B4%E6%89%93%E5%87%BB">4. Linux 进阶杀招：Apple VZ + Rosetta 2 的跨指令集降维打击</a>
+<ul>
+<li><a href="#41-utm-%E9%85%8D%E7%BD%AE%E6%AD%A5%E9%AA%A4">4.1 UTM 配置步骤</a></li>
+<li><a href="#42-%E5%AE%A2%E6%88%B7%E6%9C%BA%E5%86%85%E4%B8%80%E9%94%AE%E6%B3%A8%E5%86%8C-binfmt_misc">4.2 客户机内一键注册 binfmt_misc</a></li>
+</ul>
+</li>
+<li><a href="#5-%E6%9E%81%E5%AE%A2%E5%B7%A5%E4%BD%9C%E6%B5%81utmctl-%E5%91%BD%E4%BB%A4%E8%A1%8C%E6%97%A0%E5%A4%B4%E7%BC%96%E6%8E%92%E4%B8%8E%E8%87%AA%E5%8A%A8%E5%8C%96">5. 极客工作流：<code>utmctl</code> 命令行无头编排与自动化</a>
+<ul>
+<li><a href="#51-%E7%8E%AF%E5%A2%83%E5%88%9D%E5%A7%8B%E5%8C%96">5.1 环境初始化</a></li>
+<li><a href="#52-%E6%A0%B8%E5%BF%83%E6%8C%87%E4%BB%A4%E9%80%9F%E6%9F%A5%E8%A1%A8">5.2 核心指令速查表</a></li>
+<li><a href="#53-%E8%87%AA%E5%8A%A8%E5%8C%96%E5%BC%80%E5%8F%91%E6%9C%BA%E5%94%A4%E9%86%92%E8%84%9A%E6%9C%AC%E7%A4%BA%E4%BE%8B">5.3 自动化开发机唤醒脚本示例</a></li>
+</ul>
+</li>
+<li><a href="#6-%E6%80%A7%E8%83%BD%E8%B0%83%E4%BC%98%E4%B8%8E%E7%A1%AC%E4%BB%B6%E6%8B%93%E6%89%91%E9%81%BF%E5%9D%91%E7%A7%98%E7%B1%8D">6. 性能调优与硬件拓扑避坑秘籍</a>
+<ul>
+<li><a href="#61-cpu-%E6%A0%B8%E5%BF%83%E6%8B%93%E6%89%91%E9%BB%84%E9%87%91%E6%B3%95%E5%88%99">6.1 CPU 核心拓扑黄金法则</a></li>
+<li><a href="#62-%E5%86%85%E5%AD%98%E9%85%8D%E9%A2%9D%E4%B8%8E-apfs-%E7%A8%80%E7%96%8F%E5%AD%98%E5%82%A8%E4%BC%98%E5%8C%96">6.2 内存配额与 APFS 稀疏存储优化</a></li>
+</ul>
+</li>
+<li><a href="#7-%E5%85%A8%E6%99%AF%E6%A8%AA%E8%AF%84utm-%E4%B8%8E%E4%B8%BB%E6%B5%81-mac-%E8%99%9A%E6%8B%9F%E5%8C%96%E5%B7%A5%E5%85%B7%E7%9F%A9%E9%98%B5">7. 全景横评：UTM 与主流 Mac 虚拟化工具矩阵</a></li>
+<li><a href="#8-%E6%80%BB%E7%BB%93">8. 总结</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/xiaohongshu-3d-cutaway-infographic-prompt-workflow/">
+              <h3 class="post-title">
+                从「把北京切开」到 DK 百科风图解：小红书百万爆款 3D 剖面图背后的视觉密码与全套分镜提示词工程
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/(--[->]\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>从 SAF 零拷贝串流到 Vulkan 分块推理：ZenConverter 纯本地多模态转换引擎工程剖析 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1789218952078">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="从 SAF 零拷贝串流到 Vulkan 分块推理：ZenConverter 纯本地多模态转换引擎工程剖析 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/zenconverter-android-local-file-converter-architecture/">
+    <meta name="description" content="在移动操作系统上处理文件格式转换，长期以来是用户体验与隐私安全的“重灾区”。打开主流应用商店搜索“格式转换”，迎面而来的是充斥着插屏广告、按周扣费订阅制，以及强制将用户本地文档和私密视频上传至远程服务器解析的云端中转工具。
+对于个人敏感合同..." />
+    <meta name="keywords" content="Kotlin,FFmpeg,深度学习,开源项目,架构设计,Rust,Android,原创" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="从 SAF 零拷贝串流到 Vulkan 分块推理：ZenConverter 纯本地多模态转换引擎工程剖析">
+    <meta property="og:description" content="在移动操作系统上处理文件格式转换，长期以来是用户体验与隐私安全的“重灾区”。打开主流应用商店搜索“格式转换”，迎面而来的是充斥着插屏广告、按周扣费订阅制，以及强制将用户本地文档和私密视频上传至远程服务器解析的云端中转工具。
+对于个人敏感合同...">
+    <meta property="og:url" content="https://lijianfei.com/post/zenconverter-android-local-file-converter-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/zenconverter-android-local-file-converter-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-09-12T05:30:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="Kotlin">
+    
+    <meta property="article:tag" content="FFmpeg">
+    
+    <meta property="article:tag" content="深度学习">
+    
+    <meta property="article:tag" content="开源项目">
+    
+    <meta property="article:tag" content="架构设计">
+    
+    <meta property="article:tag" content="Rust">
+    
+    <meta property="article:tag" content="Android">
+    
+    <meta property="article:tag" content="原创">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="从 SAF 零拷贝串流到 Vulkan 分块推理：ZenConverter 纯本地多模态转换引擎工程剖析">
+    <meta name="twitter:description" content="在移动操作系统上处理文件格式转换，长期以来是用户体验与隐私安全的“重灾区”。打开主流应用商店搜索“格式转换”，迎面而来的是充斥着插屏广告、按周扣费订阅制，以及强制将用户本地文档和私密视频上传至远程服务器解析的云端中转工具。
+对于个人敏感合同...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/zenconverter-android-local-file-converter-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "从 SAF 零拷贝串流到 Vulkan 分块推理：ZenConverter 纯本地多模态转换引擎工程剖析",
+      "description": "在移动操作系统上处理文件格式转换，长期以来是用户体验与隐私安全的“重灾区”。打开主流应用商店搜索“格式转换”，迎面而来的是充斥着插屏广告、按周扣费订阅制，以及强制将用户本地文档和私密视频上传至远程服务器解析的云端中转工具。 对于个人敏感合同...",
+      "image": "https://lijianfei.com/post-images/zenconverter-android-local-file-converter-architecture.png",
+      "datePublished": "2026-09-12T05:30:00.000Z",
+      "dateModified": "2026-09-12T05:30:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/zenconverter-android-local-file-converter-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Kotlin",
+          "item": "https://lijianfei.com/tag/kotlin/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "从 SAF 零拷贝串流到 Vulkan 分块推理：ZenConverter 纯本地多模态转换引擎工程剖析",
+          "item": "https://lijianfei.com/post/zenconverter-android-local-file-converter-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1789218952078" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              从 SAF 零拷贝串流到 Vulkan 分块推理：ZenConverter 纯本地多模态转换引擎工程剖析
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-09-12
+              </span>
+              <span>
+                18 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/kotlin/" class="post-tag">
+                  # Kotlin
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ffmpeg/" class="post-tag">
+                  # FFmpeg
+                </a>
+              
+                <a href="https://lijianfei.com/tag/shen-du-xue-xi/" class="post-tag">
+                  # 深度学习
+                </a>
+              
+                <a href="https://lijianfei.com/tag/kai-yuan-xiang-mu/" class="post-tag">
+                  # 开源项目
+                </a>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-she-ji/" class="post-tag">
+                  # 架构设计
+                </a>
+              
+                <a href="https://lijianfei.com/tag/rust/" class="post-tag">
+                  # Rust
+                </a>
+              
+                <a href="https://lijianfei.com/tag/android/" class="post-tag">
+                  # Android
+                </a>
+              
+                <a href="https://lijianfei.com/tag/original/" class="post-tag">
+                  # 原创
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/zenconverter-android-local-file-converter-architecture.png" alt="从 SAF 零拷贝串流到 Vulkan 分块推理：ZenConverter 纯本地多模态转换引擎工程剖析" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在移动操作系统上处理文件格式转换，长期以来是用户体验与隐私安全的“重灾区”。打开主流应用商店搜索“格式转换”，迎面而来的是充斥着插屏广告、按周扣费订阅制，以及<strong>强制将用户本地文档和私密视频上传至远程服务器解析</strong>的云端中转工具。</p>
+<p>对于个人敏感合同、未公开设计图纸或大体积 4K 原盘视频，这种云端中继模式不仅存在巨大的隐私泄露风险，受制于移动网络带宽，更经常因网络中断导致转换彻底失败。</p>
+<p>开源项目 <a href="https://github.com/Jasonzhu1207/ZenConverter">ZenConverter</a>（基于 AGPL-3.0 协议开源）给出了一种彻底去中心化、端侧优先的工程解法：<strong>全生命周期 100% 运行于 Android 手机本地，不设任何云端回退（No upload-based fallback），没有第三方广告与强制账号体系，仅在用户按需下载 AI 模型与 CJK 字体时按需申请网络权限</strong>。</p>
+<p>在这套极具克制的设计背后，ZenConverter 在工程层面上攻克了 Android 平台上一系列严苛的底层挑战——从 Storage Access Framework（SAF）的大文件零拷贝串流，到利用 Rust 交叉编译原生解析 Office 文档；从 Google WOFF2 的 Android 15 16KB 内存页对齐，再到利用腾讯 NCNN + Vulkan GPU 算力实现 Real-ESRGAN 超分与 RIFE 视频插帧的内存分块守护。</p>
+<p>本文将从架构设计、文件 I/O 管线、多引擎分发调度、AI 端侧推理及工程避坑等维度，深度拆解这款纯本地转换器的工业级实现细节。</p>
+<!-- more -->
+<hr>
+<h2 id="一-系统架构总览状态单向流与去耦合引擎矩阵">一、 系统架构总览：状态单向流与去耦合引擎矩阵</h2>
+<p>在 Android 客户端架构中，最常见的反模式（Anti-Pattern）是将格式转换逻辑揉杂在 ViewModel 或 Activity 的协程中。一旦遇到转码大文件或密集型计算，UI 线程极易被卡死，且极易在锁屏或退至后台时被系统的 Low Memory Killer（LMK）无情斩杀。</p>
+<p>ZenConverter 在架构设计上严格贯彻了“<strong>UI 仅描述任务与观测状态，前台服务（Foreground Service）独占生命周期，注册表（Registry）负责路由分发</strong>”的分层范式。</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph UI_Layer[&quot;UI 交互层 (Jetpack Compose)&quot;]
+        UI[&quot;Compose 响应式界面&quot;]
+        VM[&quot;TaskViewModel (StateFlow)&quot;]
+    end
+
+    subgraph Service_Layer[&quot;调度与生命周期层 (Foreground Service)&quot;]
+        Queue[&quot;任务队列 (Task Queue)&quot;]
+        Service[&quot;ConversionService (前台常驻守护)&quot;]
+        SAF[&quot;SAF 流式句柄 (/proc/self/fd)&quot;]
+    end
+
+    subgraph Registry_Layer[&quot;引擎路由层 (ConversionRegistry)&quot;]
+        Router{&quot;TargetId &amp; MIME 路由&quot;}
+    end
+
+    subgraph Engine_Matrix[&quot;异构多引擎矩阵 (Engine Matrix)&quot;]
+        E_FFmpeg[&quot;FFmpegKit-Next (arm64-v8a)&lt;br/&gt;音视频/GIF/字幕重编码&quot;]
+        E_Rust[&quot;Rust office2pdf (libzen_office2pdf.so)&lt;br/&gt;DOCX/PPTX/XLSX 原生排版渲染&quot;]
+        E_NCNN[&quot;Tencent NCNN + Vulkan (libzen_ncnn.so)&lt;br/&gt;Real-ESRGAN 超分 / RIFE 插帧&quot;]
+        E_Native[&quot;Android Platform Native&lt;br/&gt;Bitmap / PdfRenderer / PdfBox&quot;]
+        E_Font[&quot;Google woff2 / Kotlin zlib&lt;br/&gt;TTF / OTF / WOFF / WOFF2 容器互转&quot;]
+        E_Sub[&quot;Pure Kotlin Codec&lt;br/&gt;LRC 歌词多时间戳与编码探测&quot;]
+    end
+
+    UI --&gt;|用户选参与排队| VM
+    VM --&gt;|入队任务| Queue
+    Queue --&gt;|挂起协程调度| Service
+    Service --&gt;|获取内核文件描述符| SAF
+    Service --&gt;|分发任务请求| Router
+    Router --&gt; E_FFmpeg
+    Router --&gt; E_Rust
+    Router --&gt; E_NCNN
+    Router --&gt; E_Native
+    Router --&gt; E_Font
+    Router --&gt; E_Sub
+</code></pre>
+<h3 id="1-任务流转的确定性与可观测性">1. 任务流转的确定性与可观测性</h3>
+<p>UI 侧通过 <code>ConversionRequest</code> 数据类携带源文件 URI、目标 MIME、目标格式 <code>TargetId</code> 及转换专属选项（如音频比特率、CRF 预设、超分模型倍率等）。</p>
+<p><code>ConversionService</code> 继承自 Android 原生 <code>Service</code>，并在任务启动时立刻调用 <code>startForeground</code> 绑定带有实时进度百分比的常驻通知栏。这保证了哪怕转码长达半小时的 4K 视频，进程也能获得最高优先级的保活凭据。</p>
+<h3 id="2-引擎路由的开闭原则">2. 引擎路由的开闭原则</h3>
+<p><code>ConversionRegistry</code> 统一维护了一组实现了 <code>ConversionEngine</code> 接口的执行器列表。当任务到达时，路由层通过 <code>canHandle(request)</code> 进行模式匹配：</p>
+<pre><code class="language-kotlin">class ConversionRegistry(
+    private val engines: List&lt;ConversionEngine&gt;
+) {
+    fun engineFor(request: ConversionRequest): ConversionEngine {
+        return engines.firstOrNull { it.canHandle(request) }
+            ?: throw LocalizedFailure(
+                localizedText(R.string.message_no_conversion_engine_registered_for_1_s, request.targetFormat)
+            )
+    }
+}
+</code></pre>
+<p>每个引擎只关心自身擅长的领域，例如纯图片格式走平台轻量级 <code>Bitmap.compress</code>，多页矢量 PDF 合并走 <code>PDFBox-Android</code>，而高负荷多媒体与复杂滤镜则交由专职的 <code>FFmpeg</code> 管道。</p>
+<hr>
+<h2 id="二-突破-saf-性能枷锁基于-procselffd-的零拷贝串流">二、 突破 SAF 性能枷锁：基于 <code>/proc/self/fd</code> 的零拷贝串流</h2>
+<p>自从 Android 10 强制推行分区存储（Scoped Storage）以及 Android 11+ 全面收紧 Storage Access Framework（SAF）权限后，第三方跨平台 C/C++ 库处理本地文件成为了著名的“痛点”。</p>
+<h3 id="1-传统应用的高危反模式全量缓存落盘">1. 传统应用的高危反模式：全量缓存落盘</h3>
+<p>常规开源或商业转换器在面对 <code>content://</code> 协议的 URI 时，通行的做法往往是直接通过 <code>ContentResolver.openInputStream(uri)</code> 将整个文件全量拷贝到应用私有的 <code>context.cacheDir</code> 中，再把私有缓存路径传给 FFmpeg 命令行：</p>
+<pre><code class="language-text">[用户选取 4GB 4K 视频] 
+    ---&gt; [耗时 30 秒拷贝到 cacheDir] 
+    ---&gt; [磁盘 I/O 写入 4GB，闪存寿命损耗] 
+    ---&gt; [磁盘可用空间骤降 4GB，极易抛出 ENOSPC 崩溃] 
+    ---&gt; [FFmpeg 开始处理]
+</code></pre>
+<p>这种做法不仅带来双倍的磁盘 I/O 损耗与转换延迟，更会在用户设备存储紧张时直接触发崩溃。</p>
+<h3 id="2-zenconverter-的破局linux-内核虚拟文件系统串流">2. ZenConverter 的破局：Linux 内核虚拟文件系统串流</h3>
+<p>ZenConverter 在 I/O 链路上做到了彻底的<strong>零中间缓存直读</strong>。Android 的 <code>ContentResolver</code> 可以通过底层 IPC 向文档提供者请求一个只读的 <code>ParcelFileDescriptor</code>（PFD）。一旦拿到系统内核分配的文件描述符 <code>fd</code>，即可通过 Linux 特有的虚拟文件系统路径直通本地 C/C++ 运行库：</p>
+<pre><code class="language-kotlin">// ConversionService.kt 中的直通文件描述符实现
+private fun openInputDescriptor(uri: Uri): ParcelFileDescriptor? {
+    return runCatching {
+        contentResolver.openFileDescriptor(uri, &quot;r&quot;)
+    }.getOrNull()
+}
+
+val inputDescriptor = openInputDescriptor(uri)
+val ffmpegSource = FfmpegInputSource(
+    label = &quot;fd&quot;,
+    path = &quot;/proc/self/fd/${inputDescriptor.fd}&quot;,
+    descriptor = inputDescriptor
+)
+</code></pre>
+<p>在处理大视频、大音频重编码时，FFmpeg 的 C 库直接通过 <code>/proc/self/fd/&lt;fd&gt;</code> 进行定位（Seek）与流式读取，无需在 App 内部占用任何额外物理磁盘空间。只有在遇到某些不支持随机定位的特殊云盘 Provider 时，系统才会优雅降级到 <code>SafeCache</code> 兜底方案。</p>
+<hr>
+<h2 id="三-异构多引擎拆解从-rust-office-到-16kb-页对齐-woff2">三、 异构多引擎拆解：从 Rust Office 到 16KB 页对齐 WOFF2</h2>
+<p>ZenConverter 最具技术含量的部分，在于其没有盲目把所有事情都塞给一个臃肿庞大的库，而是针对不同数据结构精心构建了专项引擎矩阵。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">模块类别</th>
+<th style="text-align:left">驱动引擎</th>
+<th style="text-align:left">核心技术栈</th>
+<th style="text-align:left">架构亮点与约束</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>音视频与多媒体</strong></td>
+<td style="text-align:left">FFmpegKit-Next</td>
+<td style="text-align:left">自编译 FFmpeg v7.1.0 (arm64)</td>
+<td style="text-align:left">强制真实重编码，支持 CRF 视觉压缩预设与网格视频缩略图（Contact Sheet）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>文档与表格</strong></td>
+<td style="text-align:left">Rust office2pdf</td>
+<td style="text-align:left">Rust cdylib + Noto CJK</td>
+<td style="text-align:left">无需远程中继，纯端侧将 DOCX/PPTX/XLSX 解析为 PDF/MD</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>矢量与 PDF 工具</strong></td>
+<td style="text-align:left">PDFBox-Android</td>
+<td style="text-align:left">Java / BouncyCastle</td>
+<td style="text-align:left">对象级矢量 PDF 合并、选择性文本抽取、流式密码加解密</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>字体编解码</strong></td>
+<td style="text-align:left">Google woff2 / Kotlin</td>
+<td style="text-align:left">C++ 16KB 页对齐 / 纯 Kotlin zlib</td>
+<td style="text-align:left">TTF/OTF 与 WOFF/WOFF2 容器双向无损互转，自动识别 SFNT 字形轮廓</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>端侧 AI 视觉</strong></td>
+<td style="text-align:left">Tencent NCNN</td>
+<td style="text-align:left">Vulkan GPU Compute</td>
+<td style="text-align:left">Real-ESRGAN 4x 超分辨率（分块推理）与 RIFE 2x 视频光流插帧</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>元数据隐私保护</strong></td>
+<td style="text-align:left">Native Metadata</td>
+<td style="text-align:left">二进制 APP 标记扫描器</td>
+<td style="text-align:left">JPEG 无损剔除 EXIF 隐私，支持原位备份与回滚</td>
+</tr>
+</tbody>
+</table>
+<h3 id="1-rust-跨编译直驱原生-office-离线排版">1. Rust 跨编译直驱：原生 Office 离线排版</h3>
+<p>在 Android 上离线转换微软 Office 文档向来是一大禁区——要么集成数十兆体积的 LibreOffice 移植版导致体积失控，要么妥协为上传云端接口。</p>
+<p>ZenConverter 引入了轻量级 Rust 方案 <a href="https://github.com/developer0hye/office2pdf">office2pdf</a>，将其编译为精简的动态链接库 <code>libzen_office2pdf.so</code>（体积仅数兆），并通过 JNI 接口直接桥接：</p>
+<pre><code class="language-rust">// native/office2pdf-jni/Cargo.toml
+[lib]
+name = &quot;zen_office2pdf&quot;
+crate-type = [&quot;cdylib&quot;]
+
+[dependencies]
+jni = &quot;=0.21.1&quot;
+office2pdf = { git = &quot;https://github.com/developer0hye/office2pdf.git&quot;, rev = &quot;e01828a5...&quot; }
+
+[profile.release]
+opt-level = &quot;z&quot;
+lto = true
+codegen-units = 1
+strip = true
+</code></pre>
+<p>为了解决移动端排版中文时常见的方块乱码（“豆腐块”），ZenConverter 并没有在 APK 中强行打包上百兆的中文字体包，而是设计了一套精妙的<strong>按需字体供给管线</strong>：</p>
+<ol>
+<li>优先扫描探测 Android 系统的 CJK 字体目录；</li>
+<li>提供可选的按需下载通道，将 Google Noto Sans / Serif CJK 字体存入 App 私有目录；</li>
+<li>将字体目录作为入参显式注入 Rust JNI 入口，在 64MB 内存安全阈值内完成离线向量渲染并输出标准 PDF。</li>
+</ol>
+<h3 id="2-android-15-兼容性防线16kb-内存页对齐实战">2. Android 15 兼容性防线：16KB 内存页对齐实战</h3>
+<p>从 Android 15 开始，Google 正式在底层内核中推进 16 KB 内存页大小（Page Size）支持，以提升系统整体运行效能。然而，这一变革导致数以万计依赖 4 KB 页大小编译的传统 NDK 动态库（.so）直接抛出 <code>ELF segment not aligned to 16384</code> 致命崩溃。</p>
+<p>ZenConverter 在其所有的 C++ 与 Rust 编译构建脚本中，全部前瞻性地配置了强制 16KB 页对齐：</p>
+<pre><code class="language-cmake"># native/ncnn-jni/CMakeLists.txt
+# Android 15+ requires 16 KB page-aligned ELF LOAD segments
+target_link_options(zen_ncnn PRIVATE &quot;LINKER:-z,max-page-size=16384&quot;)
+</code></pre>
+<p>同时，项目在 <code>native/woff2-jni/check-16kb-alignment.py</code> 中内置了自动化的 ELF 检验脚本，在 CI 构建阶段通过 Python 解析 ELF Program Header，确保每一个 <code>PT_LOAD</code> 段的 <code>p_align &gt;= 0x4000</code>，彻底阻断上线后的隐性崩溃。</p>
+<h3 id="3-woff-10-的纯-kotlin-极简实现">3. WOFF 1.0 的纯 Kotlin 极简实现</h3>
+<p>在字体转换模块中，不同于 WOFF2 依赖复杂的 Brotli 熵编码而采用 Google 原生 C++ 库，WOFF 1.0 的规范本质上是对 SFNT（TrueType / OpenType）的表目录（Table Directory）进行按表（Table-by-table）的 zlib 压缩。</p>
+<p>ZenConverter 的作者没有引入任何冗余的 C 库，而是仅用 200 行纯 Kotlin 代码（<code>WoffCodec.kt</code>），借助 Java 原生 <code>java.util.zip.Deflater</code> 与 <code>Inflater</code> 完成了 WOFF 1.0 的全功能解析与封包。在读取 SFNT 标头时，代码自动探查 <code>0x774F4646</code> 签名与四字节 Tag：若轮廓表包含 <code>glyf</code> 则精准输出 <code>.ttf</code>，若包含 <code>CFF </code> 则自动赋名 <code>.otf</code>，极为优雅。</p>
+<hr>
+<h2 id="四-移动端-gpu-算力压榨ncnn-vulkan-分块超分与光流插帧">四、 移动端 GPU 算力压榨：NCNN Vulkan 分块超分与光流插帧</h2>
+<p>在手机端运行深度学习视觉模型（如 Real-ESRGAN 和 RIFE），开发者面临的最大敌人不是算力不足，而是<strong>极其脆弱的移动端 GPU 显存与碎片化驱动</strong>。</p>
+<p>若直接将一张 1080p 的图片送入 Real-ESRGAN 的深度残差网络（RRDBNet）中进行整图前向推理，中间层特征图（Feature Maps）将瞬间吞噬超过 2GB 的临时显存，在 Qualcomm Adreno 或 ARM Mali 上会立刻引发 <code>VK_ERROR_OUT_OF_DEVICE_MEMORY</code>，甚至导致 Android 系统界面重启。</p>
+<h3 id="1-real-esrgan-的-200200-分块推理算法">1. Real-ESRGAN 的 200×200 分块推理算法</h3>
+<p>ZenConverter 选用腾讯优化的 <a href="https://github.com/Tencent/ncnn">ncnn</a> 神经网络推理框架，通过 Vulkan Compute 直接调用移动 GPU，并设计了严密的分块（Tiling）算法：</p>
+<pre><code class="language-mermaid">flowchart TD
+    Raw[&quot;输入高清原图 (例如 1920×1080)&quot;]
+    TileSplit[&quot;切块分割器: 200×200 Tile + 10px 边缘外扩 Padding&quot;]
+    
+    subgraph GPU_Infer[&quot;Vulkan Compute 并行/串行管道&quot;]
+        T1[&quot;Tile (0,0) 推理&quot;]
+        T2[&quot;Tile (0,1) 推理&quot;]
+        Tn[&quot;Tile (x,y) 推理...&quot;]
+    end
+    
+    Progress[&quot;逐块回调: onTileProgress(pct)&lt;br/&gt;支持 isCancelled() 毫秒级打断&quot;]
+    Crop[&quot;剔除 Padding 边缘伪影 (Seamless Crop)&quot;]
+    Assemble[&quot;4× 放大画布拼接 (4× Output Bitmap)&quot;]
+
+    Raw --&gt; TileSplit
+    TileSplit --&gt; T1 &amp; T2 &amp; Tn
+    T1 &amp; T2 &amp; Tn -.-&gt; Progress
+    T1 &amp; T2 &amp; Tn --&gt; Crop
+    Crop --&gt; Assemble
+</code></pre>
+<p>在 C++ JNI 层（<code>zen_ncnn_jni.cpp</code>），图片被切割为固定尺寸（默认 200×200）的小块，并附加 10 像素的边缘 Padding 以消除卷积边界效应。每完成一个小块推理，不仅立即释放临时张量，还会向 Kotlin 协程触发进度回调：</p>
+<pre><code class="language-kotlin">// RealEsrganUpscaler.kt
+val result = NcnnNative.nativeRealEsrganUpscale(
+    srcBitmap = inferenceBitmap,
+    dstBitmap = outputBitmap,
+    paramPath = paramPath,
+    binPath = binPath,
+    scale = 4,
+    tileSize = 200,
+    tilePad = 10,
+    gpuIndex = gpuIndex,
+    progressCallback = { progress -&gt; onTileProgress(progress) },
+    cancelCheck = { isCancelled() }
+)
+</code></pre>
+<p>这种机制带来了三大决定性优势：</p>
+<ol>
+<li><strong>显存封顶</strong>：无论输入图片尺寸是 720p 还是 4K，GPU 显存占用恒定维持在安全阈值（数十兆）内；</li>
+<li><strong>平滑的进度反馈</strong>：Jetpack Compose 界面可以展示丝滑的平滑进度条；</li>
+<li><strong>即时打断能力</strong>：用户在转换中途点击“取消”，下一次分块前即可瞬间退出，避免后台无意义耗电发热。</li>
+</ol>
+<h3 id="2-rife-2-光流视频插帧管线">2. RIFE 2× 光流视频插帧管线</h3>
+<p>对于视频插帧，ZenConverter 实现了移动端极罕见的 RIFE（Real-Time Intermediate Flow Estimation）深度学习光流网络整合：</p>
+<ul>
+<li><strong>解码解耦</strong>：通过 FFmpegKit 将源视频解码为原始 RGBA 帧流；</li>
+<li><strong>滑动窗口推理</strong>：RIFE 引擎维护一个滑动窗口，输入连续的两帧图像（帧 N 与 帧 N+1），利用 Vulkan 计算着色器（Compute Shader）推断双向光流场并融合生成中间帧（帧 N.5）；</li>
+<li><strong>动态降级策略</strong>：移动设备芯片体质差异极大，针对 1080p 及以上高分辨率输入，系统自动启用自适应降采样光流估计与轻量内存回收模式（Lightmode），兼顾画质与设备稳定性；</li>
+<li><strong>重编码封装</strong>：通过 FFmpeg 的 <code>libx264</code> 采用 CRF 18 高码率高质量编码器将插帧后的 2× 帧率流与原始音频流合流输出。</li>
+</ul>
+<hr>
+<h2 id="五-极致细节控jpeg-原位字节级脱敏与-lrc-歌词容错">五、 极致细节控：JPEG 原位字节级脱敏与 LRC 歌词容错</h2>
+<p>真正体现一款开源作品工业化成熟度的，往往不是宏大的架构名词，而是处理边角料需求时的严谨度。</p>
+<h3 id="1-jpeg-exif-隐私原位剔除拒绝有损二次重压">1. JPEG EXIF 隐私原位剔除：拒绝有损二次重压</h3>
+<p>很多所谓的“图片脱敏”工具，其底层实现极其粗暴：将图片用 <code>BitmapFactory.decodeStream</code> 载入内存，抹去 EXIF 后再用 <code>bitmap.compress(JPEG, 100)</code> 存盘。</p>
+<p>这种做法极其业余——JPEG 作为有损压缩算法，任何一次重新编码都会带来二次离散余弦变换（DCT）量化失真，导致图像细节劣化、体积膨胀。</p>
+<p>ZenConverter 的元数据工具（<code>MetadataPrivacyManager.kt</code>）直接下潜到 JPEG 二进制文件头进行<strong>流式段扫描</strong>（Marker Scanning）：</p>
+<pre><code class="language-kotlin">// 扫描 JPEG 二进制 Marker，精准剔除 APP 段
+private fun removableKind(marker: Int, payload: ByteArray): JpegMetadataSegmentKind? {
+    return when (marker) {
+        0xE1 -&gt; { // APP1 Marker (Exif / XMP)
+            if (payload.startsWithAscii(&quot;Exif\u0000\u0000&quot;)) JpegMetadataSegmentKind.Exif
+            else if (payload.startsWithAscii(&quot;http://ns.adobe.com/xap/1.0/&quot;)) JpegMetadataSegmentKind.Xmp
+            else null
+        }
+        0xE2 -&gt; { // APP2 Marker (FlashPix / ICC Profile)
+            if (payload.startsWithAscii(&quot;FPX_OFFSET\u0000&quot;)) JpegMetadataSegmentKind.FlashPix
+            else null
+        }
+        else -&gt; null
+    }
+}
+</code></pre>
+<p>它在字节流层面上精准将 <code>0xFFE1</code>（APP1/Exif/XMP）、<code>0xFFE2</code> 等非必要段滤除，而对包含核心图像编码的 <code>0xFFDA</code>（SOS 扫描起始）及后续熵编码数据做到<strong>一字节不差的原样转存</strong>。更惊艳的是，被剥离的元数据段会被备份在 App 沙箱中，支持用户一键“原位无损恢复”。</p>
+<h3 id="2-lrc-歌词解析的工业级编码容错">2. LRC 歌词解析的工业级编码容错</h3>
+<p>在字幕与歌词模块中，国内用户经常遇到老旧 MP3 配套的 <code>.lrc</code> 歌词文件在现代 App 中显示为乱码。原因在于早期的中文歌词大量采用 Windows 默认的 <code>GBK / GB18030</code> 编码，而非标准的 UTF-8。</p>
+<p>ZenConverter 在解码字幕文本时实现了一套自动探测机制：</p>
+<pre><code class="language-kotlin">// 优先尝试严格 UTF-8，遇错无缝回退 GB18030
+try {
+    val utf8Decoder = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+    utf8Decoder.decode(ByteBuffer.wrap(bytes)).toString()
+} catch (e: CharacterCodingException) {
+    // 自动回滚到 GB18030，完美覆盖中文遗留歌词
+    Charset.forName(&quot;GB18030&quot;).decode(ByteBuffer.wrap(bytes)).toString()
+}
+</code></pre>
+<p>同时，Kotlin 实现的解析器原生支持一行多时间戳标记（如 <code>[01:12.30][02:45.10]歌词内容</code>）与 <code>[offset:+500]</code> 整体时间微调标签，将解析出的时间轴自动桥接给 FFmpeg 转换为 SRT 或 ASS 格式。</p>
+<hr>
+<h2 id="六-架构启示与工程权衡">六、 架构启示与工程权衡</h2>
+<p>回顾 ZenConverter 的整体演进历程，可以提炼出三条对现代移动开发极具参考价值的工程准则：</p>
+<h3 id="1-明确能力边界诚实胜过虚标">1. 明确能力边界，诚实胜过虚标</h3>
+<p>在软件工程中，“支持全部格式”往往意味着“哪种格式都可能暗藏暗坑”。ZenConverter 在其公开的 <a href="https://github.com/Jasonzhu1207/ZenConverter/blob/main/formats/support-matrix.md">Support Matrix</a> 中清晰标明了每项特性的成熟度等级（<code>Stable</code>、<code>Beta</code>、<code>Experimental</code>），并诚实写出限制条件（如 Office 复杂排版可能跑偏、HEIC 依赖设备硬件解码器、视频倒放严格限制在 60 秒以内以防内存溢出）。</p>
+<h3 id="2-避免盲目依赖硬件加速hardware-fallback-trap">2. 避免盲目依赖硬件加速（Hardware Fallback Trap）</h3>
+<p>在项目早期的 Phase 2 阶段，团队曾尝试使用 Android 原生硬件编解码 API（MediaCodec）来实现 4K 视频加速。然而在物理真机实测中发现：不同芯片厂商（高通、联发科、三星 Exynos）对色彩空间、Profile 级别、B 帧控制的实现千差万别；一旦在内部搞“硬件失败自动切换软解”的隐式回退逻辑，用户选定的 CRF 码率、高级音频滤镜就会产生不可预期的状态漂移。</p>
+<p>ZenConverter 最终果断放弃了黑盒式的硬件自动切换，将所有核心媒体管线收敛到行为高度一致的自编译 FFmpeg 上，用极高的稳定性换取了逻辑的可预测性。</p>
+<h3 id="3-隐私保护不是口号而是代码层面的零外溢">3. 隐私保护不是口号，而是代码层面的零外溢</h3>
+<p>在这个以“云端大模型中转”、“端侧上报遥测”为荣的年代，ZenConverter 用实际代码证明了：<strong>充分挖掘移动端硬件的多核 CPU、NEON 指令集、Vulkan GPU 与 Linux 内核机制，完全足以在纯本地构建一个专业级、高可用的多模态文件转换工作站</strong>。</p>
+<hr>
+<p><em>项目仓库：<a href="https://github.com/Jasonzhu1207/ZenConverter">GitHub - Jasonzhu1207/ZenConverter</a></em><br>
+<em>开源协议：GNU Affero General Public License v3.0 (AGPL-3.0)</em></p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-%E7%B3%BB%E7%BB%9F%E6%9E%B6%E6%9E%84%E6%80%BB%E8%A7%88%E7%8A%B6%E6%80%81%E5%8D%95%E5%90%91%E6%B5%81%E4%B8%8E%E5%8E%BB%E8%80%A6%E5%90%88%E5%BC%95%E6%93%8E%E7%9F%A9%E9%98%B5">一、 系统架构总览：状态单向流与去耦合引擎矩阵</a>
+<ul>
+<li><a href="#1-%E4%BB%BB%E5%8A%A1%E6%B5%81%E8%BD%AC%E7%9A%84%E7%A1%AE%E5%AE%9A%E6%80%A7%E4%B8%8E%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7">1. 任务流转的确定性与可观测性</a></li>
+<li><a href="#2-%E5%BC%95%E6%93%8E%E8%B7%AF%E7%94%B1%E7%9A%84%E5%BC%80%E9%97%AD%E5%8E%9F%E5%88%99">2. 引擎路由的开闭原则</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%8C-%E7%AA%81%E7%A0%B4-saf-%E6%80%A7%E8%83%BD%E6%9E%B7%E9%94%81%E5%9F%BA%E4%BA%8E-procselffd-%E7%9A%84%E9%9B%B6%E6%8B%B7%E8%B4%9D%E4%B8%B2%E6%B5%81">二、 突破 SAF 性能枷锁：基于 <code>/proc/self/fd</code> 的零拷贝串流</a>
+<ul>
+<li><a href="#1-%E4%BC%A0%E7%BB%9F%E5%BA%94%E7%94%A8%E7%9A%84%E9%AB%98%E5%8D%B1%E5%8F%8D%E6%A8%A1%E5%BC%8F%E5%85%A8%E9%87%8F%E7%BC%93%E5%AD%98%E8%90%BD%E7%9B%98">1. 传统应用的高危反模式：全量缓存落盘</a></li>
+<li><a href="#2-zenconverter-%E7%9A%84%E7%A0%B4%E5%B1%80linux-%E5%86%85%E6%A0%B8%E8%99%9A%E6%8B%9F%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%B8%B2%E6%B5%81">2. ZenConverter 的破局：Linux 内核虚拟文件系统串流</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-%E5%BC%82%E6%9E%84%E5%A4%9A%E5%BC%95%E6%93%8E%E6%8B%86%E8%A7%A3%E4%BB%8E-rust-office-%E5%88%B0-16kb-%E9%A1%B5%E5%AF%B9%E9%BD%90-woff2">三、 异构多引擎拆解：从 Rust Office 到 16KB 页对齐 WOFF2</a>
+<ul>
+<li><a href="#1-rust-%E8%B7%A8%E7%BC%96%E8%AF%91%E7%9B%B4%E9%A9%B1%E5%8E%9F%E7%94%9F-office-%E7%A6%BB%E7%BA%BF%E6%8E%92%E7%89%88">1. Rust 跨编译直驱：原生 Office 离线排版</a></li>
+<li><a href="#2-android-15-%E5%85%BC%E5%AE%B9%E6%80%A7%E9%98%B2%E7%BA%BF16kb-%E5%86%85%E5%AD%98%E9%A1%B5%E5%AF%B9%E9%BD%90%E5%AE%9E%E6%88%98">2. Android 15 兼容性防线：16KB 内存页对齐实战</a></li>
+<li><a href="#3-woff-10-%E7%9A%84%E7%BA%AF-kotlin-%E6%9E%81%E7%AE%80%E5%AE%9E%E7%8E%B0">3. WOFF 1.0 的纯 Kotlin 极简实现</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E7%A7%BB%E5%8A%A8%E7%AB%AF-gpu-%E7%AE%97%E5%8A%9B%E5%8E%8B%E6%A6%A8ncnn-vulkan-%E5%88%86%E5%9D%97%E8%B6%85%E5%88%86%E4%B8%8E%E5%85%89%E6%B5%81%E6%8F%92%E5%B8%A7">四、 移动端 GPU 算力压榨：NCNN Vulkan 分块超分与光流插帧</a>
+<ul>
+<li><a href="#1-real-esrgan-%E7%9A%84-200200-%E5%88%86%E5%9D%97%E6%8E%A8%E7%90%86%E7%AE%97%E6%B3%95">1. Real-ESRGAN 的 200×200 分块推理算法</a></li>
+<li><a href="#2-rife-2-%E5%85%89%E6%B5%81%E8%A7%86%E9%A2%91%E6%8F%92%E5%B8%A7%E7%AE%A1%E7%BA%BF">2. RIFE 2× 光流视频插帧管线</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%94-%E6%9E%81%E8%87%B4%E7%BB%86%E8%8A%82%E6%8E%A7jpeg-%E5%8E%9F%E4%BD%8D%E5%AD%97%E8%8A%82%E7%BA%A7%E8%84%B1%E6%95%8F%E4%B8%8E-lrc-%E6%AD%8C%E8%AF%8D%E5%AE%B9%E9%94%99">五、 极致细节控：JPEG 原位字节级脱敏与 LRC 歌词容错</a>
+<ul>
+<li><a href="#1-jpeg-exif-%E9%9A%90%E7%A7%81%E5%8E%9F%E4%BD%8D%E5%89%94%E9%99%A4%E6%8B%92%E7%BB%9D%E6%9C%89%E6%8D%9F%E4%BA%8C%E6%AC%A1%E9%87%8D%E5%8E%8B">1. JPEG EXIF 隐私原位剔除：拒绝有损二次重压</a></li>
+<li><a href="#2-lrc-%E6%AD%8C%E8%AF%8D%E8%A7%A3%E6%9E%90%E7%9A%84%E5%B7%A5%E4%B8%9A%E7%BA%A7%E7%BC%96%E7%A0%81%E5%AE%B9%E9%94%99">2. LRC 歌词解析的工业级编码容错</a></li>
+</ul>
+</li>
+<li><a href="#%E5%85%AD-%E6%9E%B6%E6%9E%84%E5%90%AF%E7%A4%BA%E4%B8%8E%E5%B7%A5%E7%A8%8B%E6%9D%83%E8%A1%A1">六、 架构启示与工程权衡</a>
+<ul>
+<li><a href="#1-%E6%98%8E%E7%A1%AE%E8%83%BD%E5%8A%9B%E8%BE%B9%E7%95%8C%E8%AF%9A%E5%AE%9E%E8%83%9C%E8%BF%87%E8%99%9A%E6%A0%87">1. 明确能力边界，诚实胜过虚标</a></li>
+<li><a href="#2-%E9%81%BF%E5%85%8D%E7%9B%B2%E7%9B%AE%E4%BE%9D%E8%B5%96%E7%A1%AC%E4%BB%B6%E5%8A%A0%E9%80%9Fhardware-fallback-trap">2. 避免盲目依赖硬件加速（Hardware Fallback Trap）</a></li>
+<li><a href="#3-%E9%9A%90%E7%A7%81%E4%BF%9D%E6%8A%A4%E4%B8%8D%E6%98%AF%E5%8F%A3%E5%8F%B7%E8%80%8C%E6%98%AF%E4%BB%A3%E7%A0%81%E5%B1%82%E9%9D%A2%E7%9A%84%E9%9B%B6%E5%A4%96%E6%BA%A2">3. 隐私保护不是口号，而是代码层面的零外溢</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/screenshot-studio-open-source-mockup-webcodecs-pipeline/">
+              <h3 class="post-title">
+                把 Figma 与付费截图工具装进浏览器：Screenshot Studio 纯端侧渲染、3D 透视与 WebCodecs 视频管线解析
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/(--[->]\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
