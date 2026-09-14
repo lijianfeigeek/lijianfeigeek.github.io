@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>重塑开源统一身份中枢：authentik 的 Flow-Stage 状态机、Rust 高性能代理核与分布式 Outpost 深度实践 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1789384184918">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="重塑开源统一身份中枢：authentik 的 Flow-Stage 状态机、Rust 高性能代理核与分布式 Outpost 深度实践 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/authentik-identity-provider-flows-rust-outpost-architecture/">
+    <meta name="description" content="在当今企业内部 IT 基础设施与极客私有云集群中，身份与访问管理（IAM / IdP）正面临着前所未有的割裂。现代微服务和云原生 SaaS 普遍推崇 OAuth 2.0 与 OpenID Connect（OIDC），企业级传统软件要求 SA..." />
+    <meta name="keywords" content="身份认证,Zero Trust,DevOps,开源项目,架构设计,Rust" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="重塑开源统一身份中枢：authentik 的 Flow-Stage 状态机、Rust 高性能代理核与分布式 Outpost 深度实践">
+    <meta property="og:description" content="在当今企业内部 IT 基础设施与极客私有云集群中，身份与访问管理（IAM / IdP）正面临着前所未有的割裂。现代微服务和云原生 SaaS 普遍推崇 OAuth 2.0 与 OpenID Connect（OIDC），企业级传统软件要求 SA...">
+    <meta property="og:url" content="https://lijianfei.com/post/authentik-identity-provider-flows-rust-outpost-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/authentik-identity-provider-flows-rust-outpost-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-09-14T03:20:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="身份认证">
+    
+    <meta property="article:tag" content="Zero Trust">
+    
+    <meta property="article:tag" content="DevOps">
+    
+    <meta property="article:tag" content="开源项目">
+    
+    <meta property="article:tag" content="架构设计">
+    
+    <meta property="article:tag" content="Rust">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="重塑开源统一身份中枢：authentik 的 Flow-Stage 状态机、Rust 高性能代理核与分布式 Outpost 深度实践">
+    <meta name="twitter:description" content="在当今企业内部 IT 基础设施与极客私有云集群中，身份与访问管理（IAM / IdP）正面临着前所未有的割裂。现代微服务和云原生 SaaS 普遍推崇 OAuth 2.0 与 OpenID Connect（OIDC），企业级传统软件要求 SA...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/authentik-identity-provider-flows-rust-outpost-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "重塑开源统一身份中枢：authentik 的 Flow-Stage 状态机、Rust 高性能代理核与分布式 Outpost 深度实践",
+      "description": "在当今企业内部 IT 基础设施与极客私有云集群中，身份与访问管理（IAM / IdP）正面临着前所未有的割裂。现代微服务和云原生 SaaS 普遍推崇 OAuth 2.0 与 OpenID Connect（OIDC），企业级传统软件要求 SA...",
+      "image": "https://lijianfei.com/post-images/authentik-identity-provider-flows-rust-outpost-architecture.png",
+      "datePublished": "2026-09-14T03:20:00.000Z",
+      "dateModified": "2026-09-14T03:20:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/authentik-identity-provider-flows-rust-outpost-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "身份认证",
+          "item": "https://lijianfei.com/tag/shen-fen-ren-zheng/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "重塑开源统一身份中枢：authentik 的 Flow-Stage 状态机、Rust 高性能代理核与分布式 Outpost 深度实践",
+          "item": "https://lijianfei.com/post/authentik-identity-provider-flows-rust-outpost-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1789384184918" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              重塑开源统一身份中枢：authentik 的 Flow-Stage 状态机、Rust 高性能代理核与分布式 Outpost 深度实践
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-09-14
+              </span>
+              <span>
+                27 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/shen-fen-ren-zheng/" class="post-tag">
+                  # 身份认证
+                </a>
+              
+                <a href="https://lijianfei.com/tag/zero-trust/" class="post-tag">
+                  # Zero Trust
+                </a>
+              
+                <a href="https://lijianfei.com/tag/devops/" class="post-tag">
+                  # DevOps
+                </a>
+              
+                <a href="https://lijianfei.com/tag/kai-yuan-xiang-mu/" class="post-tag">
+                  # 开源项目
+                </a>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-she-ji/" class="post-tag">
+                  # 架构设计
+                </a>
+              
+                <a href="https://lijianfei.com/tag/rust/" class="post-tag">
+                  # Rust
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/authentik-identity-provider-flows-rust-outpost-architecture.png" alt="重塑开源统一身份中枢：authentik 的 Flow-Stage 状态机、Rust 高性能代理核与分布式 Outpost 深度实践" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在当今企业内部 IT 基础设施与极客私有云集群中，<strong>身份与访问管理</strong>（IAM / IdP）正面临着前所未有的割裂。现代微服务和云原生 SaaS 普遍推崇 OAuth 2.0 与 OpenID Connect（OIDC），企业级传统软件要求 SAML 2.0，老旧内部系统（如 NAS、内部 Wiki、网络设备、SonarQube）依然只能靠 LDAP 与 RADIUS 苟延残喘，而大量无内置鉴权逻辑的内部 Web 工具又极度依赖反向代理的 Forward Auth（前向认证）守门。</p>
+<p>开源界长久以来的两座大山各有遗憾：<strong>Keycloak</strong> 功能全面却依托重量级 Java/Quarkus 运行时，空载内存动辄吞噬 1GB 到 2GB，启动缓慢且认证流水线设计极为僵化；<strong>Authelia</strong> 虽轻量专注，但主要定位于反代前向认证，缺乏完整的 SAML 2.0 IdP 能力、无法提供原生 LDAP/RADIUS 服务，且全靠磁盘静态 YAML 缺乏现代 Admin 控制台与动态策略编排能力。</p>
+<p>开源项目 <strong>authentik</strong>（开源仓库：<code>goauthentik/authentik</code>，GitHub 25.5k+ Stars）以 “The authentication glue you need”（你所需的身份粘合剂）为定位，彻底打破了这一僵局。它将整个认证生命周期重构为可编程的 <strong>Flow-Stage</strong>（流程与阶段）状态机，在底层深度融合 <strong>Rust 高性能代理内核</strong>、<strong>Go 协议前哨</strong> 与 <strong>Python 领域编排引擎</strong>，并通过分布式 <strong>Outpost</strong>（前哨网格）与 <strong>Blueprints</strong>（身份即代码），构筑了一套现代、弹性且高吞吐的开源统一身份底座。</p>
+<!-- more -->
+<hr>
+<h2 id="1-痛点审视传统开源-idp-的工程断层与架构危机">1. 痛点审视：传统开源 IdP 的工程断层与架构危机</h2>
+<p>要理解 authentik 的架构突破，必须先剖析传统自建身份体系在真实工程演进中所遭遇的典型断层：</p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph HeterogeneousApp [&quot;异构应用消费端&quot;]
+        A1[&quot;现代云原生 Web (OIDC / PKCE)&quot;]
+        A2[&quot;企业级企业应用 (SAML 2.0)&quot;]
+        A3[&quot;遗留工控与存储 (LDAP / RADIUS)&quot;]
+        A4[&quot;内部无鉴权面板 (Forward Auth)&quot;]
+    end
+
+    subgraph TraditionalChaos [&quot;传统方案拼凑与运维痛苦面&quot;]
+        T1[&quot;Keycloak&lt;br/&gt;(JVM 沉重开销 / 内存黑洞 / 流程僵化)&quot;]
+        T2[&quot;OpenLDAP + phpLDAPadmin&lt;br/&gt;(维护繁琐 / 无现代 MFA / 协议单一)&quot;]
+        T3[&quot;Authelia / OAuth2-Proxy&lt;br/&gt;(仅前向反代 / 缺乏完整 IdP / 无动态流)&quot;]
+    end
+
+    A1 -.-&gt; T1
+    A2 -.-&gt; T1
+    A3 -.-&gt; T2
+    A4 -.-&gt; T3
+
+    classDef chaos fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#b71c1c;
+    classDef app fill:#e8f4f8,stroke:#0288d1,stroke-width:1px,color:#01579b;
+
+    class T1,T2,T3 chaos;
+    class A1,A2,A3,A4 app;
+</code></pre>
+<h3 id="11-协议割裂导致的多套用户孤岛">1.1 协议割裂导致的“多套用户孤岛”</h3>
+<p>在多数团队的基础设施中，往往存在 OpenLDAP 服务于网络与 Linux 机器，Keycloak 服务于前端 Single Page Application（SPA），Nginx 前挂载 Lua 或 Authelia 服务于内网面板。当员工入职或离职时，管理员必须在三到四个系统间手动同步账号，不仅极易出现权限残留的严重安全漏洞，更让多因素认证（MFA）与密码轮换政策形同虚设。</p>
+<h3 id="12-传统认证流程的硬编码死板">1.2 传统认证流程的硬编码死板</h3>
+<p>现实中的业务认证流程往往充满动态分支：</p>
+<ul>
+<li>内部办公网 IP 允许用户名密码直接登入，外网访问必须强制触发 FIDO2 WebAuthn / Passkeys 硬件密钥校验；</li>
+<li>属于 <code>devops-core</code> 组的用户登录生产堡垒机需触发强行双因子，普通组访问只读控制台只需基础鉴权；</li>
+<li>首次登入必须强制签署保密协议（Consent）并补充工作邮箱。</li>
+</ul>
+<p>在传统 IdP 中，这类定制通常需要侵入式重写 Java SPI 或编写晦涩的配置插件；而在许多轻量级认证网关中，此类需求更是根本无法实现。</p>
+<h3 id="13-集中式单体反代与跨网延迟矛盾">1.3 集中式单体反代与跨网延迟矛盾</h3>
+<p>反向代理认证（Forward Auth）要求每一次 HTTP 请求都向认证服务发起子请求（Subrequest）。如果企业应用分布在多机房、多 VPC 或公有云边缘，所有网络请求全部回源至中心单体 IdP，不仅会造成数百毫秒的额外延迟，中心结点的网络抖动更会导致整站级雪崩。</p>
+<hr>
+<h2 id="2-核心架构解构flow-stage-可编程状态机引擎">2. 核心架构解构：Flow-Stage 可编程状态机引擎</h2>
+<p>authentik 区别于所有传统 IdP 的核心基石，在于其对 <strong>认证流程的纯函数抽象与状态机建模</strong>。在 authentik 的世界观中，认证、注册、密码找回、设备授权以及退出，都不是固定死板的控制器路由，而是由 <strong>Flow</strong>（流程）、<strong>Stage</strong>（阶段）与 <strong>Policy</strong>（策略）动态编译而成的执行管线。</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph FlowPlannerEngine [&quot;FlowPlanner 动态规划管线 (authentik/flows/planner.py)&quot;]
+        Start([&quot;用户发起认证请求 /if/flow/&lt;slug&gt;/&quot;]) --&gt; CheckAuth{&quot;检测 Flow 前置要求&lt;br/&gt;(Require Unauth / Superuser 等)&quot;}
+        CheckAuth -- 不满足 --&gt; Reject([&quot;抛出 FlowNonApplicableException 终止&quot;])
+        CheckAuth -- 满足 --&gt; PolicyEngineGlobal[&quot;执行 Flow 绑定的全局 Policies (IP/地理/时间)&quot;]
+        PolicyEngineGlobal -- 校验失败 --&gt; DenyFlow([&quot;阻断访问&quot;])
+        PolicyEngineGlobal -- 校验通过 --&gt; InspectBindings[&quot;遍历 FlowStageBinding 列表 (按 Order 排序)&quot;]
+        
+        InspectBindings --&gt; EvaluateStagePolicy{&quot;执行 Stage 绑定的 Policies&lt;br/&gt;(Group / MFA状态 / Python 表达式)&quot;}
+        EvaluateStagePolicy -- 命中且通过 --&gt; AppendStage[&quot;压入 FlowPlan 执行栈&lt;br/&gt;(绑定对应 StageMarker)&quot;]
+        EvaluateStagePolicy -- 条件不满足 --&gt; SkipStage[&quot;跳过当前 Stage&quot;]
+        
+        AppendStage --&gt; NextBinding{&quot;还有未检查的 Binding ?&quot;}
+        SkipStage --&gt; NextBinding
+        NextBinding -- 是 --&gt; InspectBindings
+        NextBinding -- 否 --&gt; CachedPlan[&quot;生成 FlowPlan 实例并写入 Redis 缓存&quot;]
+    end
+
+    subgraph FlowExecutorEngine [&quot;FlowExecutorView 交互式调度循环&quot;]
+        CachedPlan --&gt; PopStage[&quot;提取当前首个待执行 Stage&quot;]
+        PopStage --&gt; RenderChallenge[&quot;渲染 Challenge UI / 派发挑战&lt;br/&gt;(Password / WebAuthn / Prompt)&quot;]
+        RenderChallenge --&gt; ClientResp[&quot;客户端提交表单 / WebAuthn 签名&quot;]
+        ClientResp --&gt; ValidateChallenge{&quot;Stage.challenge_valid() 校验&quot;}
+        ValidateChallenge -- 失败 --&gt; RecordEvent[&quot;记录失败事件并刷新挑战&quot;]
+        ValidateChallenge -- 成功 --&gt; StageOK[&quot;更新 Context (写入 pending_user / tokens)&quot;]
+        
+        StageOK --&gt; ReevalCheck{&quot;当前 Stage 具备 ReevaluateMarker ?&quot;}
+        ReevalCheck -- 是 --&gt; DynReplan[&quot;触发动态重排：基于当前用户重算后续 Stage&quot;]
+        ReevalCheck -- 否 --&gt; HasMoreStages{&quot;执行栈中是否还有剩余 Stage ?&quot;}
+        DynReplan --&gt; HasMoreStages
+        
+        HasMoreStages -- 是 --&gt; PopStage
+        HasMoreStages -- 否 --&gt; FinalLogin[&quot;执行 UserLoginStage&lt;br/&gt;(下发 Session / JWT 并重定向至目标)&quot;]
+    end
+
+    classDef plan fill:#e8eaf6,stroke:#3f51b5,stroke-width:1px,color:#1a237e;
+    classDef exec fill:#e0f2f1,stroke:#00897b,stroke-width:1px,color:#004d40;
+    classDef check fill:#fff3e0,stroke:#fb8c00,stroke-width:1px,color:#e65100;
+
+    class FlowPlannerEngine plan;
+    class FlowExecutorEngine exec;
+    class CheckAuth,PolicyEngineGlobal,EvaluateStagePolicy,ValidateChallenge,ReevalCheck,HasMoreStages check;
+</code></pre>
+<h3 id="21-flowplan-与-stagemarker-的动态规划机制">2.1 FlowPlan 与 StageMarker 的动态规划机制</h3>
+<p>在源码 <code>authentik/flows/planner.py</code> 中，<code>FlowPlanner</code> 负责在用户触达流程的第一时间，根据上下文动态计算出一份专属于该请求的扁平阶段栈 <code>FlowPlan</code>：</p>
+<pre><code class="language-python">@dataclass(slots=True)
+class FlowPlan:
+    &quot;&quot;&quot;FlowPlanner 的构建产物：承载待执行阶段序列与动态上下文&quot;&quot;&quot;
+    flow_pk: str
+    bindings: list[FlowStageBinding] = field(default_factory=list)
+    context: dict[str, Any] = field(default_factory=dict)
+    markers: list[StageMarker] = field(default_factory=list)
+
+    def next(self, http_request: HttpRequest | None) -&gt; FlowStageBinding | None:
+        if not self.has_stages:
+            return None
+        binding = self.bindings[0]
+        marker = self.markers[0]
+        marked_stage = marker.process(self, binding, http_request)
+        if not marked_stage:
+            # Marker 判定跳过当前阶段，自动迭代下一阶段
+            self.bindings.remove(binding)
+            self.markers.remove(marker)
+            return self.next(http_request)
+        return marked_stage
+</code></pre>
+<p>核心设计精妙之处在于 “<strong>阶段标记器</strong>（StageMarker）” 与 “<strong>重评估机制</strong>（ReevaluateMarker）”：</p>
+<ol>
+<li><strong>初始盲态规划</strong>：当匿名访问者进入默认认证流时，系统尚不知晓其真实身份，此时只激活“标识阶段”（Identification Stage，输入用户名/邮箱或触发 Passkeys 发现）；</li>
+<li><strong>动态重评估触发</strong>：一旦标识阶段验证通过，<code>pending_user</code> 对象被注入 <code>context</code>。后续绑定的 <code>ReevaluateMarker</code> 会立即被激活，强制策略引擎基于该具体用户的属性（如是否开启 MFA、所属用户组、历史登录风险指纹）实时重排后续阶段；</li>
+<li><strong>零冗余跳过</strong>：若用户已成功配置硬件安全密钥，则直接分流至 WebAuthn 阶段；若未启用，且策略允许回退，则引导至 TOTP 阶段或跳过，完全消除了静态写死的分支硬编码。</li>
+</ol>
+<h3 id="22-常见原子化阶段类型剖析">2.2 常见原子化阶段类型剖析</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">阶段类型 (Stage Type)</th>
+<th style="text-align:left">源码位置</th>
+<th style="text-align:left">核心功能与安全语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>IdentificationStage</strong></td>
+<td style="text-align:left"><code>authentik/stages/identification</code></td>
+<td style="text-align:left">捕获用户标识（用户名、邮箱或 WebAuthn 用户句柄），负责向上下文输出 <code>pending_user</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>PasswordStage</strong></td>
+<td style="text-align:left"><code>authentik/stages/password</code></td>
+<td style="text-align:left">多后端凭据比对（内置数据库、LDAP 目录、Kerberos 票据或 Token），支持防暴力破解自适应退避</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>AuthenticatorValidateStage</strong></td>
+<td style="text-align:left"><code>authentik/stages/authenticator_validate</code></td>
+<td style="text-align:left">多因子认证核验（FIDO2/WebAuthn 硬件密匙、Passkeys、TOTP、Duo Push、静态应急码）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>PromptStage</strong></td>
+<td style="text-align:left"><code>authentik/stages/prompt</code></td>
+<td style="text-align:left">动态表单交互（注册时要求补齐工号、部门、手机号），支持客户端校验与自定义字段映射</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>ConsentStage</strong></td>
+<td style="text-align:left"><code>authentik/stages/consent</code></td>
+<td style="text-align:left">OAuth/OIDC 标准授权许可确认（展示 Requested Scopes、企业免责声明，支持静默跳过）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>UserLoginStage</strong></td>
+<td style="text-align:left"><code>authentik/stages/user_login</code></td>
+<td style="text-align:left">颁发 Session、写入 HTTP-Only Cookie、签发刷新令牌，并记录认证审计事件</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-基于沙箱-python-表达式的高级访问策略abac">2.3 基于沙箱 Python 表达式的高级访问策略（ABAC）</h3>
+<p>除了开箱即用的用户组过滤、IP 地理围栏（GeoIP）外，authentik 提供了极其强大的 <strong>Expression Policy</strong>（表达式策略）。管理员可以在沙箱环境中执行轻量 Python 脚本，直接读取请求对象、地理信息与用户元数据，实现真正的属性级访问控制（ABAC）：</p>
+<pre><code class="language-python"># 示例：仅允许研发核心组成员在办公网络免 MFA，外网访问则强行打标
+remote_ip = request.http.client_ip
+is_office_ip = remote_ip.startswith(&quot;192.168.10.&quot;) or remote_ip.startswith(&quot;10.0.&quot;)
+user_groups = [group.name for group in user.ak_groups.all()]
+
+if &quot;infrastructure-admin&quot; in user_groups:
+    if not is_office_ip:
+        # 外网管理员：强制标记上下文，要求必须经过 FIDO2 WebAuthn 校验
+        context[&quot;flow_plan&quot;].context[&quot;require_hardware_token&quot;] = True
+        return True
+    return True
+
+# 普通员工外网访问拦截
+if not is_office_ip and &quot;contractors&quot; in user_groups:
+    ak_message(&quot;外部兼职人员禁止在外网访问此系统！&quot;)
+    return False
+
+return True
+</code></pre>
+<hr>
+<h2 id="3-多语言异构工程rust-高性能代理核演化史">3. 多语言异构工程：Rust 高性能代理核演化史</h2>
+<p>在早期版本中，authentik 主要是由纯 Python (Django + Gunicorn) 构筑。但随着其在全球企业级生产环境和高吞吐边缘代理中的普及，纯解释型运行时的痛点逐渐显现：</p>
+<ul>
+<li><strong>静态资源与反向代理网络 I/O 开销大</strong>：Gunicorn 工作线程处理长连接 WebSockets、大文件流式转发与 TLS 握手时，内存和 CPU 消耗极不经济；</li>
+<li><strong>高并发 Forward Auth 吞吐瓶颈</strong>：面对海量微服务的高频鉴权子请求，纯 Python 接口的延迟和 GC 停顿影响了网关的 P99 响应时间。</li>
+</ul>
+<p>authentik 在现代版本中重构了底层架构，演进为 “<strong>Rust 入口内核 + Go 前哨 + Python 业务中枢</strong>” 的精妙三层架构：</p>
+<pre><code class="language-mermaid">graph TB
+    subgraph ClientLayer [&quot;外部流量与客户端接入&quot;]
+        HTTPSReq[&quot;HTTPS / WebSocket 请求&lt;br/&gt;(:9000 / :9443)&quot;]
+    end
+
+    subgraph RustCoreRuntime [&quot;Rust 统一进程底座 (ak-axum + Hyper + Tokio)&quot;]
+        AxumEntry[&quot;Rust Axum 统一监听网关&lt;br/&gt;(src/server/core.rs)&quot;]
+        RustlsTermination[&quot;Rustls / AWS-LC-RS&lt;br/&gt;(FIPS 兼容高性能 TLS 终止)&quot;]
+        BufferEngine[&quot;启动等待缓冲池&lt;br/&gt;(Startup 503 Retry / 预加载静态 HTML)&quot;]
+        StaticServe[&quot;塔式流式静态文件服务&lt;br/&gt;(Tower-HTTP 零拷贝资源加速)&quot;]
+        MetricsEngine[&quot;Prometheus 核心指标采集&lt;br/&gt;(:9300 /metrics)&quot;]
+        
+        ProxyOutpostRust[&quot;Rust 原生 Proxy Outpost&lt;br/&gt;(src/outpost/proxy/)&lt;br/&gt;- Moka 高速内存缓存&lt;br/&gt;- Forward Auth 极速验证&lt;br/&gt;- 反向代理零拷贝转发&quot;]
+        UnixSockProxy[&quot;本地 Unix Domain Socket&lt;br/&gt;/ IPC 桥接通道&quot;]
+    end
+
+    subgraph PythonEngine [&quot;Python 业务与调度中枢 (Django / Celery / Gunicorn)&quot;]
+        DjangoCore[&quot;Django REST Framework&lt;br/&gt;(ORM 复杂查询 / Blueprints 声明 / FlowPlanner)&quot;]
+        CeleryWorker[&quot;Celery 任务调度器&lt;br/&gt;(证书自动轮换 / 外部 SCIM 同步 / 审计归档)&quot;]
+    end
+
+    subgraph GoOutposts [&quot;Go 专用二进制协议前哨 (cmd/*)&quot;]
+        LDAPOutpost[&quot;Go LDAP Server&lt;br/&gt;(ASN.1 BER 流解析 / 虚拟目录投影)&quot;]
+        RADIUSOutpost[&quot;Go RADIUS Server&lt;br/&gt;(UDP 协议栈 / 802.1X VPN 鉴权)&quot;]
+        RACOutpost[&quot;Go RAC Bastion&lt;br/&gt;(Guacamole WebSockets / RDP / SSH 网关)&quot;]
+    end
+
+    HTTPSReq --&gt; AxumEntry
+    AxumEntry --&gt; RustlsTermination
+    AxumEntry --&gt; BufferEngine
+    AxumEntry --&gt; StaticServe
+    AxumEntry --&gt; MetricsEngine
+    AxumEntry --&gt; ProxyOutpostRust
+    
+    AxumEntry --&gt; UnixSockProxy --&gt; DjangoCore
+    ProxyOutpostRust -.-&gt;|&quot;REST / WS 通信&quot;| DjangoCore
+    LDAPOutpost -.-&gt;|&quot;API Token 校验&quot;| DjangoCore
+    RADIUSOutpost -.-&gt;|&quot;API Token 校验&quot;| DjangoCore
+    RACOutpost -.-&gt;|&quot;Session 握手&quot;| DjangoCore
+
+    classDef rust fill:#fbe9e7,stroke:#d84315,stroke-width:1px,color:#bf360c;
+    classDef python fill:#e3f2fd,stroke:#1565c0,stroke-width:1px,color:#0d47a1;
+    classDef go fill:#e0f7fa,stroke:#00838f,stroke-width:1px,color:#006064;
+
+    class AxumEntry,RustlsTermination,BufferEngine,StaticServe,MetricsEngine,ProxyOutpostRust,UnixSockProxy rust;
+    class DjangoCore,CeleryWorker python;
+    class LDAPOutpost,RADIUSOutpost,RACOutpost go;
+</code></pre>
+<h3 id="31-rust-驱动的-axum-统一接入层">3.1 Rust 驱动的 Axum 统一接入层</h3>
+<p>查看 authentik 的 Cargo 构建清单 <code>Cargo.toml</code> 与入口 <code>src/server/core.rs</code> 可以发现，整个服务的外层已完全由 Rust 掌管：</p>
+<ul>
+<li><strong>TLS 硬件级加速</strong>：使用基于 BoringSSL 分支的 <code>aws-lc-rs</code> 与 <code>rustls</code> 实现 FIPS 140-3 级加密终止，杜绝内存越界隐患；</li>
+<li><strong>冷启动平滑缓冲</strong>：后端 Python Gunicorn 在冷启动加载庞大 ORM 模型时，Rust 网关会自动劫持外部流量，返回优雅配置的 <code>STARTUP_RESPONSE_HTML</code> 或携带 <code>Retry-After: 5</code> 的 JSON 响应，绝不向浏览器暴露裸露的 <code>502 Bad Gateway</code>；</li>
+<li><strong>PyO3 深度内联</strong>：在单体合一容器中，通过 PyO3 运行时桥接，实现 Rust 事件总线与 Python 解释器无缝通信。</li>
+</ul>
+<h3 id="32-纯-rust-实现的-proxy-outpost">3.2 纯 Rust 实现的 Proxy Outpost</h3>
+<p>在 <code>src/outpost/proxy</code> 中，authentik 团队彻底抛弃了早期的代理实现，使用 Rust 重构了反向代理前哨：</p>
+<ul>
+<li><strong>Moka 并发缓存</strong>：用户 Session 令牌与授权声明被缓存在高并发并发哈希表（<code>moka</code>）中，读操作完全免去昂贵的数据库与 Redis 往返，Forward Auth 验证平均耗时压低至 <strong>0.3 毫秒以内</strong>；</li>
+<li><strong>流式透明反代</strong>：基于 <code>hyper</code> 与 <code>tower-http</code> 实现双向流式零拷贝转发，原生承载 HTTP/2 与长连接 WebSocket。</li>
+</ul>
+<hr>
+<h2 id="4-分布式-outpost-网格zero-trust-边缘与异构协议救赎">4. 分布式 Outpost 网格：Zero Trust 边缘与异构协议救赎</h2>
+<p>在企业网络中，并非所有应用都能改造成规范的 OIDC/SAML 客户端。authentik 的核心杀手锏，在于其独特的 <strong>Outpost</strong>（前哨）体系。</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph HQ [&quot;企业中心集群 / 数据中心&quot;]
+        AuthServer[&quot;authentik Core&lt;br/&gt;(PostgreSQL + Redis + Server)&quot;]
+    end
+
+    subgraph BranchOffice [&quot;边缘分支机构 / 独立 VPC / DMZ&quot;]
+        DockerOutpost[&quot;Docker 托管 Proxy Outpost&lt;br/&gt;(反代边缘 Grafana / Prometheus)&quot;]
+        LDAPAgent[&quot;Go 独立 LDAP Outpost&lt;br/&gt;(本地提供 ldaps://:636)&quot;]
+        RACAgent[&quot;Go RAC 堡垒前哨&lt;br/&gt;(隔离区内网 SSH / RDP 跳板)&quot;]
+        
+        LegacyNAS[&quot;群晖 Synology / TrueNAS&quot;]
+        LegacySwitch[&quot;Cisco / H3C 核心交换机&quot;]
+        InternalNode[&quot;内网开发机 (Ubuntu SSH)&quot;]
+
+        DockerOutpost --&gt;|&quot;透明反向代理&quot;| Grafana[&quot;内网监控看板&quot;]
+        LegacyNAS --&gt;|&quot;LDAP 查询 (389/636)&quot;| LDAPAgent
+        LegacySwitch --&gt;|&quot;802.1X RADIUS (1812)&quot;| LDAPAgent
+        RACAgent --&gt;|&quot;本地 RDP/SSH 直连&quot;| InternalNode
+    end
+
+    DockerOutpost &lt;== &quot;WebSocket 长连接 / API Token 握手&quot; ==&gt; AuthServer
+    LDAPAgent &lt;== &quot;出站加密 API 同步 (无需暴露内网端口)&quot; ==&gt; AuthServer
+    RACAgent &lt;== &quot;出站安全通道&quot; ==&gt; AuthServer
+
+    classDef central fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#4a148c;
+    classDef edge fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px,color:#1b5e20;
+
+    class AuthServer central;
+    class DockerOutpost,LDAPAgent,RACAgent edge;
+</code></pre>
+<h3 id="41-三种部署编排形态">4.1 三种部署编排形态</h3>
+<ol>
+<li><strong>嵌入式前哨</strong>（Embedded Outpost）：直接在 authentik 核心主进程中运行，零额外容器开销，适合单机部署与极客 HomeLab；</li>
+<li><strong>控制器自动托管</strong>（Managed Outpost）：管理员仅需在 Web 界面配置 Docker Socket 或 Kubernetes Ingress 类，authentik 内部控制器会自动通过 API 在目标主机或集群中创建、更新、水平扩容 Outpost 容器并管理证书；</li>
+<li><strong>独立分布式前哨</strong>（Standalone Outpost）：运行在异地边缘机房或隔离 VPC 内。Outpost <strong>仅需单向出站访问</strong> 中心 authentik 的 HTTPS API，即可自动拉取应用规则并在本地提供低延迟鉴权，天然契合跨云与多分支机构的混合云架构。</li>
+</ol>
+<h3 id="42-两种反代鉴权拓扑对比">4.2 两种反代鉴权拓扑对比</h3>
+<h4 id="a-forward-auth-模式前向反代守门">A. Forward Auth 模式（前向反代守门）</h4>
+<p>现有入口网关（如 Traefik、Nginx、Caddy）负责公网 TLS 终结与路由，仅将每个请求的头部通过子请求（Subrequest）发送给 authentik Outpost。</p>
+<pre><code class="language-text">浏览器 --&gt; Nginx/Traefik --&gt; (1. 子请求鉴权) --&gt; authentik Outpost
+                                 | (2. 鉴权通过，注入 X-authentik-username)
+                                 v
+                            实际后端容器服务 (如 Portainer, Jellyfin)
+</code></pre>
+<ul>
+<li><strong>优势</strong>：对现有反代架构无侵入，原有证书申请与路由规则完全保持不变；</li>
+<li><strong>标头穿透</strong>：Outpost 校验 Cookie 成功后，自动向上游服务注入 <code>X-authentik-username</code>、<code>X-authentik-email</code>、<code>X-authentik-groups</code>，无鉴权能力的应用亦可直接识别当前登录者。</li>
+</ul>
+<h4 id="b-single-application-模式独立透明代理">B. Single Application 模式（独立透明代理）</h4>
+<p>authentik Proxy Outpost 本身充当第一线反向代理，直接绑定公网域名并直接向内网后端发起 Proxy Pass。</p>
+<ul>
+<li><strong>优势</strong>：开箱即用，无需配置外部复杂的反代服务器，Outpost 自动处理所有重定向、Cookie 校验与错误拦截；</li>
+<li><strong>高级特性</strong>：原生集成 Backchannel 注销，用户在 authentik 中心注销时，Outpost 能够主动清除本地连接上下文。</li>
+</ul>
+<h3 id="43-赋能老旧资产ldap-与-radius-outpost-的降维打击">4.3 赋能老旧资产：LDAP 与 RADIUS Outpost 的降维打击</h3>
+<p>在传统 IT 场景中，让一台十几年前制造的硬件存储设备（如旧款 NetApp、老旧 QNAP NAS）支持现代 WebAuthn 指纹登录无异于天方夜谭。</p>
+<p>authentik 通过 Go 编写的 <strong>LDAP Outpost</strong> 巧妙化解了这一难题：</p>
+<ol>
+<li>LDAP Outpost 在内网监听 <code>389</code> 与 <code>636</code> 端口，对外伪装成标准的 OpenLDAP / Active Directory 目录树；</li>
+<li>NAS 向该 Outpost 发起 <code>simple_bind</code> 或 <code>search</code> 时，Outpost 在底层将其翻译为对 authentik REST API 的凭据核验；</li>
+<li>管理员可以为该 LDAP 服务单独绑定 Flow，实现密码强度审计甚至通过邮件/推送静默触发动态授权。老旧应用无需更改任何代码，瞬间融入全局统一身份治理。</li>
+</ol>
+<hr>
+<h2 id="5-身份即代码blueprints-声明式-gitops">5. 身份即代码：Blueprints 声明式 GitOps</h2>
+<p>在现代 SRE 运维实践中，最忌讳通过 Web UI “点兵点将”手动配置生产环境。authentik 原生支持 <strong>Blueprints</strong>（蓝图）引擎，将所有 Flow、Stage、Policy、Application 以及 Provider 定义为版本受控的声明式 YAML。</p>
+<h3 id="51-声明式-yaml-蓝图语法">5.1 声明式 YAML 蓝图语法</h3>
+<p>Blueprints 引入了强大的自定义 YAML Tag，能够在声明阶段安全引用关联模型的主键与唯一键：</p>
+<pre><code class="language-yaml">version: 1
+metadata:
+  name: &quot;GitOps - 生产环境堡垒机鉴权流水线&quot;
+
+entries:
+  # 1. 声明一个密码核验阶段，关联内部数据库与 LDAP
+  - model: authentik_stages_password.passwordstage
+    identifiers:
+      name: &quot;prod-bastion-password-stage&quot;
+    attrs:
+      backends:
+        - authentik.core.auth.InbuiltBackend
+        - authentik.sources.ldap.auth.LDAPBackend
+
+  # 2. 声明一个 WebAuthn 硬件密匙核验阶段
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    identifiers:
+      name: &quot;prod-bastion-fido2-validate-stage&quot;
+    attrs:
+      device_classes:
+        - webauthn
+
+  # 3. 声明认证 Flow
+  - model: authentik_flows.flow
+    id: flow_bastion_auth
+    identifiers:
+      slug: &quot;prod-bastion-auth-flow&quot;
+    attrs:
+      name: &quot;生产堡垒机严格多因子流程&quot;
+      designation: &quot;authentication&quot;
+      title: &quot;Zero Trust Bastion Access&quot;
+
+  # 4. 建立流程与阶段的绑定 (FlowStageBinding)
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow_bastion_auth
+      stage: !Find [authentik_stages_password.passwordstage, [name, &quot;prod-bastion-password-stage&quot;]]
+      order: 10
+    attrs:
+      re_evaluate_policies: true
+
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow_bastion_auth
+      stage: !Find [authentik_stages_authenticator_validate.authenticatorvalidatestage, [name, &quot;prod-bastion-fido2-validate-stage&quot;]]
+      order: 20
+</code></pre>
+<h3 id="52-gitops-闭环自动化">5.2 GitOps 闭环自动化</h3>
+<ul>
+<li><strong>自动化同步</strong>：蓝图文件可以直接挂载至容器的 <code>/blueprints/</code> 目录；</li>
+<li><strong>幂等生效</strong>：通过 <code>authentik_blueprints.metaapplyblueprint</code> 元操作，系统每次启动或监听到 Git 仓库 Webhook 变更时自动重放，已存在的资源执行 Patch 更新，缺失的资源自动创建，真正实现身份基础设施的 CI/CD 自动化交付。</li>
+</ul>
+<hr>
+<h2 id="6-生产级私有化部署实战与网关联动">6. 生产级私有化部署实战与网关联动</h2>
+<p>以下提供一套经过高并发与可用性验证的完整 Docker Compose 编排模板，以及配合 Traefik 的 Forward Auth 实战配置。</p>
+<h3 id="61-docker-compose-生产编排架构">6.1 Docker Compose 生产编排架构</h3>
+<p>创建工作目录并在 <code>docker-compose.yml</code> 中定义拓扑：</p>
+<pre><code class="language-yaml">version: '3.8'
+
+services:
+  postgresql:
+    image: docker.io/library/postgres:16-alpine
+    container_name: authentik-postgres
+    restart: unless-stopped
+    healthcheck:
+      test: [&quot;CMD-SHELL&quot;, &quot;pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}&quot;]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: &quot;ChangeThisPostgresPasswordSecurely123&quot;
+      POSTGRES_USER: &quot;authentik&quot;
+      POSTGRES_DB: &quot;authentik&quot;
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: authentik-redis
+    command: --save 60 1 --loglevel warning
+    restart: unless-stopped
+    healthcheck:
+      test: [&quot;CMD-SHELL&quot;, &quot;redis-cli ping | grep PONG&quot;]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - ./data/redis:/data
+
+  server:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: authentik-server
+    restart: unless-stopped
+    command: server
+    environment:
+      AUTHENTIK_REDIS__HOST: &quot;redis&quot;
+      AUTHENTIK_POSTGRESQL__HOST: &quot;postgresql&quot;
+      AUTHENTIK_POSTGRESQL__USER: &quot;authentik&quot;
+      AUTHENTIK_POSTGRESQL__NAME: &quot;authentik&quot;
+      AUTHENTIK_POSTGRESQL__PASSWORD: &quot;ChangeThisPostgresPasswordSecurely123&quot;
+      AUTHENTIK_SECRET_KEY: &quot;GenerateA64CharRandomAlphaNumericKeyHereForSecurity&quot;
+    volumes:
+      - ./data/media:/media
+      - ./data/custom-templates:/templates
+    ports:
+      - &quot;9000:9000&quot;
+      - &quot;9443:9443&quot;
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: authentik-worker
+    restart: unless-stopped
+    command: worker
+    environment:
+      AUTHENTIK_REDIS__HOST: &quot;redis&quot;
+      AUTHENTIK_POSTGRESQL__HOST: &quot;postgresql&quot;
+      AUTHENTIK_POSTGRESQL__USER: &quot;authentik&quot;
+      AUTHENTIK_POSTGRESQL__NAME: &quot;authentik&quot;
+      AUTHENTIK_POSTGRESQL__PASSWORD: &quot;ChangeThisPostgresPasswordSecurely123&quot;
+      AUTHENTIK_SECRET_KEY: &quot;GenerateA64CharRandomAlphaNumericKeyHereForSecurity&quot;
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/media:/media
+      - ./data/certs:/certs
+      - ./data/custom-templates:/templates
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+</code></pre>
+<blockquote>
+<p>[!TIP]<br>
+<strong>关于 Worker 挂载 Docker Socket 的说明</strong>：<br>
+<code>authentik-worker</code> 挂载 <code>/var/run/docker.sock</code> 仅在启用 “<strong>Docker 托管式 Outpost</strong>” 时必需（Worker 作为控制器根据界面指令拉起独立的 Outpost 容器）。若仅使用嵌入式（Embedded）前哨或独立手动部署，可安全移除该 Socket 挂载以获得最佳权限沙箱隔离。</p>
+</blockquote>
+<h3 id="62-traefik-联动-forward-auth-实战配置">6.2 Traefik 联动 Forward Auth 实战配置</h3>
+<p>在 Traefik 中，配置一条 <code>forwardAuth</code> 中间件，拦截访问内部监控系统（如 <code>uptime.example.com</code>）的请求：</p>
+<pre><code class="language-yaml"># traefik/dynamic_conf.yml
+http:
+  middlewares:
+    authentik-auth:
+      forwardAuth:
+        address: &quot;http://authentik-server:9000/outpost.goauthentik.io/auth/traefik&quot;
+        trustForwardHeader: true
+        authResponseHeaders:
+          - &quot;X-authentik-username&quot;
+          - &quot;X-authentik-groups&quot;
+          - &quot;X-authentik-email&quot;
+          - &quot;X-authentik-name&quot;
+
+  routers:
+    uptime-kuma-router:
+      rule: &quot;Host(`uptime.example.com`)&quot;
+      entryPoints:
+        - &quot;websecure&quot;
+      middlewares:
+        - &quot;authentik-auth&quot;
+      service: &quot;uptime-kuma-svc&quot;
+      tls:
+        certResolver: &quot;letsencrypt&quot;
+
+  services:
+    uptime-kuma-svc:
+      loadBalancer:
+        servers:
+          - url: &quot;http://uptime-kuma-app:3001&quot;
+</code></pre>
+<p>当未登录用户在浏览器访问 <code>https://uptime.example.com</code> 时：</p>
+<ol>
+<li>Traefik 提取 Cookie 并调用 authentik 的 <code>/outpost.goauthentik.io/auth/traefik</code> 端点；</li>
+<li>Rust 代理核以低于 1 毫秒的极速从内存 Moka 缓存中未检索到有效会话，直接返回 HTTP 401 并向 Traefik 附带 <code>Location: https://auth.example.com/if/flow/default-authentication-flow/?next=...</code> 重定向头；</li>
+<li>用户在 authentik 完成完整的 Flow 认证链条（含 WebAuthn 验证）后，带回全局加密 Session 凭证，重新访问即被 Traefik 顺畅放行，并将员工身份标头原样传递给后端容器。</li>
+</ol>
+<hr>
+<h2 id="7-架构选型复盘keycloak-authelia-与-authentik-三维对比">7. 架构选型复盘：Keycloak、Authelia 与 authentik 三维对比</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评估维度</th>
+<th style="text-align:left">authentik</th>
+<th style="text-align:left">Keycloak</th>
+<th style="text-align:left">Authelia</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>主要技术栈</strong></td>
+<td style="text-align:left"><strong>Rust (Axum) + Go + Python (Django)</strong></td>
+<td style="text-align:left">Java (Quarkus)</td>
+<td style="text-align:left">Go 纯单体</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>空载内存消耗</strong></td>
+<td style="text-align:left"><strong>约 250MB ~ 400MB</strong> (Core+Worker)</td>
+<td style="text-align:left">约 1.2GB ~ 2.5GB</td>
+<td style="text-align:left">约 30MB ~ 80MB</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>认证流定制能力</strong></td>
+<td style="text-align:left"><strong>Flow-Stage 动态可编程状态机 + Python 表达式</strong></td>
+<td style="text-align:left">较为死板的 Execution/Authenticator SPI (需写 Java)</td>
+<td style="text-align:left">仅支持固定的一级/二级 (1FA / 2FA) 策略划分</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>协议全面度</strong></td>
+<td style="text-align:left"><strong>OIDC、SAML 2.0、LDAP Server、RADIUS、SCIM、Forward Auth</strong></td>
+<td style="text-align:left">OIDC、SAML 2.0、Kerberos (无内置 LDAP Server 服务端)</td>
+<td style="text-align:left">Forward Auth、OIDC 基础版 (无 SAML IdP、无 LDAP Server)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>反代前哨拓扑</strong></td>
+<td style="text-align:left"><strong>分布式 Outpost (支持 Docker/K8s 控制器纳管与多机房边缘部署)</strong></td>
+<td style="text-align:left">无前哨反代能力 (通常配合外部 Envoy/OAuth2-Proxy)</td>
+<td style="text-align:left">单机反向代理守门为主</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>管理界面 (UI)</strong></td>
+<td style="text-align:left"><strong>现代化响应式 Web Components (Lit / TypeScript)</strong></td>
+<td style="text-align:left">传统 React 控制台 (层级极深、概念极为繁琐)</td>
+<td style="text-align:left"><strong>无后台管理界面</strong> (全靠修改磁盘 YAML 文件)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>基础设施即代码</strong></td>
+<td style="text-align:left"><strong>Blueprints (声明式 YAML + GitOps 驱动)</strong></td>
+<td style="text-align:left">CLI 脚本、Terraform Provider、Keycloak CRD</td>
+<td style="text-align:left">纯本地静态 YAML</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>最佳适用场景</strong></td>
+<td style="text-align:left"><strong>企业统一混合云 IdP、Zero Trust 零信任网关、极客私有云聚合</strong></td>
+<td style="text-align:left">大型传统 Java 生态企业、重度深度依赖 RedHat 栈的组织</td>
+<td style="text-align:left">极度追求极简低功耗、仅需几台内网容器加锁的极简 HomeLab</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="8-结语">8. 结语</h2>
+<p>在云原生与零信任（Zero Trust）架构重构基础设施的今天，身份认证早已超越了单纯的“校验用户名和密码”。它演化为了承载网络安全防线第一道关卡、贯穿所有协议规范与终端设备的<strong>动态策略网格</strong>。</p>
+<p>authentik 的成功，在于其既具备企业级 IAM 的协议包容度（SAML、OIDC、LDAP、RADIUS 一网打尽），又拥有极客工程的务实审美：</p>
+<ul>
+<li>用 <strong>Flow-Stage</strong> 赋予了认证生命周期无限的组合可能；</li>
+<li>用 <strong>Rust Axum 与 Hyper</strong> 锻造了坚不可摧的高并发网络代理底座；</li>
+<li>用 <strong>Outpost 网格与 Blueprints</strong> 填平了中心调度与边缘隔离区、图形操作与 GitOps 自动化之间的鸿沟。</li>
+</ul>
+<p>对于正在苦于身份孤岛蔓延、受制于 Keycloak 沉重资源开销或止步于 Authelia 协议局限的架构师与系统工程师而言，深入实践并引入 authentik，无疑是构筑现代化私有统一身份中枢的一剂良方。</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#1-%E7%97%9B%E7%82%B9%E5%AE%A1%E8%A7%86%E4%BC%A0%E7%BB%9F%E5%BC%80%E6%BA%90-idp-%E7%9A%84%E5%B7%A5%E7%A8%8B%E6%96%AD%E5%B1%82%E4%B8%8E%E6%9E%B6%E6%9E%84%E5%8D%B1%E6%9C%BA">1. 痛点审视：传统开源 IdP 的工程断层与架构危机</a>
+<ul>
+<li><a href="#11-%E5%8D%8F%E8%AE%AE%E5%89%B2%E8%A3%82%E5%AF%BC%E8%87%B4%E7%9A%84%E5%A4%9A%E5%A5%97%E7%94%A8%E6%88%B7%E5%AD%A4%E5%B2%9B">1.1 协议割裂导致的“多套用户孤岛”</a></li>
+<li><a href="#12-%E4%BC%A0%E7%BB%9F%E8%AE%A4%E8%AF%81%E6%B5%81%E7%A8%8B%E7%9A%84%E7%A1%AC%E7%BC%96%E7%A0%81%E6%AD%BB%E6%9D%BF">1.2 传统认证流程的硬编码死板</a></li>
+<li><a href="#13-%E9%9B%86%E4%B8%AD%E5%BC%8F%E5%8D%95%E4%BD%93%E5%8F%8D%E4%BB%A3%E4%B8%8E%E8%B7%A8%E7%BD%91%E5%BB%B6%E8%BF%9F%E7%9F%9B%E7%9B%BE">1.3 集中式单体反代与跨网延迟矛盾</a></li>
+</ul>
+</li>
+<li><a href="#2-%E6%A0%B8%E5%BF%83%E6%9E%B6%E6%9E%84%E8%A7%A3%E6%9E%84flow-stage-%E5%8F%AF%E7%BC%96%E7%A8%8B%E7%8A%B6%E6%80%81%E6%9C%BA%E5%BC%95%E6%93%8E">2. 核心架构解构：Flow-Stage 可编程状态机引擎</a>
+<ul>
+<li><a href="#21-flowplan-%E4%B8%8E-stagemarker-%E7%9A%84%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92%E6%9C%BA%E5%88%B6">2.1 FlowPlan 与 StageMarker 的动态规划机制</a></li>
+<li><a href="#22-%E5%B8%B8%E8%A7%81%E5%8E%9F%E5%AD%90%E5%8C%96%E9%98%B6%E6%AE%B5%E7%B1%BB%E5%9E%8B%E5%89%96%E6%9E%90">2.2 常见原子化阶段类型剖析</a></li>
+<li><a href="#23-%E5%9F%BA%E4%BA%8E%E6%B2%99%E7%AE%B1-python-%E8%A1%A8%E8%BE%BE%E5%BC%8F%E7%9A%84%E9%AB%98%E7%BA%A7%E8%AE%BF%E9%97%AE%E7%AD%96%E7%95%A5abac">2.3 基于沙箱 Python 表达式的高级访问策略（ABAC）</a></li>
+</ul>
+</li>
+<li><a href="#3-%E5%A4%9A%E8%AF%AD%E8%A8%80%E5%BC%82%E6%9E%84%E5%B7%A5%E7%A8%8Brust-%E9%AB%98%E6%80%A7%E8%83%BD%E4%BB%A3%E7%90%86%E6%A0%B8%E6%BC%94%E5%8C%96%E5%8F%B2">3. 多语言异构工程：Rust 高性能代理核演化史</a>
+<ul>
+<li><a href="#31-rust-%E9%A9%B1%E5%8A%A8%E7%9A%84-axum-%E7%BB%9F%E4%B8%80%E6%8E%A5%E5%85%A5%E5%B1%82">3.1 Rust 驱动的 Axum 统一接入层</a></li>
+<li><a href="#32-%E7%BA%AF-rust-%E5%AE%9E%E7%8E%B0%E7%9A%84-proxy-outpost">3.2 纯 Rust 实现的 Proxy Outpost</a></li>
+</ul>
+</li>
+<li><a href="#4-%E5%88%86%E5%B8%83%E5%BC%8F-outpost-%E7%BD%91%E6%A0%BCzero-trust-%E8%BE%B9%E7%BC%98%E4%B8%8E%E5%BC%82%E6%9E%84%E5%8D%8F%E8%AE%AE%E6%95%91%E8%B5%8E">4. 分布式 Outpost 网格：Zero Trust 边缘与异构协议救赎</a>
+<ul>
+<li><a href="#41-%E4%B8%89%E7%A7%8D%E9%83%A8%E7%BD%B2%E7%BC%96%E6%8E%92%E5%BD%A2%E6%80%81">4.1 三种部署编排形态</a></li>
+<li><a href="#42-%E4%B8%A4%E7%A7%8D%E5%8F%8D%E4%BB%A3%E9%89%B4%E6%9D%83%E6%8B%93%E6%89%91%E5%AF%B9%E6%AF%94">4.2 两种反代鉴权拓扑对比</a>
+<ul>
+<li><a href="#a-forward-auth-%E6%A8%A1%E5%BC%8F%E5%89%8D%E5%90%91%E5%8F%8D%E4%BB%A3%E5%AE%88%E9%97%A8">A. Forward Auth 模式（前向反代守门）</a></li>
+<li><a href="#b-single-application-%E6%A8%A1%E5%BC%8F%E7%8B%AC%E7%AB%8B%E9%80%8F%E6%98%8E%E4%BB%A3%E7%90%86">B. Single Application 模式（独立透明代理）</a></li>
+</ul>
+</li>
+<li><a href="#43-%E8%B5%8B%E8%83%BD%E8%80%81%E6%97%A7%E8%B5%84%E4%BA%A7ldap-%E4%B8%8E-radius-outpost-%E7%9A%84%E9%99%8D%E7%BB%B4%E6%89%93%E5%87%BB">4.3 赋能老旧资产：LDAP 与 RADIUS Outpost 的降维打击</a></li>
+</ul>
+</li>
+<li><a href="#5-%E8%BA%AB%E4%BB%BD%E5%8D%B3%E4%BB%A3%E7%A0%81blueprints-%E5%A3%B0%E6%98%8E%E5%BC%8F-gitops">5. 身份即代码：Blueprints 声明式 GitOps</a>
+<ul>
+<li><a href="#51-%E5%A3%B0%E6%98%8E%E5%BC%8F-yaml-%E8%93%9D%E5%9B%BE%E8%AF%AD%E6%B3%95">5.1 声明式 YAML 蓝图语法</a></li>
+<li><a href="#52-gitops-%E9%97%AD%E7%8E%AF%E8%87%AA%E5%8A%A8%E5%8C%96">5.2 GitOps 闭环自动化</a></li>
+</ul>
+</li>
+<li><a href="#6-%E7%94%9F%E4%BA%A7%E7%BA%A7%E7%A7%81%E6%9C%89%E5%8C%96%E9%83%A8%E7%BD%B2%E5%AE%9E%E6%88%98%E4%B8%8E%E7%BD%91%E5%85%B3%E8%81%94%E5%8A%A8">6. 生产级私有化部署实战与网关联动</a>
+<ul>
+<li><a href="#61-docker-compose-%E7%94%9F%E4%BA%A7%E7%BC%96%E6%8E%92%E6%9E%B6%E6%9E%84">6.1 Docker Compose 生产编排架构</a></li>
+<li><a href="#62-traefik-%E8%81%94%E5%8A%A8-forward-auth-%E5%AE%9E%E6%88%98%E9%85%8D%E7%BD%AE">6.2 Traefik 联动 Forward Auth 实战配置</a></li>
+</ul>
+</li>
+<li><a href="#7-%E6%9E%B6%E6%9E%84%E9%80%89%E5%9E%8B%E5%A4%8D%E7%9B%98keycloak-authelia-%E4%B8%8E-authentik-%E4%B8%89%E7%BB%B4%E5%AF%B9%E6%AF%94">7. 架构选型复盘：Keycloak、Authelia 与 authentik 三维对比</a></li>
+<li><a href="#8-%E7%BB%93%E8%AF%AD">8. 结语</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/self-hosted-real-residential-address-generator/">
+              <h3 class="post-title">
+                破除跨境风控与 AVS 盲区：基于 PostgreSQL 与开放地理数据的自托管真实住宅地址引擎
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/(--[->]\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

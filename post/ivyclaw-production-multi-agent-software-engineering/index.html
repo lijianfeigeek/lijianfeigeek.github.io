@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>跨越软件研发的生产级鸿沟：IvyClaw 的多智能体分阶交接、物理隔离只读沙箱与全链路治理实践 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1789384184918">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="跨越软件研发的生产级鸿沟：IvyClaw 的多智能体分阶交接、物理隔离只读沙箱与全链路治理实践 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/ivyclaw-production-multi-agent-software-engineering/">
+    <meta name="description" content="在 LLM 驱动的代码补全与对话工具风靡一时的今天，越来越多的团队尝试迈出更具野心的一步：构建具备自主研发能力的 软件工程智能体（SWE Agent）。然而，许多团队在搭建原型时往往会陷入“玩具级 Demo”的工程泥潭：把几万行代码库粗暴塞..." />
+    <meta name="keywords" content="LangGraph,容器安全,软件工程,AI Agent,开源项目,架构设计" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="跨越软件研发的生产级鸿沟：IvyClaw 的多智能体分阶交接、物理隔离只读沙箱与全链路治理实践">
+    <meta property="og:description" content="在 LLM 驱动的代码补全与对话工具风靡一时的今天，越来越多的团队尝试迈出更具野心的一步：构建具备自主研发能力的 软件工程智能体（SWE Agent）。然而，许多团队在搭建原型时往往会陷入“玩具级 Demo”的工程泥潭：把几万行代码库粗暴塞...">
+    <meta property="og:url" content="https://lijianfei.com/post/ivyclaw-production-multi-agent-software-engineering/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/ivyclaw-production-multi-agent-software-engineering.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-09-14T09:50:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="LangGraph">
+    
+    <meta property="article:tag" content="容器安全">
+    
+    <meta property="article:tag" content="软件工程">
+    
+    <meta property="article:tag" content="AI Agent">
+    
+    <meta property="article:tag" content="开源项目">
+    
+    <meta property="article:tag" content="架构设计">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="跨越软件研发的生产级鸿沟：IvyClaw 的多智能体分阶交接、物理隔离只读沙箱与全链路治理实践">
+    <meta name="twitter:description" content="在 LLM 驱动的代码补全与对话工具风靡一时的今天，越来越多的团队尝试迈出更具野心的一步：构建具备自主研发能力的 软件工程智能体（SWE Agent）。然而，许多团队在搭建原型时往往会陷入“玩具级 Demo”的工程泥潭：把几万行代码库粗暴塞...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/ivyclaw-production-multi-agent-software-engineering.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "跨越软件研发的生产级鸿沟：IvyClaw 的多智能体分阶交接、物理隔离只读沙箱与全链路治理实践",
+      "description": "在 LLM 驱动的代码补全与对话工具风靡一时的今天，越来越多的团队尝试迈出更具野心的一步：构建具备自主研发能力的 软件工程智能体（SWE Agent）。然而，许多团队在搭建原型时往往会陷入“玩具级 Demo”的工程泥潭：把几万行代码库粗暴塞...",
+      "image": "https://lijianfei.com/post-images/ivyclaw-production-multi-agent-software-engineering.png",
+      "datePublished": "2026-09-14T09:50:00.000Z",
+      "dateModified": "2026-09-14T09:50:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/ivyclaw-production-multi-agent-software-engineering/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "LangGraph",
+          "item": "https://lijianfei.com/tag/langgraph/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "跨越软件研发的生产级鸿沟：IvyClaw 的多智能体分阶交接、物理隔离只读沙箱与全链路治理实践",
+          "item": "https://lijianfei.com/post/ivyclaw-production-multi-agent-software-engineering/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1789384184918" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              跨越软件研发的生产级鸿沟：IvyClaw 的多智能体分阶交接、物理隔离只读沙箱与全链路治理实践
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-09-14
+              </span>
+              <span>
+                26 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/langgraph/" class="post-tag">
+                  # LangGraph
+                </a>
+              
+                <a href="https://lijianfei.com/tag/rong-qi-an-quan/" class="post-tag">
+                  # 容器安全
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ruan-jian-gong-cheng/" class="post-tag">
+                  # 软件工程
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ai-agent/" class="post-tag">
+                  # AI Agent
+                </a>
+              
+                <a href="https://lijianfei.com/tag/kai-yuan-xiang-mu/" class="post-tag">
+                  # 开源项目
+                </a>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-she-ji/" class="post-tag">
+                  # 架构设计
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/ivyclaw-production-multi-agent-software-engineering.png" alt="跨越软件研发的生产级鸿沟：IvyClaw 的多智能体分阶交接、物理隔离只读沙箱与全链路治理实践" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在 LLM 驱动的代码补全与对话工具风靡一时的今天，越来越多的团队尝试迈出更具野心的一步：构建具备自主研发能力的 <strong>软件工程智能体（SWE Agent）</strong>。然而，许多团队在搭建原型时往往会陷入“玩具级 Demo”的工程泥潭：把几万行代码库粗暴塞入上下文引发 Token 爆炸；依赖单个庞大 Agent 既做架构又写代码还做审查导致角色认知失调；轻信 Prompt 级约束却遭遇恶意代码篡改文件系统；长耗时研发任务引发 HTTP 504 网关超时；缺乏并发限流与多租户隔离导致外部模型调用成本瞬间失控。</p>
+<p>开源项目 <strong>IvyClaw</strong>（GitHub: <a href="https://github.com/ivyfan-toowell/IvyClaw">ivyfan-toowell/IvyClaw</a>）给出了一个工业级的系统解法：<strong>它不满足于做一个浮于表面的对话包装器，而是围绕真实软件研发的工程化落地，构建了一套生产导向的多智能体协同工程底座</strong>。项目深度整合了 DeepAgents 与 LangGraph，实现了从任务规划、按需调研、代码实现、自动化测试、物理隔离审查，到异步任务调度、多渠道统一接入与企业级全链路可观测的完整工程闭环。</p>
+<!-- more -->
+<hr>
+<h2 id="一-swe-agent-的工程化陷阱与生产级挑战">一、SWE Agent 的“工程化陷阱”与生产级挑战</h2>
+<p>从“能写几行代码的小玩具”走向“能在生产级流水线稳定交接代码的工业系统”，AI Agent 必须跨越五道严峻的技术鸿沟：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph TraditionalTraps [&quot;传统 Agent 原型的五大崩溃点&quot;]
+        T1[&quot;单体 Agent 角色混乱&lt;br/&gt;（既当裁判又当运动员，自我审查形同虚设）&quot;]
+        T2[&quot;上下文无限膨胀&lt;br/&gt;（长轮次历史堆叠，模型注意力涣散与成本飙升）&quot;]
+        T3[&quot;Prompt 弱约束幻觉&lt;br/&gt;（告诉 Reviewer‘请勿改代码’，仍被意外写入）&quot;]
+        T4[&quot;长任务同步阻塞&lt;br/&gt;（复杂重构耗时数分钟，HTTP 连接频繁中断）&quot;]
+        T5[&quot;缺乏租户与成本治理&lt;br/&gt;（高频并发打爆下游 API，Token 消耗缺乏度量）&quot;]
+    end
+
+    subgraph IvyClawPillars [&quot;IvyClaw 生产级解题支柱&quot;]
+        P1[&quot;专职子代理分阶工作流&lt;br/&gt;（Planner → Researcher → Coder → Tester → Reviewer）&quot;]
+        P2[&quot;独立 Thread 与摘要交接协议&lt;br/&gt;（各阶段独立上下文，仅向下游传递交付契约）&quot;]
+        P3[&quot;物理级只读加固沙箱&lt;br/&gt;（Docker 安全加固 + Linux a-w 权限硬阻断）&quot;]
+        P4[&quot;Redis + ARQ 异步任务解耦&lt;br/&gt;（统一 InboundMessage 抽象与长连接信道）&quot;]
+        P5[&quot;API 网关、分级路由与 Prometheus 度量&lt;br/&gt;（多租户分桶限流、成本换算与链路追踪）&quot;]
+    end
+
+    T1 ==&gt; P1
+    T2 ==&gt; P2
+    T3 ==&gt; P3
+    T4 ==&gt; P4
+    T5 ==&gt; P5
+
+    style TraditionalTraps fill:#ffebee,stroke:#c62828,stroke-width:2px;
+    style IvyClawPillars fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+</code></pre>
+<ol>
+<li><strong>单体角色的认知漂移</strong>：让同一个大模型实例既负责需求设计、编写实现，又负责自己给自己找茬写单测和挑刺 Review，模型天生具有“自我确认偏见”（Confirmation Bias），极易对自己的逻辑盲点视而不见；</li>
+<li><strong>上下文污染与 Token 泥潭</strong>：如果让后续环节继承前期几百轮与编译器交互的琐碎终端输出，上下文窗口很快会被噪声淹没，不仅成本高昂，更会导致核心指令丢失；</li>
+<li><strong>安全边界的“皇帝新衣”</strong>：仅凭 Prompt 叮嘱“你现在是只读审查员，不要修改文件”，只要模型产生一次非预期 Tool Call 或执行 Shell 命令（如 <code>echo ... &gt; file.py</code>），就会直接污染代码库；</li>
+<li><strong>长耗时操作与网络脆弱性</strong>：运行真实测试套件和代码重构动辄耗时 1 到 5 分钟，在 Web API 或即时通讯（IM）场景下，传统的同步 HTTP 请求几乎注定超时；</li>
+<li><strong>服务治理盲区</strong>：缺乏租户隔离与限流防护，单个用户的异常死循环调用可能拖垮整个集群，且无法精准追踪哪一个子代理消耗了多少算力与成本。</li>
+</ol>
+<p>为了击穿这些痛点，IvyClaw 在架构设计之初就确立了“分层解耦、职责正交、物理硬防、全程可测”的工程铁律。</p>
+<hr>
+<h2 id="二-ivyclaw-全景架构从流量接入到沙箱执行的闭环中枢">二、IvyClaw 全景架构：从流量接入到沙箱执行的闭环中枢</h2>
+<p>IvyClaw 的整体架构覆盖了从外部客户端接入、边缘网关治理、核心多智能体分派编排、安全沙箱隔离，到持久化与可观测的全景管线：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph ClientAndChannels [&quot;客户端与多渠道接入层&quot;]
+        CLI[&quot;CLI 终端&quot;]
+        WebAPI[&quot;FastAPI Web 接口&quot;]
+        FeishuWS[&quot;飞书 WebSocket 长连接&quot;]
+        Webhooks[&quot;通用 Webhook&quot;]
+    end
+
+    subgraph GatewayLayer [&quot;网关与治理层 (API Gateway)&quot;]
+        Auth[&quot;API Key 认证 &amp; 租户解析&quot;]
+        Limiter[&quot;SlowAPI + Redis 多租户分桶限流&quot;]
+        Idempotency[&quot;Redis SETNX 幂等防重&quot;]
+        Audit[&quot;审计日志 &amp; 请求上下文中间件&quot;]
+    end
+
+    subgraph DispatcherCore [&quot;调度与多智能体中枢 (Dispatcher)&quot;]
+        Classifier{&quot;任务分诊 Classifier&lt;br/&gt;(复杂度 &amp; 调研判断)&quot;}
+        Planner[&quot;Planner 子代理&lt;br/&gt;(拆解计划/约束/验收标准)&quot;]
+        Researcher[&quot;Researcher 子代理&lt;br/&gt;(代码定位/外部 API 调研)&quot;]
+        Coder[&quot;Coder 子代理&lt;br/&gt;(最小侵入改动)&quot;]
+        Tester[&quot;Tester 子代理&lt;br/&gt;(真实 pytest 运行与覆盖)&quot;]
+        Reviewer[&quot;Reviewer 子代理&lt;br/&gt;(结构化审查与安全合规)&quot;]
+    end
+
+    subgraph SandboxInfra [&quot;沙箱基础设施 (Docker Sandbox)&quot;]
+        DevSandbox[&quot;开发沙箱 (加固 tmpfs / 非 root / 断网)&quot;]
+        RO_Sandbox[&quot;只读沙箱副本 (chmod a-w 物理硬隔离)&quot;]
+        SandboxPool[&quot;SandboxPool 并发池管理&quot;]
+    end
+
+    subgraph StorageAndAsync [&quot;状态持久化与异步运行时&quot;]
+        PG[(&quot;PostgreSQL&lt;br/&gt;Checkpointer &amp; Store&quot;)]
+        RedisQueue[(&quot;Redis 任务队列&quot;)]
+        ARQ[&quot;ARQ Worker 异步集群&quot;]
+    end
+
+    subgraph ObservabilityStack [&quot;可观测与度量平台&quot;]
+        Metrics[&quot;Prometheus 指标 (RED + LLM 成本/延时)&quot;]
+        Grafana[&quot;Grafana 实时监控看板&quot;]
+        LangSmith[&quot;LangSmith 链路追踪&quot;]
+    end
+
+    ClientAndChannels ==&gt; GatewayLayer
+    GatewayLayer ==&gt; RedisQueue
+    RedisQueue ==&gt; ARQ
+    GatewayLayer -. 同步直调 .-&gt; DispatcherCore
+    ARQ ==&gt; DispatcherCore
+
+    DispatcherCore &lt;== &quot;状态持久化&quot; ==&gt; PG
+    DispatcherCore &lt;--&gt; Classifier
+    Classifier --&gt; Planner
+    Planner --&gt; Researcher
+    Researcher --&gt; Coder
+    Coder --&gt; Tester
+    Tester --&gt; Reviewer
+
+    Coder &lt;== &quot;读写执行&quot; ==&gt; DevSandbox
+    Tester &lt;== &quot;测试执行&quot; ==&gt; DevSandbox
+    Reviewer &lt;== &quot;绝对只读审查&quot; ==&gt; RO_Sandbox
+    SandboxPool -. &quot;按需生命周期托管&quot; .-&gt; DevSandbox &amp; RO_Sandbox
+
+    DispatcherCore -. &quot;指标上报&quot; .-&gt; Metrics
+    ARQ -. &quot;队列/耗时上报&quot; .-&gt; Metrics
+    Metrics ==&gt; Grafana
+</code></pre>
+<hr>
+<h2 id="三-分阶交接协议拒绝上下文泥潭的状态解耦哲学">三、分阶交接协议：拒绝上下文泥潭的状态解耦哲学</h2>
+<p>在很多基于 LangGraph 的开源项目中，开发者习惯在整个图流转中共享一个全量的 <code>messages</code> 列表。这种做法在简单对话中尚可接受，但在代码研发场景下是致命的——一次 <code>pytest</code> 跑挂产生的数百行栈追踪，会永久留在上下文里，严重挤占模型的上下文预算并产生幻觉干扰。</p>
+<p>IvyClaw 在 <code>agent/dispatcher.py</code> 中开创性地实现了 <strong>“独立 Thread 隔离 + 最小契约摘要交接”</strong>（Summary Handoff Protocol）：</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant D as Dispatcher 调度器
+    participant C as 0. 任务分诊 Classifier
+    participant P as 1. Planner 规划阶段
+    participant R as 2. Researcher 调研阶段
+    participant CD as 3. Coder 编码阶段
+    participant T as 4. Tester 测试阶段
+    participant RV as 5. Reviewer 审查阶段
+
+    Note over D: 接收 Issue，生成根 Thread ID: uuid7()
+    D-&gt;&gt;C: invoke(thread_id-classify, issue)
+    C--&gt;&gt;D: 返回 JSON: {&quot;complexity&quot;: &quot;complex&quot;, &quot;need_research&quot;: true}
+    
+    rect rgb(255, 248, 225)
+        Note over D, P: 独立 Thread: thread_id-planner
+        D-&gt;&gt;P: invoke(issue) [仅携带规划要求]
+        P--&gt;&gt;D: 输出清晰开发计划与验收约束
+        Note over D: 截取 planner_summary = last_message
+    end
+
+    rect rgb(227, 242, 253)
+        Note over D, R: 独立 Thread: thread_id-researcher
+        D-&gt;&gt;R: invoke(issue + planner_summary) [只研究，不编码]
+        R--&gt;&gt;D: 输出代码定位与 API 关键发现
+        Note over D: 截取 research_summary = last_message
+    end
+
+    rect rgb(232, 245, 233)
+        Note over D, CD: 独立 Thread: thread_id-coder
+        D-&gt;&gt;CD: invoke(issue + planner_summary + research_summary)
+        CD-&gt;&gt;CD: 在共享开发沙箱中完成代码修补与落盘
+        CD--&gt;&gt;D: 输出修改摘要 (修改了哪些文件)
+        Note over D: 截取 coder_summary = last_message
+    end
+
+    rect rgb(255, 235, 238)
+        Note over D, T: 独立 Thread: thread_id-tester
+        D-&gt;&gt;T: invoke(issue + coder_summary) [以沙箱真实代码为准]
+        T-&gt;&gt;T: 编写并在沙箱中真实执行 pytest
+        T--&gt;&gt;D: 输出测试报告 (通过数量 / 覆盖场景 / 失败根因)
+        Note over D: 截取 tester_summary = last_message
+    end
+
+    rect rgb(243, 229, 245)
+        Note over D, RV: 独立 Thread: thread_id-reviewer (只读沙箱副本)
+        D-&gt;&gt;RV: invoke(issue + 各阶段摘要)
+        RV--&gt;&gt;D: 结构化输出 ReviewResult(approved, issues, security_notes)
+    end
+</code></pre>
+<h3 id="1-轻量任务分诊zero-tool-classifier">1. 轻量任务分诊（Zero-Tool Classifier）</h3>
+<p>面对一个新提交的 Issue，系统并不盲目拉起全套子代理，而是先由轻量提示词驱动分类器，强约束只输出合法 JSON：</p>
+<pre><code class="language-python">classify_result = await agent.ainvoke({
+    &quot;messages&quot;: [{
+        &quot;role&quot;: &quot;user&quot;,
+        &quot;content&quot;: f&quot;&quot;&quot;
+        你现在只负责判断任务类型，不执行任务，也不要调用任何子代理或工具。
+        原始任务：{issue}
+        请只输出 JSON：
+        {{
+          &quot;complexity&quot;: &quot;simple&quot; 或 &quot;complex&quot;,
+          &quot;need_research&quot;: true 或 false
+        }}
+        &quot;&quot;&quot;
+    }]
+}, config={&quot;configurable&quot;: {&quot;thread_id&quot;: f&quot;{thread_id}-classify&quot;}})
+</code></pre>
+<p>若任务仅为“修改文档错别字”或“单行常量微调”（<code>simple</code> 且 <code>need_research=false</code>），系统直接越过 Planner 与 Researcher，毫秒级直达 Coder，既省 Token 又极大削减了端到端响应延迟。</p>
+<h3 id="2-独立-thread-与摘要提取">2. 独立 Thread 与摘要提取</h3>
+<p>每个阶段通过 <code>stage_config</code> 绑定独立的 <code>thread_id</code>（如 <code>{thread_id}-coder</code>、<code>{thread_id}-tester</code>）。LangGraph 的 Checkpointer 为每个阶段分别存储快照，各阶段之间的上下文天然完全隔离。</p>
+<p>下游角色只接收前置角色的阶段性结论：</p>
+<pre><code class="language-python">def _last_message_text(result: dict) -&gt; str:
+    &quot;&quot;&quot;从一次 agent.ainvoke() 的结果中提取最后一条消息文本。
+    不把整个阶段的 messages / tool calls 全部传给下一阶段，
+    只保留最后的阶段结论，降低 token，同时保留任务交接信息。
+    &quot;&quot;&quot;
+    messages = result.get(&quot;messages&quot;, [])
+    if not messages:
+        return &quot;&quot;
+    last_message = messages[-1]
+    content = getattr(last_message, &quot;content&quot;, &quot;&quot;)
+    return content.strip() if isinstance(content, str) else str(content).strip()
+</code></pre>
+<p>通过这种<strong>契约式摘要交接机制</strong>，即使整个研发闭环经历了 5 个阶段、执行了数十次底层工具调用，下一个 Agent 接收到的提示词依然轻量、干净、目标明确。</p>
+<hr>
+<h2 id="四-物理级只读沙箱不信任-prompt-自觉的安全防御">四、物理级只读沙箱：不信任 Prompt 自觉的安全防御</h2>
+<p>在代码审查（Reviewer）环节，安全领域最经典的一个教训就是：<strong>永远不要相信大模型对“禁止写操作”的提示词遵守度</strong>。一旦模型出现越狱倾向或推理漂移，调用工具覆盖了业务代码，审查就变成了灾难。</p>
+<p>IvyClaw 在 <code>sandbox/docker_manager.py</code> 中实现了精妙的 <strong>“物理克隆 + 内核级写权限剥夺”</strong> 机制。</p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph SourceContainer [&quot;开发/测试活跃沙箱 (DevSandbox)&quot;]
+        C1[&quot;容器状态：可读可写&quot;]
+        D1[&quot;tmpfs 工作空间&lt;br/&gt;(uid=1000, 512MB)&quot;]
+        F1[&quot;Coder &amp; Tester 产生的新代码与单测&quot;]
+    end
+
+    subgraph HostRelay [&quot;宿主机中转管道 (零磁盘落盘)&quot;]
+        Stream[&quot;docker exec tar -C workdir -cf - .&lt;br/&gt;|&lt;br/&gt;docker exec -i ro_name tar -C workdir -xf -&quot;]
+    end
+
+    subgraph ReviewerContainer [&quot;审查专属只读沙箱 (RO_Sandbox)&quot;]
+        C2[&quot;全新容器：加固启动&quot;]
+        D2[&quot;代码全量同步到位&quot;]
+        Lock[&quot;docker exec -u 1000:1000 chmod -R a-w workdir&quot;]
+        State[&quot;文件系统状态：所有文件物理只读 (a-w)&quot;]
+    end
+
+    SourceContainer ==&gt; HostRelay ==&gt; ReviewerContainer
+    Lock -. 锁定 .-&gt; State
+
+    classDef src fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef relay fill:#fff8e1,stroke:#f57f17,stroke-width:2px;
+    classDef ro fill:#ffebee,stroke:#c62828,stroke-width:2px;
+
+    class SourceContainer,C1,D1,F1 src;
+    class HostRelay,Stream relay;
+    class ReviewerContainer,C2,D2,Lock,State ro;
+</code></pre>
+<h3 id="1-宿主内存流式克隆与权限物理剥夺">1. 宿主内存流式克隆与权限物理剥夺</h3>
+<p>当 Coder 和 Tester 宣布完成并产出代码后，Dispatcher 不让 Reviewer 直接访问原沙箱，而是动态启动一个只读副本容器：</p>
+<pre><code class="language-python"># 1. 导出源沙箱代码为 tar 流并瞬时解包到 reviewer 容器（完全在内存管道中流转）
+proc = await asyncio.to_thread(
+    subprocess.run,
+    [&quot;docker&quot;, &quot;exec&quot;, source_sandbox.container_id, &quot;tar&quot;, &quot;-C&quot;, workdir, &quot;-cf&quot;, &quot;-&quot;, &quot;.&quot;],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+)
+proc2 = await asyncio.to_thread(
+    subprocess.run,
+    [&quot;docker&quot;, &quot;exec&quot;, &quot;-i&quot;, name, &quot;tar&quot;, &quot;-C&quot;, workdir, &quot;-xf&quot;, &quot;-&quot;],
+    input=proc.stdout,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+)
+
+# 2. 核心硬核防御：剥夺整个工作区的写权限
+code, out = await _run([&quot;docker&quot;, &quot;exec&quot;, &quot;-u&quot;, &quot;1000:1000&quot;, name, &quot;chmod&quot;, &quot;-R&quot;, &quot;a-w&quot;, workdir])
+</code></pre>
+<p>通过 Linux 内核的权限机制（<code>chmod -R a-w</code>），Reviewer 容器内的普通用户（<code>uid=1000</code>）丧失了对任何文件的写权限。<strong>即使 Reviewer 受到 Prompt 注入攻击或幻觉爆发，执行诸如 <code>echo 'bad' &gt; app/main.py</code> 的 Shell 命令，内核也会无情返回 <code>Permission denied</code></strong>。</p>
+<h3 id="2-容器运行时极限加固矩阵">2. 容器运行时极限加固矩阵</h3>
+<p>在容器启动参数上，IvyClaw 对生产环境施加了全维度的安全阻断：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">启动参数</th>
+<th style="text-align:left">安全工程作用</th>
+<th style="text-align:left">防御目标</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>--network none</code></td>
+<td style="text-align:left">物理切断网络命名空间</td>
+<td style="text-align:left">杜绝沙箱内恶意代码发起反弹 Shell、外联矿池或泄露内网凭据</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>--cap-drop ALL</code></td>
+<td style="text-align:left">丢弃所有 Linux Kernel Capabilities</td>
+<td style="text-align:left">剥夺 <code>CAP_SYS_ADMIN</code> 等全部特权，杜绝容器逃逸攻击面</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>--security-opt no-new-privileges</code></td>
+<td style="text-align:left">禁止进程通过 SUID 等二进制获取更高权限</td>
+<td style="text-align:left">防止通过提权漏洞破坏宿主机</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>--read-only</code></td>
+<td style="text-align:left">容器根文件系统挂载为绝对只读</td>
+<td style="text-align:left">禁止向 <code>/etc</code>、<code>/usr</code>、<code>/bin</code> 写入任何后门或挖矿木马</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>--tmpfs /workdir:rw,exec,size=512m,uid=1000</code></td>
+<td style="text-align:left">仅分配固定大小的内存文件系统作为工作区</td>
+<td style="text-align:left">任务销毁内存即随之清空，且防止恶意占用磁盘存储</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>--pids-limit 128</code> 与 <code>--cpus / --memory</code></td>
+<td style="text-align:left">严格限制进程总数与 CPU / 内存配额</td>
+<td style="text-align:left">杜绝 Fork 炸弹与计算死循环耗尽宿主机资源</td>
+</tr>
+</tbody>
+</table>
+<p>更为优雅的是，IvyClaw 将容器 runtime 参数抽象化：默认使用 <code>runc</code>，当面对更高安全要求的场景时，<strong>只需在环境变量中将 <code>SANDBOX_RUNTIME</code> 配置为 <code>runsc</code>（gVisor）或 <code>kata</code>（Kata Containers 微虚拟机），业务代码一行无需改动即可无缝切换隔离级别</strong>！</p>
+<h3 id="3-隔离优先的沙箱池sandboxpool">3. 隔离优先的沙箱池（SandboxPool）</h3>
+<p>对于高并发场景，容器的重复利用容易引起租户间数据串扰。IvyClaw 在 <code>sandbox/pool.py</code> 中实现了“隔离优先”的沙箱池：</p>
+<ul>
+<li>基于 <code>asyncio.Semaphore</code> 严格控制全局正在运行的沙箱总数，防止并发超限压垮 Docker Daemon；</li>
+<li>采用 <strong>“用完即弃”（Throwaway）</strong> 生命周期模式：每次通过 <code>async with pool.acquire()</code> 获得全新的加固容器，并自动完成代码与依赖 seed；一旦任务退出（无论成功或异常），容器立刻执行强制销毁清理，彻底杜绝数据在不同任务间残留。</li>
+</ul>
+<hr>
+<h2 id="五-异步任务管线与多渠道统一接入">五、异步任务管线与多渠道统一接入</h2>
+<p>真实的软件研发任务（拉代码、跑测试、多角色推演）通常耗时 30 秒至数分钟不等。如果在 HTTP 接口中长轮询等待，前端反向代理（如 Nginx、Cloudflare）极易抛出 504 网关超时。</p>
+<p>IvyClaw 构建了基于 <strong>Redis + ARQ Worker</strong> 的生产级异步任务中枢：</p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph MultiChannels [&quot;接入信道抽象&quot;]
+        C1[&quot;CLI 调试终端&quot;]
+        C2[&quot;FastAPI /jobs 接口&quot;]
+        C3[&quot;Feishu WebSocket (长连接免公网)&quot;]
+    end
+
+    subgraph Gateway [&quot;InboundMessage 契约&quot;]
+        MSG[&quot;InboundMessage&lt;br/&gt;(channel, user_id, conversation_id, text)&quot;]
+    end
+
+    subgraph AsyncCore [&quot;ARQ 异步任务中枢&quot;]
+        RQueue[(&quot;Redis 任务队列&lt;br/&gt;(带 enqueued_at 时间戳)&quot;)]
+        W1[&quot;ARQ Worker 进程 1&quot;]
+        W2[&quot;ARQ Worker 进程 N&quot;]
+    end
+
+    subgraph Execution [&quot;Agent 运行时与回调&quot;]
+        RT[&quot;IvyClaw Dispatcher 研发闭环&quot;]
+        Checkpointer[(&quot;PostgreSQL 持久化&quot;)]
+        Callback[&quot;主动推回 (如飞书 WS) / 结果轮询 (Web API)&quot;]
+    end
+
+    MultiChannels ==&gt; MSG ==&gt; RQueue
+    RQueue ==&gt; W1 &amp; W2
+    W1 &amp; W2 ==&gt; RT
+    RT &lt;== &quot;会话快照持久化&quot; ==&gt; Checkpointer
+    RT ==&gt; Callback
+</code></pre>
+<h3 id="1-inboundmessage-统一协议">1. InboundMessage 统一协议</h3>
+<p>无论来自命令行终端、Web 接口还是即时通讯软件，所有入站流量均被归一化为标准的 <code>InboundMessage</code> 数据结构：</p>
+<pre><code class="language-python">@dataclass(slots=True)
+class InboundMessage:
+    channel: str           # &quot;cli&quot; | &quot;web&quot; | &quot;feishu&quot; | &quot;webhook&quot;
+    user_id: str           # 用户全局唯一标识
+    text: str              # 用户输入的 Issue 文本
+    conversation_id: str   # 关联的会话 Thread ID
+</code></pre>
+<p>业务层和 Agent 调度器只面向 <code>InboundMessage</code> 编写逻辑，后续扩展钉钉、Slack、Telegram 等新平台只需编写几十行的 Channel Adapter，无需重构核心逻辑。</p>
+<h3 id="2-飞书-websocket-免公网接入">2. 飞书 WebSocket 免公网接入</h3>
+<p>对于企业内网部署场景，传统 Webhook 往往要求内部服务器具有公网 IP 或配置内网穿透工具。IvyClaw 原生集成了飞书的长连接（WebSocket）SDK，支持应用启动时以客户端身份直接向飞书开放平台建立全双工安全通道。既消除了公网暴露面与证书维护成本，又能实时将 Agent 的运行阶段状态（“Planner 正在规划...”、“Coder 正在改动文件...”）推送到团队群聊中。</p>
+<h3 id="3-人工介入机制human-in-the-loop">3. 人工介入机制（Human-in-the-Loop）</h3>
+<p>在自动化流水线中，针对涉及高危影响的操作（如删除生产分支、清空数据库、大规模依赖变更），IvyClaw 接入了 LangGraph 的中断审批机制：</p>
+<ul>
+<li>Agent 在执行敏感工具前主动抛出 <code>Interrupt</code>，状态持久化固化至 PostgreSQL；</li>
+<li>网关向审批人发送通知与参数上下文；</li>
+<li>审批人在前端或飞书群内点击“批准/驳回”，网关向 Checkpointer 发出 <code>Command(resume)</code> 唤醒执行流，实现了自动化与安全可控的优雅平衡。</li>
+</ul>
+<hr>
+<h2 id="六-全链路治理多模型路由-分桶限流与-prometheus-成本度量">六、全链路治理：多模型路由、分桶限流与 Prometheus 成本度量</h2>
+<p>一个能够在企业内长期健康运行的智能体系统，必须具备完善的 SRE 运维监控与成本治理能力。</p>
+<h3 id="1-角色感知的分级模型路由role-to-tier-routing">1. 角色感知的分级模型路由（Role-to-Tier Routing）</h3>
+<p>代码生成需要推理能力极强的大模型，而单纯的资料归纳、测试报告格式化如果也无脑调用昂贵的超大模型，预算很快会耗尽。IvyClaw 在 <code>infra/llm_router.py</code> 中实现了基于角色的逻辑档位映射：</p>
+<pre><code class="language-python">ROLE_TO_TIER: dict[str, str] = {
+    &quot;main&quot;: &quot;strong&quot;,         # 核心协调：强推理模型 (如 qwen-max / Claude 3.7)
+    &quot;planner&quot;: &quot;strong&quot;,      # 架构规划：需要全局视界
+    &quot;researcher&quot;: &quot;cheap&quot;,    # 资料检索：高性价比模型 (如 qwen-turbo / Haiku)
+    &quot;coder&quot;: &quot;strong&quot;,        # 编码落地：核心代码力
+    &quot;tester&quot;: &quot;standard&quot;,     # 单测编写：标准模型 (如 qwen-plus / Sonnet)
+    &quot;reviewer&quot;: &quot;strong&quot;,     # 质量审查：强力把关
+}
+</code></pre>
+<p>结合内置的 Fallback 中间件，当 <code>strong</code> 档位遭遇供应商限流（429）或服务端宕机（5xx）时，系统自动无缝降级到备选供应商，保障关键服务不掉线。</p>
+<h3 id="2-多租户隔离与-redis-共享限流">2. 多租户隔离与 Redis 共享限流</h3>
+<p>在网关入口处，系统通过请求头 <code>Gateway-API-Key</code> 动态提取租户标识，并在 <code>gateway/limiter.py</code> 中结合 SlowAPI 与 Redis 实现了分布式租户分桶限流：</p>
+<pre><code class="language-python">def _tenant_key(request) -&gt; str:
+    &quot;&quot;&quot;按 tenant_id 隔离限流计数器，多实例共享 Redis 计数&quot;&quot;&quot;
+    api_key = request.headers.get(&quot;Gateway-API-Key&quot;)
+    tenant = get_settings().gateway_api_keys.get(api_key) if api_key else None
+    return f&quot;tenant:{tenant}&quot; if tenant else get_remote_address(request)
+
+limiter = Limiter(
+    key_func=_tenant_key,
+    storage_uri=get_settings().redis_url,
+    enabled=get_settings().ratelimit_enabled,
+)
+</code></pre>
+<p>恶意或高频的单个租户请求只会被自己的令牌桶限流并返回 429，绝不会波及其他正常租户的配额。</p>
+<h3 id="3-细粒度-prometheus-指标与-token-成本实时核算">3. 细粒度 Prometheus 指标与 Token 成本实时核算</h3>
+<p>IvyClaw 在 <code>obs/metrics.py</code> 中构建了覆盖 HTTP 层、Agent 执行层、Worker 队列层与沙箱基础设施层的全套度量矩阵：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Layer1 [&quot;1. HTTP 服务层 (RED 规范)&quot;]
+        M1[&quot;http_requests_total (按路径/状态码计数)&quot;]
+        M2[&quot;http_request_duration_seconds (P50 / P99 延迟分位)&quot;]
+        M3[&quot;http_requests_in_flight (实时在飞并发数)&quot;]
+    end
+
+    subgraph Layer2 [&quot;2. Agent 与模型治理层&quot;]
+        M4[&quot;agent_llm_tokens_total (分档位 input / output)&quot;]
+        M5[&quot;agent_llm_cost_yuan_total (自动换算人民币成本)&quot;]
+        M6[&quot;agent_tool_calls_total &amp; duration (工具执行效率)&quot;]
+        M7[&quot;agent_fallback_total (模型降级熔断告警)&quot;]
+    end
+
+    subgraph Layer3 [&quot;3. 异步任务与基础设施层&quot;]
+        M8[&quot;agent_queue_wait_seconds (任务入队排队延迟)&quot;]
+        M9[&quot;agent_queue_length (待处理任务饱和度)&quot;]
+        M10[&quot;sandbox_create_duration_seconds (容器冷启动耗时)&quot;]
+        M11[&quot;sandbox_active (活跃运行沙箱数量)&quot;]
+    end
+</code></pre>
+<p>特别值得借鉴的是其 <strong>实时成本核算逻辑</strong>：</p>
+<pre><code class="language-python">TOKEN_PRICE_PER_1K = {
+    &quot;strong&quot;:   {&quot;input&quot;: 0.0024, &quot;output&quot;: 0.0096},   # 示例：qwen-max 官方单价
+    &quot;standard&quot;: {&quot;input&quot;: 0.0008, &quot;output&quot;: 0.0020},   # 示例：qwen-plus
+    &quot;cheap&quot;:    {&quot;input&quot;: 0.0003, &quot;output&quot;: 0.0006},   # 示例：qwen-turbo
+}
+
+def record_llm_cost(tier: str, input_tokens: int, output_tokens: int) -&gt; None:
+    &quot;&quot;&quot;记录 token 用量并按配置中心实时单价换算为人民币成本&quot;&quot;&quot;
+    AGENT_LLM_TOKENS.labels(tier, &quot;input&quot;).inc(input_tokens)
+    AGENT_LLM_TOKENS.labels(tier, &quot;output&quot;).inc(output_tokens)
+    price = TOKEN_PRICE_PER_1K.get(tier, TOKEN_PRICE_PER_1K[&quot;standard&quot;])
+    cost = input_tokens / 1000 * price[&quot;input&quot;] + output_tokens / 1000 * price[&quot;output&quot;]
+    AGENT_LLM_COST.labels(tier).inc(cost)
+</code></pre>
+<p>运维团队在 Grafana 看板上，不仅能实时观测到系统 QPS 和错误率，更能一目了然地获悉今日任务累计耗费了多少元算力成本，为企业量化评估 AI 研发 ROI 提供了最扎实的数据支撑。</p>
+<hr>
+<h2 id="七-工业级横向对比ivyclaw-的架构定位">七、工业级横向对比：IvyClaw 的架构定位</h2>
+<p>为了更客观地理解 IvyClaw 的设计定位，我们将它与业界知名的 Agent 方案进行了工程维度的横向剖析：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评估维度</th>
+<th style="text-align:left">传统单体 Agent (如早前 ReAct / AutoGPT)</th>
+<th style="text-align:left">桌面级编程助手 (如 Cursor / Claude Code)</th>
+<th style="text-align:left">IvyClaw 生产级系统</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>角色协同模式</strong></td>
+<td style="text-align:left">单模型全流程自编自导，角色认知模糊</td>
+<td style="text-align:left">单人辅助模式，依托开发者实时交互监督</td>
+<td style="text-align:left"><strong>5 大专职子代理</strong> 分工闭环，分阶状态交接</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>上下文管理</strong></td>
+<td style="text-align:left">共享大单轮历史，极易遭遇注意力漂移</td>
+<td style="text-align:left">依托本地文件索引与会话上下文压缩</td>
+<td style="text-align:left"><strong>独立 Thread 物理隔离</strong>，仅通过摘要契约交接</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>沙箱安全防线</strong></td>
+<td style="text-align:left">本地裸机或通用容器，缺乏物理阻断</td>
+<td style="text-align:left">直接在宿主机或本地终端执行命令</td>
+<td style="text-align:left"><strong>加固 Docker + 只读副本 <code>chmod a-w</code> 硬隔离</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>隔离级别扩展</strong></td>
+<td style="text-align:left">固定单引擎，难以适应严格金融合规</td>
+<td style="text-align:left">依赖操作系统本地权限</td>
+<td style="text-align:left"><strong>配置化无缝切换</strong> runc / gVisor (runsc) / Kata</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>长任务调度</strong></td>
+<td style="text-align:left">HTTP 同步等待，易超时间断</td>
+<td style="text-align:left">本地前台交互式等待</td>
+<td style="text-align:left"><strong>Redis + ARQ 异步多 Worker</strong>，支持队列削峰</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>多渠道适配</strong></td>
+<td style="text-align:left">通常仅提供 Web UI 或 CLI</td>
+<td style="text-align:left">局限于 IDE 插件或专用终端 CLI</td>
+<td style="text-align:left"><strong>统一 InboundMessage</strong>：CLI / Web / 飞书 WS / Webhook</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>企业级 SRE</strong></td>
+<td style="text-align:left">基础日志打印，无链路指标统计</td>
+<td style="text-align:left">面向个人开发者的使用统计</td>
+<td style="text-align:left"><strong>Prometheus + Grafana + LangSmith</strong> 全量治理</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="八-总结与架构启示">八、总结与架构启示</h2>
+<p>剖析 <strong>IvyClaw</strong> 的源码与系统架构，我们能够清晰地触摸到 AI 智能体系统走向工业级成熟的演进轨迹。它为我们构建下一代高复杂度自治智能体提供了四条极具普适性的工程启示：</p>
+<ol>
+<li><strong>“小代理专精”优于“全能单体”</strong>：在软件工程等高容错代价领域，不要试图训练一个无所不能的超级 Agent。将规划、调研、编写、测试、审查拆解为职责单一、最小工具集绑定的专职角色，系统的鲁棒性将呈几何级数提升；</li>
+<li><strong>“摘要契约”胜过“无限上下文”</strong>：大模型的长文本支持并不意味着我们应该滥用它。通过分阶 Thread 隔离，在上下游角色交接时采用结构化摘要契约，是抵御噪声污染、降低推理成本的最优工程解；</li>
+<li><strong>“物理防御”高于“Prompt 约束”</strong>：大模型的本质是概率预测，永远存在幻觉的缝隙。涉及文件读写、网络外联、系统提权等底线安全问题时，必须依托操作系统与容器技术（Linux Namespaces、Capabilities、<code>tmpfs</code>、<code>chmod a-w</code>、gVisor）构建硬性围栏；</li>
+<li><strong>Agent 必须与企业 SRE 体系融合</strong>：一个不能被监控、不能被限流、不能审计操作且无法统计成本的 Agent，永远无法被企业运维团队允许接入生产。将 Prometheus 指标、分布式限流、幂等防重与成本核算融入底座，才是 AI 走向工业级生产力的通途。</li>
+</ol>
+<p>随着软件工程的复杂度不断攀升，AI Agent 正在从“程序员的辅助提效工具”大踏步迈向“可信赖的虚拟协同队友”。深入理解并汲取像 IvyClaw 这样优秀的工程化设计精髓，必将帮助我们在智能体落地的浩瀚浪潮中，构筑起稳固、安全且极具扩展性的系统基石。</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-swe-agent-%E7%9A%84%E5%B7%A5%E7%A8%8B%E5%8C%96%E9%99%B7%E9%98%B1%E4%B8%8E%E7%94%9F%E4%BA%A7%E7%BA%A7%E6%8C%91%E6%88%98">一、SWE Agent 的“工程化陷阱”与生产级挑战</a></li>
+<li><a href="#%E4%BA%8C-ivyclaw-%E5%85%A8%E6%99%AF%E6%9E%B6%E6%9E%84%E4%BB%8E%E6%B5%81%E9%87%8F%E6%8E%A5%E5%85%A5%E5%88%B0%E6%B2%99%E7%AE%B1%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AD%E7%8E%AF%E4%B8%AD%E6%9E%A2">二、IvyClaw 全景架构：从流量接入到沙箱执行的闭环中枢</a></li>
+<li><a href="#%E4%B8%89-%E5%88%86%E9%98%B6%E4%BA%A4%E6%8E%A5%E5%8D%8F%E8%AE%AE%E6%8B%92%E7%BB%9D%E4%B8%8A%E4%B8%8B%E6%96%87%E6%B3%A5%E6%BD%AD%E7%9A%84%E7%8A%B6%E6%80%81%E8%A7%A3%E8%80%A6%E5%93%B2%E5%AD%A6">三、分阶交接协议：拒绝上下文泥潭的状态解耦哲学</a>
+<ul>
+<li><a href="#1-%E8%BD%BB%E9%87%8F%E4%BB%BB%E5%8A%A1%E5%88%86%E8%AF%8Azero-tool-classifier">1. 轻量任务分诊（Zero-Tool Classifier）</a></li>
+<li><a href="#2-%E7%8B%AC%E7%AB%8B-thread-%E4%B8%8E%E6%91%98%E8%A6%81%E6%8F%90%E5%8F%96">2. 独立 Thread 与摘要提取</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E7%89%A9%E7%90%86%E7%BA%A7%E5%8F%AA%E8%AF%BB%E6%B2%99%E7%AE%B1%E4%B8%8D%E4%BF%A1%E4%BB%BB-prompt-%E8%87%AA%E8%A7%89%E7%9A%84%E5%AE%89%E5%85%A8%E9%98%B2%E5%BE%A1">四、物理级只读沙箱：不信任 Prompt 自觉的安全防御</a>
+<ul>
+<li><a href="#1-%E5%AE%BF%E4%B8%BB%E5%86%85%E5%AD%98%E6%B5%81%E5%BC%8F%E5%85%8B%E9%9A%86%E4%B8%8E%E6%9D%83%E9%99%90%E7%89%A9%E7%90%86%E5%89%A5%E5%A4%BA">1. 宿主内存流式克隆与权限物理剥夺</a></li>
+<li><a href="#2-%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E6%9E%81%E9%99%90%E5%8A%A0%E5%9B%BA%E7%9F%A9%E9%98%B5">2. 容器运行时极限加固矩阵</a></li>
+<li><a href="#3-%E9%9A%94%E7%A6%BB%E4%BC%98%E5%85%88%E7%9A%84%E6%B2%99%E7%AE%B1%E6%B1%A0sandboxpool">3. 隔离优先的沙箱池（SandboxPool）</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%94-%E5%BC%82%E6%AD%A5%E4%BB%BB%E5%8A%A1%E7%AE%A1%E7%BA%BF%E4%B8%8E%E5%A4%9A%E6%B8%A0%E9%81%93%E7%BB%9F%E4%B8%80%E6%8E%A5%E5%85%A5">五、异步任务管线与多渠道统一接入</a>
+<ul>
+<li><a href="#1-inboundmessage-%E7%BB%9F%E4%B8%80%E5%8D%8F%E8%AE%AE">1. InboundMessage 统一协议</a></li>
+<li><a href="#2-%E9%A3%9E%E4%B9%A6-websocket-%E5%85%8D%E5%85%AC%E7%BD%91%E6%8E%A5%E5%85%A5">2. 飞书 WebSocket 免公网接入</a></li>
+<li><a href="#3-%E4%BA%BA%E5%B7%A5%E4%BB%8B%E5%85%A5%E6%9C%BA%E5%88%B6human-in-the-loop">3. 人工介入机制（Human-in-the-Loop）</a></li>
+</ul>
+</li>
+<li><a href="#%E5%85%AD-%E5%85%A8%E9%93%BE%E8%B7%AF%E6%B2%BB%E7%90%86%E5%A4%9A%E6%A8%A1%E5%9E%8B%E8%B7%AF%E7%94%B1-%E5%88%86%E6%A1%B6%E9%99%90%E6%B5%81%E4%B8%8E-prometheus-%E6%88%90%E6%9C%AC%E5%BA%A6%E9%87%8F">六、全链路治理：多模型路由、分桶限流与 Prometheus 成本度量</a>
+<ul>
+<li><a href="#1-%E8%A7%92%E8%89%B2%E6%84%9F%E7%9F%A5%E7%9A%84%E5%88%86%E7%BA%A7%E6%A8%A1%E5%9E%8B%E8%B7%AF%E7%94%B1role-to-tier-routing">1. 角色感知的分级模型路由（Role-to-Tier Routing）</a></li>
+<li><a href="#2-%E5%A4%9A%E7%A7%9F%E6%88%B7%E9%9A%94%E7%A6%BB%E4%B8%8E-redis-%E5%85%B1%E4%BA%AB%E9%99%90%E6%B5%81">2. 多租户隔离与 Redis 共享限流</a></li>
+<li><a href="#3-%E7%BB%86%E7%B2%92%E5%BA%A6-prometheus-%E6%8C%87%E6%A0%87%E4%B8%8E-token-%E6%88%90%E6%9C%AC%E5%AE%9E%E6%97%B6%E6%A0%B8%E7%AE%97">3. 细粒度 Prometheus 指标与 Token 成本实时核算</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%83-%E5%B7%A5%E4%B8%9A%E7%BA%A7%E6%A8%AA%E5%90%91%E5%AF%B9%E6%AF%94ivyclaw-%E7%9A%84%E6%9E%B6%E6%9E%84%E5%AE%9A%E4%BD%8D">七、工业级横向对比：IvyClaw 的架构定位</a></li>
+<li><a href="#%E5%85%AB-%E6%80%BB%E7%BB%93%E4%B8%8E%E6%9E%B6%E6%9E%84%E5%90%AF%E7%A4%BA">八、总结与架构启示</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/ghidra-sleigh-pcode-decompiler-architecture/">
+              <h3 class="post-title">
+                二进制分析的军工级底座：Ghidra 的 SLEIGH 语义抽象、P-Code 中间表示与反编译引擎内核实践
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/(--[->]\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
