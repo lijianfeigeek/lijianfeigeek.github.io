@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>跨平台构建底座、无开销内存借用与并发演进：Swift 6.4 架构级更新深度解析 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1790429280475">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="跨平台构建底座、无开销内存借用与并发演进：Swift 6.4 架构级更新深度解析 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/swift-6-4-architecture-evolution-guide/">
+    <meta name="description" content="随着 Swift 6.4 官方版本的正式发布，这门由 Apple 主导但日益走向全栈与开放的编程语言，迎来了一次兼顾“系统级性能纵深”与“全平台工程一致性”的里程碑式演进。
+如果说 Swift 6.0 的核心主题是全面建立 Compile-..." />
+    <meta name="keywords" content="编译原理,性能优化,跨平台,架构设计,Swift" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="跨平台构建底座、无开销内存借用与并发演进：Swift 6.4 架构级更新深度解析">
+    <meta property="og:description" content="随着 Swift 6.4 官方版本的正式发布，这门由 Apple 主导但日益走向全栈与开放的编程语言，迎来了一次兼顾“系统级性能纵深”与“全平台工程一致性”的里程碑式演进。
+如果说 Swift 6.0 的核心主题是全面建立 Compile-...">
+    <meta property="og:url" content="https://lijianfei.com/post/swift-6-4-architecture-evolution-guide/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/swift-6-4-architecture-evolution-guide.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-09-16T06:00:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="编译原理">
+    
+    <meta property="article:tag" content="性能优化">
+    
+    <meta property="article:tag" content="跨平台">
+    
+    <meta property="article:tag" content="架构设计">
+    
+    <meta property="article:tag" content="Swift">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="跨平台构建底座、无开销内存借用与并发演进：Swift 6.4 架构级更新深度解析">
+    <meta name="twitter:description" content="随着 Swift 6.4 官方版本的正式发布，这门由 Apple 主导但日益走向全栈与开放的编程语言，迎来了一次兼顾“系统级性能纵深”与“全平台工程一致性”的里程碑式演进。
+如果说 Swift 6.0 的核心主题是全面建立 Compile-...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/swift-6-4-architecture-evolution-guide.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "跨平台构建底座、无开销内存借用与并发演进：Swift 6.4 架构级更新深度解析",
+      "description": "随着 Swift 6.4 官方版本的正式发布，这门由 Apple 主导但日益走向全栈与开放的编程语言，迎来了一次兼顾“系统级性能纵深”与“全平台工程一致性”的里程碑式演进。 如果说 Swift 6.0 的核心主题是全面建立 Compile-...",
+      "image": "https://lijianfei.com/post-images/swift-6-4-architecture-evolution-guide.png",
+      "datePublished": "2026-09-16T06:00:00.000Z",
+      "dateModified": "2026-09-16T06:00:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/swift-6-4-architecture-evolution-guide/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "编译原理",
+          "item": "https://lijianfei.com/tag/bian-yi-yuan-li/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "跨平台构建底座、无开销内存借用与并发演进：Swift 6.4 架构级更新深度解析",
+          "item": "https://lijianfei.com/post/swift-6-4-architecture-evolution-guide/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1790429280475" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              跨平台构建底座、无开销内存借用与并发演进：Swift 6.4 架构级更新深度解析
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-09-16
+              </span>
+              <span>
+                19 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/bian-yi-yuan-li/" class="post-tag">
+                  # 编译原理
+                </a>
+              
+                <a href="https://lijianfei.com/tag/xing-neng-you-hua/" class="post-tag">
+                  # 性能优化
+                </a>
+              
+                <a href="https://lijianfei.com/tag/kua-ping-tai/" class="post-tag">
+                  # 跨平台
+                </a>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-she-ji/" class="post-tag">
+                  # 架构设计
+                </a>
+              
+                <a href="https://lijianfei.com/tag/swift/" class="post-tag">
+                  # Swift
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/swift-6-4-architecture-evolution-guide.png" alt="跨平台构建底座、无开销内存借用与并发演进：Swift 6.4 架构级更新深度解析" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>随着 Swift 6.4 官方版本的正式发布，这门由 Apple 主导但日益走向全栈与开放的编程语言，迎来了一次兼顾“系统级性能纵深”与“全平台工程一致性”的里程碑式演进。</p>
+<p>如果说 Swift 6.0 的核心主题是全面建立 Compile-time Data Race Safety（编译期数据竞争安全），那么 Swift 6.4 则在这座安全高塔之上，吹响了向现代系统级编程、超高性能零拷贝运行时以及泛终端（Linux / Windows / Android / Wasm / 嵌入式）发起全面冲锋的号角。从取代旧版构建体系的 <strong>Swift Build</strong>，到告别引用计数负担的独占堆所有权容器 <strong><code>UniqueBox</code></strong> 与 <strong><code>UniqueArray</code></strong>，再到异步清理神器 <strong><code>withTaskCancellationShield</code></strong> 与 Subprocess 1.0 正式落地，Swift 6.4 正式展现出一门成熟全栈语言的架构自信。</p>
+<p>本文将摒弃浮于表面的清单式罗列，以底层架构演进、内存模型重塑与实战生产力为脉络，深度剖析 Swift 6.4 带来的核心技术跃迁与工程实践启示。</p>
+<!-- more -->
+<hr>
+<h2 id="1-内存模型重塑从引用计数到零成本借用系统">1. 内存模型重塑：从引用计数到“零成本借用”系统</h2>
+<p>在高性能系统编程（音视频编解码、数据库底层、高频量化交易、内核扩展）领域，现代语言的核心分水岭往往在于：<strong>能否在不牺牲内存安全的前提下，完全绕开 GC（垃圾回收）与 ARC（自动引用计数）的额外运行时代价？</strong></p>
+<p>以往的 Swift 依赖高效的 Copy-on-Write（COW）机制支撑标准集合（如 <code>Array</code>、<code>Dictionary</code>），但 COW 在极端高频或不可复制（Non-copyable）类型的场景下，依然伴随着不可忽视的元数据开销与隐式复制检查。Swift 6.4 正式引入了一套完整的“所有权与借用抽象”，将 Swift 的低层控制力推进到了比肩 Rust 与 C++ 的高度。</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Traditional [&quot;传统 Swift 内存抽象 (高层次/带开销)&quot;]
+        direction TB
+        ClassRef[&quot;Class 引用对象&lt;br/&gt;• 堆分配&lt;br/&gt;• ARC 引用计数原子增减&lt;br/&gt;• 存在多线程锁争用&quot;]
+        COWArray[&quot;标准 Array: Copy-on-Write 机制&lt;br/&gt;• 隐式独占检查与动态拷贝&lt;br/&gt;• 无法存储 ~Copyable 类型&quot;]
+        SeqIter[&quot;Sequence 遍历&lt;br/&gt;• 产生值拷贝 (Value Copying)&lt;br/&gt;• 无法实现连续内存就地借用&quot;]
+    end
+
+    subgraph Modern64 [&quot;Swift 6.4 现代系统级抽象 (零开销/内存安全)&quot;]
+        direction TB
+        UBox[&quot;UniqueBox (SE-0517)&lt;br/&gt;• 独占堆指针所有权&lt;br/&gt;• 零 ARC 开销，析构即就地释放&lt;br/&gt;• 天然支持 ~Copyable 类型&quot;]
+        UArray[&quot;UniqueArray (SE-0527)&lt;br/&gt;• 纯动态连续连续内存缓冲&lt;br/&gt;• 彻底剥离 COW 复制检查&lt;br/&gt;• 专为非拷贝元素量身定制&quot;]
+        BorrowIter[&quot;Iterable 协议 (SE-0516)&lt;br/&gt;• 借用式循环 (Borrowing Iteration)&lt;br/&gt;• 零复制遍历，结合 Span 极致吞吐&quot;]
+    end
+
+    Traditional -.-&gt;|&quot;架构演进升维&quot;| Modern64
+</code></pre>
+<h3 id="11-uniquebox脱离-arc-的独占堆智能指针se-0517">1.1 <code>UniqueBox</code>：脱离 ARC 的独占堆智能指针（SE-0517）</h3>
+<p>在处理大型结构体或非拷贝类型时，我们往往需要将其分配在堆上，但传统 Swift <code>class</code> 强制绑定了 ARC 引用计数头信息，每次参数传递都会产生原子操作指令。</p>
+<p>Swift 6.4 推出的 <strong><code>UniqueBox&lt;T&gt;</code></strong>（类似于 Rust 中的 <code>Box&lt;T&gt;</code>），在概念上提供了一个具有<strong>单一且绝对所有权</strong>的堆容器：</p>
+<ul>
+<li>它在堆上分配空间并持有值，但在生命周期结束时，无需任何引用计数仲裁，直接确定性释放；</li>
+<li>完美支持不可复制类型（<code>~Copyable</code>）；</li>
+<li>支持通过 <code>borrow</code> 和 <code>consume</code> 严格控制生命周期传递。</li>
+</ul>
+<pre><code class="language-swift">struct LargeSensoryFrame: ~Copyable {
+    var rawBuffer: InlineArray&lt;4096, UInt8&gt;
+    // 不可复制，防止产生 4KB 昂贵拷贝
+}
+
+// 在堆上构建独占所有权指针，零引用计数维护成本
+let boxedFrame = UniqueBox(LargeSensoryFrame(/* 初始化硬件帧 */))
+
+// 安全移动所有权或直接在堆内存上就地访问
+func ingestHardwareFrame(_ frame: consuming UniqueBox&lt;LargeSensoryFrame&gt;) {
+    // 独占转移，函数退出即在堆上安全释放
+}
+</code></pre>
+<h3 id="12-uniquearray-与-iterable非拷贝集合与零拷贝遍历se-0527-se-0516">1.2 <code>UniqueArray</code> 与 <code>Iterable</code>：非拷贝集合与零拷贝遍历（SE-0527 / SE-0516）</h3>
+<p>过去的 Swift <code>Array</code> 强行要求内部元素具备 <code>Copyable</code> 特性，因为动态扩容与 COW 机制随时可能发起元素深拷贝。这导致不可复制类型在 Swift 中长期沦为“二等公民”，无法装入标准容器。</p>
+<p>Swift 6.4 带来了 <strong><code>UniqueArray&lt;Element: ~Copyable&gt;</code></strong>：</p>
+<ol>
+<li><strong>动态增长</strong>：提供类似数组的动态扩容缓冲；</li>
+<li><strong>零 COW 开销</strong>：它是一个完全线性的独占数组，内部绝不发生隐式拷贝；</li>
+<li><strong>配合 <code>Iterable</code> 借用迭代</strong>：以往的 <code>for item in collection</code> 依赖 <code>Sequence</code> 协议，每一次循环推进都会将元素 Copy 一份。Swift 6.4 引入全新的 <strong><code>Iterable</code></strong> 协议，允许迭代器以 <strong>借用（Borrowing）</strong> 的方式提供元素访问，配合属性访问器 <code>borrow</code> 与 <code>mutate</code>（SE-0507），真正做到了全生命周期的零复制流转！</li>
+</ol>
+<pre><code class="language-swift">var buffer = UniqueArray&lt;LargeSensoryFrame&gt;()
+buffer.append(LargeSensoryFrame(...))
+
+// 借助 Iterable 协议直接就地借用，避免拷贝或转移所有权
+for item in buffer.borrowingElements() {
+    // item 为 borrowed 状态，零开销读取
+    print(item.rawBuffer.count)
+}
+</code></pre>
+<h3 id="13-ref-与-mutableref一等公民级的借用容器se-0519">1.3 <code>Ref</code> 与 <code>MutableRef</code>：一等公民级的借用容器（SE-0519）</h3>
+<p>在以往的 Swift 中，如果我们想把一个值的“借用”存入结构体临时传递，只能求助于不安全的原始指针（<code>UnsafePointer</code>）。</p>
+<p>SE-0519 引入了受编译器生命周期追踪器（Lifetime Checker）严格约束的 <strong><code>Ref&lt;T&gt;</code></strong> 与 <strong><code>MutableRef&lt;T&gt;</code></strong>：</p>
+<ul>
+<li>它们作为一等公民类型，可以在局部上下文中安全持有借用；</li>
+<li>编译器静态保证：借用容器的存活时间绝对不会超过被借用源对象的生命周期，彻底消灭悬垂指针（Dangling Pointer）与 Use-After-Free 漏洞。</li>
+</ul>
+<hr>
+<h2 id="2-跨平台构建底座大一统swift-build-与工具链全面升级">2. 跨平台构建底座大一统：Swift Build 与工具链全面升级</h2>
+<p>长期以来，在不同操作系统上构建 Swift 项目存在着隐秘的体验割裂：在 macOS 上开发者习惯依赖 Xcode 底层构建系统，而在 Linux 或 Windows 终端中，SwiftPM 使用的则是另一套管道。</p>
+<p>在 Swift 6.4 中，这一局面被彻底终结。</p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph ToolchainFrontEnd [&quot;统一开发与编译前端&quot;]
+        direction TB
+        VSCode[&quot;VS Code / Open VSX&lt;br/&gt;(Cursor / Antigravity / Kiro)&quot;]
+        CLI[&quot;SwiftPM CLI (swift build)&quot;]
+        Xcode[&quot;Xcode IDE 集成&quot;]
+    end
+
+    subgraph CoreEngine [&quot;Swift Build 统一引擎 (Swift 6.4 默认)&quot;]
+        direction TB
+        Planner[&quot;跨平台统一 Task 调度器&quot;]
+        DepGraph[&quot;模块精确追踪引擎 (Precise Module Tracking)&quot;]
+        SBOM[&quot;SBOM 自动化生成器 (SE-0509)&quot;]
+    end
+
+    subgraph Targets [&quot;一等公民跨平台部署目标&quot;]
+        direction TB
+        Darwin[&quot;macOS / iOS (dSYM 极致瘦身)&quot;]
+        Linux[&quot;Linux (无冗余二进制嵌入)&quot;]
+        Win[&quot;Windows (精确依赖加载)&quot;]
+        Android[&quot;Android (LTS NDK 30 支持)&quot;]
+        Wasm[&quot;WebAssembly (WASI 深度适配)&quot;]
+    end
+
+    ToolchainFrontEnd ==&gt; CoreEngine
+    CoreEngine ==&gt; Targets
+</code></pre>
+<h3 id="21-swift-build-成为-swiftpm-默认构建后端">2.1 Swift Build 成为 SwiftPM 默认构建后端</h3>
+<p>SwiftPM 正式将 <strong>Swift Build</strong> 设为跨全平台的统一默认构建核心：</p>
+<ul>
+<li><strong>行为完全一致</strong>：无论在 Linux CI 服务器、Windows 工作站还是 macOS 笔记本上，构建规划（Build Planning）、任务并发调度与增量感知逻辑 100% 同构；</li>
+<li><strong>Android 支持开箱即用</strong>：对 Android 平台的构建流程实现了原生闭环，彻底告别了过去繁琐的 <code>post-install</code> 预处理脚本。</li>
+</ul>
+<h3 id="22-软件物料清单sbom原生生成se-0509">2.2 软件物料清单（SBOM）原生生成（SE-0509）</h3>
+<p>企业级安全与开源合规已成为现代工程的底线要求。Swift 6.4 在 SwiftPM 中原生集成了 SBOM 生成器，支持导出为两大主流国际安全标准格式：</p>
+<pre><code class="language-bash"># 生成 SPDX 2.3 标准 JSON 格式物料清单
+swift package generate-sbom --output-path ./sbom.spdx.json --format spdx-json
+
+# 或生成 CycloneDX 1.5 格式物料清单
+swift package generate-sbom --output-path ./sbom.cdx.json --format cyclonedx-json
+</code></pre>
+<p>生成的文档完整涵盖了依赖树图谱、确切的 Git Commit SHA、语义化版本、开源许可证类型及各模块哈希指纹，无缝对接企业 DevSecOps 自动化审计流。</p>
+<h3 id="23-调试体系革命模块依赖精确追踪与符号体积剧减">2.3 调试体系革命：模块依赖精确追踪与符号体积剧减</h3>
+<p>过去，LLDB 在命中断点唤醒表达式求值器（Expression Evaluator）时，不得不通过模糊的“按名称查找”在庞大的符号空间中捞取 Swift 模块。为了保证调试可用性，编译器不得不在二进制文件（Linux/Windows）或 dSYM 符号包（Darwin）中打包大量冗余的二进制 Swift 模块（<code>swiftmodule</code>）。</p>
+<p>Swift 6.4 彻底重构了该机制：</p>
+<ol>
+<li><strong>精确依赖追踪（Precise Dependency Tracking）</strong>：编译器直接将精确的模块依赖拓扑嵌入调试信息中，LLDB 仅按拓扑加载所需上下文；</li>
+<li><strong>构建产物大幅瘦身</strong>：由于不再硬拷贝整个模块二进制包，Linux / Windows 上的 Debug 构建体积以及 macOS 上的 dSYM 包体积<strong>成倍缩水</strong>，不仅节省了宝贵的磁盘与 CI 缓存，更让多模块大型项目的断点附加与表达式求值耗时锐减。</li>
+</ol>
+<h3 id="24-ide-生态破圈入驻-open-vsx-与-swiftly-整合">2.4 IDE 生态破圈：入驻 Open VSX 与 Swiftly 整合</h3>
+<p>官方 Swift VS Code 插件正式上架 <strong>Open VSX Registry</strong>。这意味着不依赖微软专属应用市场的现代主流 AI 编辑器（如 Cursor、Google Antigravity、Kiro 等），均可一键安装官方认证的 Swift 语言支持。同时，插件原生集成了多版本工具链切换工具 <strong>Swiftly</strong>，多版本工具链测试与切换只需点选即可完成。</p>
+<hr>
+<h2 id="3-现代并发与日常编程生产力演进">3. 现代并发与日常编程生产力演进</h2>
+<p>在日常业务代码编写中，Swift 6.4 针对开发者常年抱怨的“语法痛点”与“并发资源泄漏隐患”，交出了极具诚意的答卷。</p>
+<h3 id="31-defer-块支持-await-与取消屏蔽护盾se-0493-se-0504">3.1 <code>defer</code> 块支持 <code>await</code> 与取消屏蔽护盾（SE-0493 / SE-0504）</h3>
+<p>在过去的 Swift 并发中，资源回收存在一个令人头疼的盲区：<code>defer</code> 块必须是同步执行的。如果某个清理动作依赖网络请求、分布式释放锁或异步刷盘（<code>await flush()</code>），开发者不得不放弃 <code>defer</code>，转而在每一个 <code>return</code> 或 <code>throw</code> 处手动复制粘帖异步清理逻辑。</p>
+<p>更致命的是：<strong>如果外部任务被提前取消（Task Cancelled），原本用于兜底的异步清理流程可能会因为检测到 Cancellation 状态而被系统直接跳过</strong>，导致远端连接悬挂或死锁。</p>
+<p>Swift 6.4 优雅地组合了两大特性：</p>
+<ul>
+<li><strong>SE-0493</strong>：<code>defer</code> 代码块内允许直接调用 <code>await</code>，退出作用域前保证等待其执行完毕；</li>
+<li><strong>SE-0504</strong>：提供 <strong><code>withTaskCancellationShield</code></strong> API，为关键代码构筑“防取消护盾”，即便外部 Task 已经触发 Cancel，护盾内部的闭包依然会坚定执行直至收尾。</li>
+</ul>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    actor Caller as 外部调用者 (Parent Task)
+    participant Worker as 业务工作流 (processFile)
+    participant Shield as withTaskCancellationShield
+    participant IO as 远程指标/文件系统
+
+    Caller-&gt;&gt;Worker: 启动异步文件处理任务
+    Worker-&gt;&gt;IO: 开启 FileHandle 句柄
+    Note over Worker: 注册带 await 的 defer 清理块
+    Caller--&gt;&gt;Worker: ⚠️ 触发任务取消 (Task.cancel())
+    Worker-&gt;&gt;Worker: 抛出 CancellationError / 提前返回
+    activate Worker
+    Note over Worker,Shield: 进入 defer 退出阶段 (SE-0493)
+    Worker-&gt;&gt;Shield: 进入取消屏蔽区 (SE-0504)
+    activate Shield
+    Note over Shield: 即使外部已 Cancel，内部保持活跃
+    Shield-&gt;&gt;IO: await flushMetrics(for: url)
+    IO--&gt;&gt;Shield: 指标刷盘确认完成
+    Shield-&gt;&gt;IO: handle.close()
+    deactivate Shield
+    Note over Worker: 清理彻底完成，安全抛出异常退出
+    deactivate Worker
+</code></pre>
+<pre><code class="language-swift">func processDistributedAsset(at endpoint: URL) async throws {
+    let lease = try await DistributedLock.acquire(for: endpoint)
+
+    defer {
+        // 即便外部任务因超时被取消，释放远端租约的操作也绝不会被拦截中途放弃
+        Task {
+            await withTaskCancellationShield {
+                await lease.release()
+                print(&quot;分布式锁已安全归还&quot;)
+            }
+        }
+    }
+
+    try await handleStreamData(from: endpoint)
+}
+</code></pre>
+<h3 id="32-subprocess-10-正式发布跨平台异步子进程库">3.2 Subprocess 1.0 正式发布：跨平台异步子进程库</h3>
+<p>长期以来，Swift 开发者在需要调用操作系统命令行（如 <code>git</code>、<code>ls</code>、<code>ffmpeg</code>）时，只能依赖古老的 <code>Process</code>（即 Objective-C 的 <code>NSTask</code> 遗产）。其 API 笨重、跨平台兼容性差（尤其在 Windows 上），且对异步流式处理极其不友好。</p>
+<p>历经多轮孵化，<strong>Subprocess 1.0</strong>（SF-0007）正式登场。它纯粹基于 Swift 并发理念从头构建，原生跨平台支持 macOS、Linux 与 Windows：</p>
+<pre><code class="language-swift">import Subprocess
+
+// 极简声明式调用，支持安全参数截断与异步等待
+let result = try await Subprocess.run(
+    .name(&quot;git&quot;),
+    arguments: [&quot;rev-parse&quot;, &quot;--short&quot;, &quot;HEAD&quot;],
+    output: .string(limit: 1024)
+)
+
+if result.exitCode.isSuccess {
+    print(&quot;当前 Commit 哈希: \(result.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines))&quot;)
+}
+</code></pre>
+<h3 id="33-告别冗余括号与源码级告警控制se-0521-se-0522-se-0491">3.3 告别冗余括号与源码级告警控制（SE-0521 / SE-0522 / SE-0491）</h3>
+<p>日常语法的打磨在 Swift 6.4 中随处可见：</p>
+<ol>
+<li>
+<p><strong>可选不透明/存在类型解绑括号（SE-0521）</strong>：<br>
+以往写一个可选的泛型协议返回值必须写成恶心的 <code>(some Protocol)?</code> 或 <code>(any Protocol)?</code>；现在无需括号，直接书写：</p>
+<pre><code class="language-swift">// Swift 6.4 推荐规范
+func fetchConfig() -&gt; some Configurable? { ... }
+func findPlugin() -&gt; any ExecutablePlugin? { ... }
+</code></pre>
+</li>
+<li>
+<p><strong>源码级告警精细化控制 <code>@diagnose</code>（SE-0522）</strong>：<br>
+告别全局粗暴的 <code>-suppress-warnings</code>，支持在特定代码块精准屏蔽或提升指定告警：</p>
+<pre><code class="language-swift">@diagnose(warning, &quot;由于上游二进制兼容性问题，临时保持旧实现&quot;)
+func legacyPayloadDecoder() { ... }
+</code></pre>
+</li>
+<li>
+<p><strong>双冒号模块歧义选择器 <code>::</code>（SE-0491）</strong>：<br>
+当不同三方库导出同名结构体（如 <code>KitA</code> 与 <code>KitB</code> 均定义了 <code>Logger</code>），且局部变量恰好也叫 <code>KitA</code> 时，传统的 <code>KitA.Logger</code> 语法会发生符号歧义。Swift 6.4 引入了明确的模块选择器操作符：</p>
+<pre><code class="language-swift">let logger = KitA::Logger() // 显式指明命名空间为 KitA 模块，绝不产生变量名混淆
+</code></pre>
+</li>
+</ol>
+<hr>
+<h2 id="4-全栈深度互操作从-c20-到-webassembly">4. 全栈深度互操作：从 C++20 到 WebAssembly</h2>
+<p>Swift 作为胶水与系统粘合剂的能力在 6.4 中继续向下扎根。</p>
+<h3 id="41-c20-stdspan-与-swift-span-零摩擦互通">4.1 C++20 <code>std::span</code> 与 Swift <code>Span</code> 零摩擦互通</h3>
+<p>在系统互操作中，连续缓冲区的传递最容易引发指针所有权灾难。Swift 6.4 将 Swift 的安全连续内存视图 <strong><code>Span</code></strong> 与 C++20 的 <strong><code>std::span</code></strong> 进行了原生映射：</p>
+<ul>
+<li>C++ 导出的接受 <code>std::span&lt;const float&gt;</code> 的函数，在 Swift 中直接投影为接受 <code>Span&lt;Float&gt;</code>；</li>
+<li>Swift 开发者可以直接将安全切片传给 C++ 高性能算法库，两端均保持连续内存的零拷贝直通，中间没有任何桥接样板代码。</li>
+</ul>
+<h3 id="42-webassembly40-倍性能爆发与官方-sdk">4.2 WebAssembly：40 倍性能爆发与官方 SDK</h3>
+<p>Web 平台迎来突破性提速：</p>
+<ul>
+<li><strong>JavaScriptKit 性能暴增</strong>：Wasm 与 JavaScript 运行时的安全调用桥接效率相比早期动态桥接方案提升了<strong>最高 40 倍</strong>；</li>
+<li><strong>官方 Wasm SDK</strong>：直接上架 Swift.org 官方下载页，配合完善的 WASI <code>FileManager</code> 支持，使用 Swift 开发浏览器端的高性能计算模块（Web Worker）、图像处理或轻量客户端已真正具备工程可行性。</li>
+</ul>
+<h3 id="43-嵌入式-swift存在类型与微控制器目标规范">4.3 嵌入式 Swift：存在类型与微控制器目标规范</h3>
+<p>针对单片机与极度受限环境的 <strong>Embedded Swift</strong>（无堆分配、无元数据、体积超小的静态子集）持续演进：</p>
+<ul>
+<li>正式支持泛化存在类型（Generalized Existential Types），现在可以在嵌入式芯片上优雅表达类似 <code>any SensorProtocol</code> 的异构传感器集合，以及原生使用 <code>throw / catch any Error</code>；</li>
+<li>提供目标级告警约束标记：<pre><code class="language-swift">// Package.swift 配置
+.target(
+    name: &quot;Esp32Firmware&quot;,
+    swiftSettings: [
+        .treatWarning(&quot;EmbeddedRestrictions&quot;, as: .warning)
+    ]
+)
+</code></pre>
+</li>
+</ul>
+<hr>
+<h2 id="5-迁移演进对比与开发者行动指南">5. 迁移演进对比与开发者行动指南</h2>
+<p>为了帮助团队快速评估 Swift 6.4 的落地收益与升级节奏，我们对新老方案的核心维度进行综合对比：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评估维度</th>
+<th style="text-align:left">传统 Swift 5.x / 6.0 方案</th>
+<th style="text-align:left">Swift 6.4 现代化方案</th>
+<th style="text-align:left">工程核心收益</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>不可复制集合存储</strong></td>
+<td style="text-align:left">不支持，必须退化为原始指针与手动内存管理</td>
+<td style="text-align:left"><strong><code>UniqueArray&lt;Element: ~Copyable&gt;</code></strong></td>
+<td style="text-align:left">零 COW 隐式拷贝，全自动内存回收</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>堆上独占对象</strong></td>
+<td style="text-align:left"><code>final class</code> 配合强引用</td>
+<td style="text-align:left"><strong><code>UniqueBox&lt;T&gt;</code></strong></td>
+<td style="text-align:left">彻底告别 ARC 增减指令与锁争用</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>集合循环遍历</strong></td>
+<td style="text-align:left"><code>for x in sequence</code> (隐式触发值深拷贝)</td>
+<td style="text-align:left"><strong><code>Iterable</code> + <code>borrow</code> 访问器</strong></td>
+<td style="text-align:left">零拷贝内存借用遍历，显著提升吞吐</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>构建管道表现</strong></td>
+<td style="text-align:left">跨平台构建系统碎片化，Android 依赖 hack 脚本</td>
+<td style="text-align:left"><strong>Swift Build 统一引擎 + SBOM 原生支持</strong></td>
+<td style="text-align:left">全平台构建一致性，供应链合规秒级达成</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>异步资源安全回收</strong></td>
+<td style="text-align:left">同步 <code>defer</code> 无法执行 <code>await</code>，取消易引发泄漏</td>
+<td style="text-align:left"><strong><code>defer</code> 内原生 <code>await</code> + <code>withTaskCancellationShield</code></strong></td>
+<td style="text-align:left">确保分布式租约与系统资源 100% 最终一致性</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>跨进程指令交互</strong></td>
+<td style="text-align:left">陈旧复杂的 Objective-C 遗留 <code>Process</code> 类</td>
+<td style="text-align:left"><strong>跨平台并发原生 <code>Subprocess 1.0</code></strong></td>
+<td style="text-align:left">异步流式收发，跨 Linux/Windows 统一</td>
+</tr>
+</tbody>
+</table>
+<h3 id="51-推荐落地演进路线">5.1 推荐落地演进路线</h3>
+<ol>
+<li>
+<p><strong>第一阶段：平滑启用工具链与构建检查</strong></p>
+<ul>
+<li>通过 Swiftly 或官方安装包升级至 Swift 6.4；</li>
+<li>在 CI 流程中加入 <code>swift package generate-sbom</code>，为项目的交付制品建立合规物料追踪；</li>
+<li>检查并移除老旧的 <code>(some View)?</code> 类语法，用全新的 <code>some View?</code> 提升代码可读性。</li>
+</ul>
+</li>
+<li>
+<p><strong>第二阶段：重构危险的异步清理逻辑</strong></p>
+<ul>
+<li>审查现存代码中的异步清理环节（如网络通道关闭、临时文件抹除、互斥量解锁）；</li>
+<li>将原先分散在 <code>catch</code> 或各 <code>return</code> 前的手动异步调用，统一收束至带有 <code>withTaskCancellationShield</code> 的异步 <code>defer</code> 块中。</li>
+</ul>
+</li>
+<li>
+<p><strong>第三阶段：在性能核心路径引入零开销借用模型</strong></p>
+<ul>
+<li>针对高性能音视频、序列化反序列化或高吞吐中间件的核心缓冲，评估将部分包含昂贵数据的结构改写为 <code>~Copyable</code>；</li>
+<li>使用 <code>UniqueBox</code> 与 <code>UniqueArray</code> 取代多余的类分配与 COW 数组，利用 <code>Span</code> 配合 C++ 核心库完成零拷贝吞吐改造。</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2 id="6-总结系统级雄心与现代工程的平衡之美">6. 总结：系统级雄心与现代工程的平衡之美</h2>
+<p>纵观 Swift 6.4 的整张演进图谱，我们可以清晰地感知到 Swift 语言演进团队的战略聚焦：</p>
+<p>它不再满足于仅仅作为 iOS / macOS 应用开发的“优雅工具”，而是在坚守 <strong>内存安全（Memory Safety）</strong> 与 <strong>开发人体工学（Ergonomics）</strong> 两大核心基石的同时，大步流星地挺进现代系统级编程的最深处。</p>
+<p>从底层的无开销所有权抽象，到底层的统一构建底座，再到跨越 C++、Java、Android 与 Wasm 的全栈触角，Swift 6.4 向全球开发者宣告：<strong>极致的运行性能与现代的高级抽象，从来不是非此即彼的单选题。</strong></p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#1-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B%E9%87%8D%E5%A1%91%E4%BB%8E%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0%E5%88%B0%E9%9B%B6%E6%88%90%E6%9C%AC%E5%80%9F%E7%94%A8%E7%B3%BB%E7%BB%9F">1. 内存模型重塑：从引用计数到“零成本借用”系统</a>
+<ul>
+<li><a href="#11-uniquebox%E8%84%B1%E7%A6%BB-arc-%E7%9A%84%E7%8B%AC%E5%8D%A0%E5%A0%86%E6%99%BA%E8%83%BD%E6%8C%87%E9%92%88se-0517">1.1 <code>UniqueBox</code>：脱离 ARC 的独占堆智能指针（SE-0517）</a></li>
+<li><a href="#12-uniquearray-%E4%B8%8E-iterable%E9%9D%9E%E6%8B%B7%E8%B4%9D%E9%9B%86%E5%90%88%E4%B8%8E%E9%9B%B6%E6%8B%B7%E8%B4%9D%E9%81%8D%E5%8E%86se-0527-se-0516">1.2 <code>UniqueArray</code> 与 <code>Iterable</code>：非拷贝集合与零拷贝遍历（SE-0527 / SE-0516）</a></li>
+<li><a href="#13-ref-%E4%B8%8E-mutableref%E4%B8%80%E7%AD%89%E5%85%AC%E6%B0%91%E7%BA%A7%E7%9A%84%E5%80%9F%E7%94%A8%E5%AE%B9%E5%99%A8se-0519">1.3 <code>Ref</code> 与 <code>MutableRef</code>：一等公民级的借用容器（SE-0519）</a></li>
+</ul>
+</li>
+<li><a href="#2-%E8%B7%A8%E5%B9%B3%E5%8F%B0%E6%9E%84%E5%BB%BA%E5%BA%95%E5%BA%A7%E5%A4%A7%E4%B8%80%E7%BB%9Fswift-build-%E4%B8%8E%E5%B7%A5%E5%85%B7%E9%93%BE%E5%85%A8%E9%9D%A2%E5%8D%87%E7%BA%A7">2. 跨平台构建底座大一统：Swift Build 与工具链全面升级</a>
+<ul>
+<li><a href="#21-swift-build-%E6%88%90%E4%B8%BA-swiftpm-%E9%BB%98%E8%AE%A4%E6%9E%84%E5%BB%BA%E5%90%8E%E7%AB%AF">2.1 Swift Build 成为 SwiftPM 默认构建后端</a></li>
+<li><a href="#22-%E8%BD%AF%E4%BB%B6%E7%89%A9%E6%96%99%E6%B8%85%E5%8D%95sbom%E5%8E%9F%E7%94%9F%E7%94%9F%E6%88%90se-0509">2.2 软件物料清单（SBOM）原生生成（SE-0509）</a></li>
+<li><a href="#23-%E8%B0%83%E8%AF%95%E4%BD%93%E7%B3%BB%E9%9D%A9%E5%91%BD%E6%A8%A1%E5%9D%97%E4%BE%9D%E8%B5%96%E7%B2%BE%E7%A1%AE%E8%BF%BD%E8%B8%AA%E4%B8%8E%E7%AC%A6%E5%8F%B7%E4%BD%93%E7%A7%AF%E5%89%A7%E5%87%8F">2.3 调试体系革命：模块依赖精确追踪与符号体积剧减</a></li>
+<li><a href="#24-ide-%E7%94%9F%E6%80%81%E7%A0%B4%E5%9C%88%E5%85%A5%E9%A9%BB-open-vsx-%E4%B8%8E-swiftly-%E6%95%B4%E5%90%88">2.4 IDE 生态破圈：入驻 Open VSX 与 Swiftly 整合</a></li>
+</ul>
+</li>
+<li><a href="#3-%E7%8E%B0%E4%BB%A3%E5%B9%B6%E5%8F%91%E4%B8%8E%E6%97%A5%E5%B8%B8%E7%BC%96%E7%A8%8B%E7%94%9F%E4%BA%A7%E5%8A%9B%E6%BC%94%E8%BF%9B">3. 现代并发与日常编程生产力演进</a>
+<ul>
+<li><a href="#31-defer-%E5%9D%97%E6%94%AF%E6%8C%81-await-%E4%B8%8E%E5%8F%96%E6%B6%88%E5%B1%8F%E8%94%BD%E6%8A%A4%E7%9B%BEse-0493-se-0504">3.1 <code>defer</code> 块支持 <code>await</code> 与取消屏蔽护盾（SE-0493 / SE-0504）</a></li>
+<li><a href="#32-subprocess-10-%E6%AD%A3%E5%BC%8F%E5%8F%91%E5%B8%83%E8%B7%A8%E5%B9%B3%E5%8F%B0%E5%BC%82%E6%AD%A5%E5%AD%90%E8%BF%9B%E7%A8%8B%E5%BA%93">3.2 Subprocess 1.0 正式发布：跨平台异步子进程库</a></li>
+<li><a href="#33-%E5%91%8A%E5%88%AB%E5%86%97%E4%BD%99%E6%8B%AC%E5%8F%B7%E4%B8%8E%E6%BA%90%E7%A0%81%E7%BA%A7%E5%91%8A%E8%AD%A6%E6%8E%A7%E5%88%B6se-0521-se-0522-se-0491">3.3 告别冗余括号与源码级告警控制（SE-0521 / SE-0522 / SE-0491）</a></li>
+</ul>
+</li>
+<li><a href="#4-%E5%85%A8%E6%A0%88%E6%B7%B1%E5%BA%A6%E4%BA%92%E6%93%8D%E4%BD%9C%E4%BB%8E-c20-%E5%88%B0-webassembly">4. 全栈深度互操作：从 C++20 到 WebAssembly</a>
+<ul>
+<li><a href="#41-c20-stdspan-%E4%B8%8E-swift-span-%E9%9B%B6%E6%91%A9%E6%93%A6%E4%BA%92%E9%80%9A">4.1 C++20 <code>std::span</code> 与 Swift <code>Span</code> 零摩擦互通</a></li>
+<li><a href="#42-webassembly40-%E5%80%8D%E6%80%A7%E8%83%BD%E7%88%86%E5%8F%91%E4%B8%8E%E5%AE%98%E6%96%B9-sdk">4.2 WebAssembly：40 倍性能爆发与官方 SDK</a></li>
+<li><a href="#43-%E5%B5%8C%E5%85%A5%E5%BC%8F-swift%E5%AD%98%E5%9C%A8%E7%B1%BB%E5%9E%8B%E4%B8%8E%E5%BE%AE%E6%8E%A7%E5%88%B6%E5%99%A8%E7%9B%AE%E6%A0%87%E8%A7%84%E8%8C%83">4.3 嵌入式 Swift：存在类型与微控制器目标规范</a></li>
+</ul>
+</li>
+<li><a href="#5-%E8%BF%81%E7%A7%BB%E6%BC%94%E8%BF%9B%E5%AF%B9%E6%AF%94%E4%B8%8E%E5%BC%80%E5%8F%91%E8%80%85%E8%A1%8C%E5%8A%A8%E6%8C%87%E5%8D%97">5. 迁移演进对比与开发者行动指南</a>
+<ul>
+<li><a href="#51-%E6%8E%A8%E8%8D%90%E8%90%BD%E5%9C%B0%E6%BC%94%E8%BF%9B%E8%B7%AF%E7%BA%BF">5.1 推荐落地演进路线</a></li>
+</ul>
+</li>
+<li><a href="#6-%E6%80%BB%E7%BB%93%E7%B3%BB%E7%BB%9F%E7%BA%A7%E9%9B%84%E5%BF%83%E4%B8%8E%E7%8E%B0%E4%BB%A3%E5%B7%A5%E7%A8%8B%E7%9A%84%E5%B9%B3%E8%A1%A1%E4%B9%8B%E7%BE%8E">6. 总结：系统级雄心与现代工程的平衡之美</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/hangzhou-opc-120-apps-ai-loan-paradigm/">
+              <h3 class="post-title">
+                贷款制、零服务器与去意图套利：杭州 OPC 120 款 App 工业化出海的极端工程哲学
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
