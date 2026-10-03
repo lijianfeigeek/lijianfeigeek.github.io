@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>类型安全的代价与妥协：从 HandyJSON 内存黑客到现代 Swift JSON 解析的架构演进 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1791009880148">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="类型安全的代价与妥协：从 HandyJSON 内存黑客到现代 Swift JSON 解析的架构演进 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/ios-json-parsing-codable-evolution-architecture/">
+    <meta name="description" content="在 iOS 开发的演进长河中，JSON 数据与强类型模型之间的反序列化（Deserialization）始终是端侧工程的核心基础设施之一。从 Objective-C 时代重度依赖 Runtime 与 KVC 的动态映射，到 Swift 早期..." />
+    <meta name="keywords" content="源码剖析,架构设计,iOS,Swift" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="类型安全的代价与妥协：从 HandyJSON 内存黑客到现代 Swift JSON 解析的架构演进">
+    <meta property="og:description" content="在 iOS 开发的演进长河中，JSON 数据与强类型模型之间的反序列化（Deserialization）始终是端侧工程的核心基础设施之一。从 Objective-C 时代重度依赖 Runtime 与 KVC 的动态映射，到 Swift 早期...">
+    <meta property="og:url" content="https://lijianfei.com/post/ios-json-parsing-codable-evolution-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/ios-json-parsing-codable-evolution-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-09-24T07:00:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="源码剖析">
+    
+    <meta property="article:tag" content="架构设计">
+    
+    <meta property="article:tag" content="iOS">
+    
+    <meta property="article:tag" content="Swift">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="类型安全的代价与妥协：从 HandyJSON 内存黑客到现代 Swift JSON 解析的架构演进">
+    <meta name="twitter:description" content="在 iOS 开发的演进长河中，JSON 数据与强类型模型之间的反序列化（Deserialization）始终是端侧工程的核心基础设施之一。从 Objective-C 时代重度依赖 Runtime 与 KVC 的动态映射，到 Swift 早期...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/ios-json-parsing-codable-evolution-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "类型安全的代价与妥协：从 HandyJSON 内存黑客到现代 Swift JSON 解析的架构演进",
+      "description": "在 iOS 开发的演进长河中，JSON 数据与强类型模型之间的反序列化（Deserialization）始终是端侧工程的核心基础设施之一。从 Objective-C 时代重度依赖 Runtime 与 KVC 的动态映射，到 Swift 早期...",
+      "image": "https://lijianfei.com/post-images/ios-json-parsing-codable-evolution-architecture.png",
+      "datePublished": "2026-09-24T07:00:00.000Z",
+      "dateModified": "2026-09-24T07:00:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/ios-json-parsing-codable-evolution-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "源码剖析",
+          "item": "https://lijianfei.com/tag/yuan-ma-pou-xi/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "类型安全的代价与妥协：从 HandyJSON 内存黑客到现代 Swift JSON 解析的架构演进",
+          "item": "https://lijianfei.com/post/ios-json-parsing-codable-evolution-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1791009880148" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              类型安全的代价与妥协：从 HandyJSON 内存黑客到现代 Swift JSON 解析的架构演进
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-09-24
+              </span>
+              <span>
+                21 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/yuan-ma-pou-xi/" class="post-tag">
+                  # 源码剖析
+                </a>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-she-ji/" class="post-tag">
+                  # 架构设计
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ios/" class="post-tag">
+                  # iOS
+                </a>
+              
+                <a href="https://lijianfei.com/tag/swift/" class="post-tag">
+                  # Swift
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/ios-json-parsing-codable-evolution-architecture.png" alt="类型安全的代价与妥协：从 HandyJSON 内存黑客到现代 Swift JSON 解析的架构演进" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在 iOS 开发的演进长河中，JSON 数据与强类型模型之间的反序列化（Deserialization）始终是端侧工程的核心基础设施之一。从 Objective-C 时代重度依赖 Runtime 与 KVC 的动态映射，到 Swift 早期群雄割据的 ObjectMapper 与凭借“内存指针黑魔法”名噪一时的 HandyJSON，再到 Apple 官方在 Swift 4 祭出的类型系统亲儿子 Codable——开发者的模型代码看似从繁琐的基类继承简化成了只有一行 <code>struct Model: Decodable</code>。</p>
+<p>然而，十多年过去，即使在 Swift 6 强内存安全与并发隔离已经落地的当下，各种第三方 JSON 解析库不仅没有绝迹，反而以 SmartCodable 为代表的增强型框架愈发活跃。这背后究竟是历史技术债务的惯性残留，还是苹果原生 Codable 在应对严苛、动态且充斥脏数据的工业级生产环境时存在无法回避的架构缺陷？本文将深入底层内存布局、编译器代码合成机制与容错流水线，全方位拆解 iOS JSON 解析的技术代际演进与架构选型思考。</p>
+<!-- more -->
+<hr>
+<h2 id="一-四大技术代际十年反序列化的工程角力">一、四大技术代际：十年反序列化的工程角力</h2>
+<p>要理解当下的选型分歧，必须先看清移动端反序列化技术演进的底层脉络。十多年间，iOS 端的 JSON 映射主要经历了四个鲜明的技术代际，每个代际的诞生都是为了解决上一代的固有痛点，但也随之带来了新的妥协。</p>
+<pre><code class="language-mermaid">flowchart LR
+    A[&quot;第一代：ObjC Runtime\n(NSObject / KVC)\n动态运行时赋值&quot;] --&gt; B[&quot;第二代：Swift 拓荒期\n(ObjectMapper / HandyJSON)\n操作符映射 vs 内存指针注入&quot;]
+    B --&gt; C[&quot;第三代：官方标准\n(Swift Codable)\n编译器静态代码合成&quot;]
+    C --&gt; D[&quot;第四代：Codable 增强态\n(SmartCodable)\n保留模型体系 + 增强解码容器&quot;]
+</code></pre>
+<h3 id="1-第一代objective-c-runtime-与-kvc-时代">1. 第一代：Objective-C Runtime 与 KVC 时代</h3>
+<p>在 Objective-C 占据主流的年代，数据建模几乎清一色基于 <code>NSObject</code>。以 JSONModel、Mantle 或 MJExtension 为代表的框架，本质上都依赖苹果的 Objective-C Runtime 机制：</p>
+<pre><code class="language-objc">@interface UserModel : NSObject
+@property (nonatomic, copy) NSString *userId;
+@property (nonatomic, copy) NSString *nickname;
+@property (nonatomic, strong) NSURL *avatar;
+@end
+</code></pre>
+<p>框架通过调用 <code>class_copyPropertyList</code> 遍历类的属性列表，读取属性的类型编码（Type Encoding），再借助 Key-Value Coding（KVC）的 <code>setValue:forKey:</code> 将字典中的值动态写入实例：</p>
+<pre><code class="language-objc">[user setValue:@&quot;CoderChan&quot; forKey:@&quot;nickname&quot;];
+</code></pre>
+<ul>
+<li><strong>架构优势</strong>：模型编写直观，动态性极强，框架层能够统一对所有 <code>NSObject</code> 子类实施无侵入的类型修正（例如将 NSString 自动转为 NSNumber）。</li>
+<li><strong>致命缺陷</strong>：
+<ol>
+<li><strong>无编译期类型检查</strong>：属性名一旦手滑拼错，要么在运行时抛出臭名昭著的 <code>NSUnknownKeyException</code>，要么静默丢失数据；</li>
+<li><strong>强制继承与内存开销</strong>：所有模型必须继承 <code>NSObject</code>，占用了唯一的类继承位，无法享受轻量级结构体（Value Types）的内存与性能优势；</li>
+<li><strong>Swift 水土不服</strong>：Swift 引入纯原生类型（Struct / Enum / Swift Class）后，不再默认生成 Objective-C 虚表与元数据，强行引入 <code>@objcMembers</code> 和动态性违背了 Swift 的类型安全设计初衷。</li>
+</ol>
+</li>
+</ul>
+<h3 id="2-第二代swift-拓荒期的两极分化">2. 第二代：Swift 拓荒期的两极分化</h3>
+<p>随着 Swift 1.0 到 3.0 的探索，社区涌现了以 <strong>ObjectMapper</strong> 和 <strong>HandyJSON</strong> 为代表的两大典型派系，它们分别代表了“极致显式声明”与“极致黑盒反射”两个极端。</p>
+<h4 id="派系-a显式映射契约-objectmapper">派系 A：显式映射契约 —— ObjectMapper</h4>
+<p>ObjectMapper 要求模型遵循 <code>Mappable</code> 协议，并通过自定义中缀操作符 <code>&lt;-</code> 显式描述每一对字段的流转规则：</p>
+<pre><code class="language-swift">final class UserModel: Mappable {
+    var userId: String?
+    var nickname: String?
+    var avatar: URL?
+
+    required init?(map: Map) {}
+
+    func mapping(map: Map) {
+        userId   &lt;- map[&quot;user_id&quot;]
+        nickname &lt;- map[&quot;nick_name&quot;]
+        avatar   &lt;- (map[&quot;avatar&quot;], URLTransform())
+    }
+}
+</code></pre>
+<p>ObjectMapper 的优势在于<strong>逻辑极其确定</strong>，转换规则一目了然。但其工程代价显而易见：<strong>严重的样板代码冗余</strong>。每个属性必须声明两次（一次在属性区，一次在 <code>mapping</code> 函数），对于包含几十个字段的数据契约，维护成本与出错概率直线上升。</p>
+<h4 id="派系-b逆向内存布局的黑客狂欢-handyjson">派系 B：逆向内存布局的黑客狂欢 —— HandyJSON</h4>
+<p>阿里巴巴开源的 HandyJSON 彻底颠覆了以往的认知。开发者无需为每个字段手写映射代码，模型也不用继承 <code>NSObject</code>，就能像动态语言一样将 JSON 字典自动灌入纯 Swift Struct / Class 中：</p>
+<pre><code class="language-swift">struct UserModel: HandyJSON {
+    var userId: String = &quot;&quot;
+    var nickname: String = &quot;&quot;
+    var avatar: String?
+}
+
+let user = UserModel.deserialize(from: jsonString)
+</code></pre>
+<p>HandyJSON 是如何绕过 Swift 严格的类型检查实现属性写入的？它的底层是一套惊艳却极其凶险的<strong>内存指针黑客技术</strong>：</p>
+<ol>
+<li><strong>元数据逆向解析</strong>：利用 Swift 的 <code>NominalTypeDescriptor</code> 和 <code>TargetStructMetadata</code> 结构体，逆向分析出当前类型在 Mach-O 二进制文件中的元数据表；</li>
+<li><strong>获取属性内存偏移量</strong>（Field Offset）：读取每个属性在结构体内部相对于起始地址的内存偏移（Offset）；</li>
+<li><strong>裸指针直接注水</strong>：通过 <code>UnsafeMutableRawPointer</code> 获取新建实例的内存基地址，加上偏移量后，直接将解析出的数据写入该段裸内存区域！</li>
+</ol>
+<blockquote>
+<p>[!WARNING]<br>
+<strong>HandyJSON 的底层阿喀琉斯之踵</strong><br>
+这种越过 Swift 编译器与安全机制、直接根据未公开（Undocumented）内部数据结构篡改内存的做法，在 Swift ABI 冻结前极为脆弱。每当 Xcode 升级或 Swift 编译器调整内存对齐与元数据排布（如类继承链布局、泛型特化、Swift 5.0+ 乃至 Swift 6 的并发隔离），这类内存写入就极易引发非法的内存访问崩溃（EXC_BAD_ACCESS）或属性生命周期无法正确引用的严重幽灵 Bug。</p>
+</blockquote>
+<h3 id="3-第三代官方正统-swift-codable-的编译器魔法">3. 第三代：官方正统 —— Swift Codable 的编译器魔法</h3>
+<p>在 Swift 4 中，苹果官方正式推出了 <code>Codable</code>（即 <code>Decodable &amp; Encodable</code>）。它的设计理念既不同于 Objective-C 的运行时反射，也绝不触碰不安全的裸指针，而是<strong>交由 Swift 编译器在 AST 阶段静态合成代码</strong>：</p>
+<pre><code class="language-swift">struct UserModel: Decodable {
+    let userId: String
+    let nickname: String
+    let avatar: URL?
+
+    enum CodingKeys: String, CodingKey {
+        case userId = &quot;user_id&quot;
+        case nickname = &quot;nick_name&quot;
+        case avatar
+    }
+}
+
+let user = try JSONDecoder().decode(UserModel.self, from: data)
+</code></pre>
+<p>当编译器发现一个类型声明了 <code>Decodable</code> 且所有成员属性均遵循 <code>Decodable</code> 时，编译器前端的 <code>DerivedConformance</code> 会自动为该类型生成一个隐式的 <code>init(from decoder: Decoder) throws</code> 构造器。</p>
+<p>所有的键值查询、类型校验和属性赋值都在编译期就确立了类型安全，性能极高，内存 100% 安全。至此，iOS 的反序列化看似迎来了大圆满的终局。</p>
+<hr>
+<h2 id="二-撕开-codable-的理想国为什么生产环境屡遭滑铁卢">二、撕开 Codable 的“理想国”：为什么生产环境屡遭滑铁卢？</h2>
+<p>然而，当大批团队兴奋地将线上项目全量迁移至原生 Codable 时，随之而来的却是生产环境崩溃率与网络层报错的陡增。</p>
+<p>苹果工程师设计 Codable 的核心哲学是 <strong>Fail-Fast</strong>（快速失败与严格契约）：数据要么严格符合类型定义，要么整单作废。但现实世界的工业级后端服务，往往充满了历史包袱、弱类型脚本语言生成的脏数据以及跨团队契约管理的失控。</p>
+<p>下面这五个原生 Codable 的典型“暗礁”，几乎每个 iOS 资深工程师都曾踩过坑。</p>
+<h3 id="1-弱类型兼容失败字符串与数字的楚河汉界">1. 弱类型兼容失败：字符串与数字的“楚河汉界”</h3>
+<p>真实服务端返回的 JSON 常常毫无预警地在数字与字符串之间横跳：</p>
+<pre><code class="language-json">{
+  &quot;user_id&quot;: &quot;1001&quot;,
+  &quot;score&quot;: 98.5
+}
+</code></pre>
+<p>如果客户端模型将 <code>userId</code> 定义为 <code>Int</code>：</p>
+<pre><code class="language-swift">struct UserModel: Decodable {
+    let userId: Int
+}
+</code></pre>
+<p>原生 <code>JSONDecoder</code> 会毫不留情地直接抛出 <code>DecodingError.typeMismatch</code>，导致整条数据解析中断。系统不会尝试将 <code>&quot;1001&quot;</code> 转换为 <code>1001</code>。</p>
+<h3 id="2-字段空值与缺失nullability-刺客">2. 字段空值与缺失：Nullability 刺客</h3>
+<p>假设服务端新增了一个逻辑，某场景下用户的昵称可能未初始化并返回了 <code>null</code>：</p>
+<pre><code class="language-json">{
+  &quot;user_id&quot;: 1001,
+  &quot;nick_name&quot;: null
+}
+</code></pre>
+<p>如果客户端模型中 <code>let nickname: String</code> 没有声明为 Optional，解码器会立即抛出 <code>DecodingError.valueNotFound</code>。即使是无关紧要的非核心字段，也会直接拖垮整个接口的渲染。</p>
+<h3 id="3-默认值失效之谜为什么-var-nickname-默认-根本不起作用">3. 默认值失效之谜：为什么 <code>var nickname = &quot;默认&quot;</code> 根本不起作用？</h3>
+<p>这是最多开发者感到困惑的技术细节：“<strong>我明明在 Struct 声明中给属性赋予了默认初始值，为什么遇到缺失字段或 null 时，Codable 还是抛出异常，而不是使用我的默认值？</strong>”</p>
+<pre><code class="language-swift">struct UserModel: Decodable {
+    var userId: Int
+    var nickname: String = &quot;匿名用户&quot; // 期望容错兜底
+}
+</code></pre>
+<p>要弄懂这个 Bug，必须观察 Swift 编译器为 <code>Decodable</code> 自动合成的真实代码长什么样：</p>
+<pre><code class="language-swift">// 编译器自动合成的 init(from:) 伪代码
+init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.userId = try container.decode(Int.self, forKey: .userId)
+    // 关键点：编译器直接调用 decode，要求该 Key 必须存在且解码成功
+    self.nickname = try container.decode(String.self, forKey: .nickname)
+}
+</code></pre>
+<p>在 Swift 的初始化生命周期规则中，构造器执行时会强制要求对所有存储属性进行赋值。当执行到 <code>try container.decode(String.self, forKey: .nickname)</code> 时：</p>
+<ol>
+<li>若 JSON 中没有 <code>nickname</code> 键，或其值为 <code>null</code>，<code>decode</code> 方法立即 <code>throw</code> 抛出错误；</li>
+<li>一旦方法抛出异常，整个构造过程瞬间中断并回滚；</li>
+<li><strong>你写在属性定义处的默认值表达式 <code>&quot;匿名用户&quot;</code> 根本没有机会被执行！</strong></li>
+</ol>
+<p>原生 Codable 的设计使得属性默认值在自动合成解码流程中完全被架空。</p>
+<h3 id="4-列表数据的连带责任株连">4. 列表数据的“连带责任株连”</h3>
+<p>在信息流或商品列表中，服务端通常返回一个由数十条甚至上百条数据组成的数组：</p>
+<pre><code class="language-json">{
+  &quot;items&quot;: [
+    { &quot;id&quot;: 1, &quot;title&quot;: &quot;A&quot; },
+    { &quot;id&quot;: &quot;2&quot;, &quot;title&quot;: &quot;B&quot; }, // 脏数据：id 变成了 String
+    { &quot;id&quot;: 3, &quot;title&quot;: &quot;C&quot; }
+  ]
+}
+</code></pre>
+<p>如果调用 <code>try decoder.decode(FeedResponse.self, from: data)</code>，只要中间有<strong>哪怕一条数据</strong>发生字段格式变动，原生的 Array 解码就会判定整体失败，导致页面一片空白，用户体验彻底灾难。</p>
+<h3 id="5-动态类型-any-的天然绝缘体">5. 动态类型 Any 的天然绝缘体</h3>
+<p>在处理埋点事件参数、动态运营配置或通用透传包时，接口返回的数据结构可能高度动态：</p>
+<pre><code class="language-json">{
+  &quot;event&quot;: &quot;button_click&quot;,
+  &quot;extra_params&quot;: {
+    &quot;tab_index&quot;: 2,
+    &quot;source_page&quot;: &quot;home&quot;,
+    &quot;is_vip&quot;: true
+  }
+}
+</code></pre>
+<p>在 Swift 中，<code>Any</code> 或 <code>[String: Any]</code> 本身并不是具体类型，无法遵循 <code>Decodable</code> 协议。如果你在 Codable 模型中写上 <code>let extraParams: [String: Any]</code>，编译器会立刻亮起红灯：</p>
+<pre><code>Type 'UserModel' does not conform to protocol 'Decodable'
+Type '[String: Any]' does not conform to protocol 'Decodable'
+</code></pre>
+<hr>
+<h2 id="三-smartcodable-的技术突围保留体系还是重塑引擎">三、SmartCodable 的技术突围：保留体系还是重塑引擎？</h2>
+<p>面对原生 Codable 在生产环境中的种种尴尬，很多开发者陷入了两难：退回 HandyJSON 意味着承担内存安全风险与潜在的 ABI 崩溃；而坚守原生 Codable 则意味着要为成百上千个模型手写繁重冗长的 <code>init(from:)</code>、自定义 PropertyWrapper 或编写大量的中间 DTO。</p>
+<p>这也正是 <strong>SmartCodable</strong> 这类第四代框架诞生的时代契机。</p>
+<h3 id="1-smartcodable-究竟算不算-codable">1. SmartCodable 究竟算不算 Codable？</h3>
+<p>答案是：<strong>在模型层面它 100% 属于 Codable，在引擎层面它替换了系统的解析逻辑。</strong></p>
+<p>查看 SmartCodable 的核心协议定义：</p>
+<pre><code class="language-swift">public protocol SmartDecodable: Decodable {
+    init()
+}
+
+public protocol SmartEncodable: Encodable {
+    init()
+}
+
+public typealias SmartCodableX = SmartDecodable &amp; SmartEncodable
+</code></pre>
+<ul>
+<li><strong>继承了 Codable 的全部正统优势</strong>：使用 SmartCodable 定义的模型，依然是正统的 <code>Decodable</code> 和 <code>Encodable</code>。它们依然享有编译器自动合成 <code>init(from:)</code> 和 <code>CodingKeys</code> 的机制，<strong>没有任何像 HandyJSON 那样通过指针直接篡改内存地址的危险行为</strong>。</li>
+<li><strong>重写了解码引擎</strong>（Engine Swapping）：它不依赖系统的 <code>JSONDecoder</code>，而是自研了一套 <code>SmartJSONDecoder</code> 及配套的自定义解码容器（Decoding Container）。</li>
+</ul>
+<h3 id="2-核心黑科技一基于-mirror-的安全默认值恢复">2. 核心黑科技一：基于 Mirror 的安全默认值恢复</h3>
+<p>SmartCodable 是如何做到在字段缺失或错误时，精准取回开发者在模型里写的默认值的？</p>
+<pre><code class="language-swift">struct UserModel: SmartCodableX {
+    var userId: Int = 0
+    var nickname: String = &quot;匿名用户&quot; // 当脏数据出现时能真正兜底！
+}
+</code></pre>
+<p>关键就在于协议中强制要求的 <code>init()</code>：</p>
+<ol>
+<li><strong>构建 Baseline 实例</strong>：在开始反序列化前，SmartCodable 会通过 <code>init()</code> 在内存中安全地实例化一个默认对象；</li>
+<li><strong>安全反射建立值索引</strong>（Mirror）：利用 Swift 官方提供的只读反射 API <code>Mirror(reflecting: defaultInstance)</code>，提取出该实例所有属性的名称与其对应的默认初始值；</li>
+<li><strong>解码失败时无缝回退</strong>：当自定义解码容器处理 <code>nickname</code> 遇到缺失或类型错误时，它不会直接抛出异常，而是从先前缓存的 Mirror 默认值字典中取出 <code>&quot;匿名用户&quot;</code>，作为属性的解析结果予以放行。</li>
+</ol>
+<p>这种做法既完全遵守了 Swift 的内存安全法则，又优雅地达成了 HandyJSON 般的开发体验。</p>
+<h3 id="3-核心黑科技二多层级容错解码流水线">3. 核心黑科技二：多层级容错解码流水线</h3>
+<p>当调用 <code>UserModel.deserialize(from: dict)</code> 时，SmartCodable 内部的单属性解析逻辑并非生硬地一步到位，而是设计了一套严密的多层降级管道：</p>
+<pre><code class="language-mermaid">flowchart TD
+    Start[&quot;开始解析属性字段&quot;] --&gt; Step1{&quot;是否存在自定义\nValue Transformer?&quot;}
+    Step1 -- 是 --&gt; RunTransform[&quot;执行自定义转换逻辑&quot;]
+    Step1 -- 否 --&gt; Step2{&quot;尝试原生标准\nCodable 解码&quot;}
+    
+    RunTransform --&gt; Success[&quot;解析成功，赋值属性&quot;]
+    
+    Step2 -- 成功 --&gt; Success
+    Step2 -- 失败 --&gt; Step3{&quot;能否进行类型安全强转?\n(如 '1001' -&gt; 1001 / 'true' -&gt; true)&quot;}
+    
+    Step3 -- 能转换 --&gt; Success
+    Step3 -- 无法强转 --&gt; Step4{&quot;Mirror 中是否存在\n默认初始值 Baseline?&quot;}
+    
+    Step4 -- 存在 --&gt; FallbackDefault[&quot;回退到模型初始默认值\n记录兼容日志，避免崩溃&quot;]
+    FallbackDefault --&gt; Success
+    
+    Step4 -- 不存在且非Optional --&gt; FinalThrow[&quot;抛出不可逆异常\n终止该节点解析&quot;]
+</code></pre>
+<p>在这套流水线中：</p>
+<ul>
+<li><strong>自动类型强转</strong>（Type Coercion）：能安全地将 <code>&quot;123&quot;</code> 转换为 <code>123</code>，将 <code>1</code> 或 <code>&quot;true&quot;</code> 转换为 <code>true</code>；</li>
+<li><strong>默认值兜底</strong>（Fallback to Baseline）：当类型彻底错乱（如给 Int 字段塞了一个字典）时，自动回退到 <code>init()</code> 的初始值；</li>
+<li><strong>错误记录与告警</strong>：在静默容错的同时，提供完善的排查日志与监控埋点钩子，避免前端“完全吞掉错误导致后端悄悄破坏契约”。</li>
+</ul>
+<h3 id="4-核心黑科技三smartany-包装器攻克动态字典">4. 核心黑科技三：@SmartAny 包装器攻克动态字典</h3>
+<p>针对原生 Codable 无法直接容纳 <code>Any</code> 的痛点，SmartCodable 引入了 <code>@SmartAny</code> 属性包装器：</p>
+<pre><code class="language-swift">struct EventModel: SmartCodableX {
+    var eventName: String = &quot;&quot;
+    @SmartAny var params: [String: Any] = [:]
+}
+</code></pre>
+<p>其底层原理是在解码容器内部设计了一个递归的代数枚举（<code>JSONValue</code>）：</p>
+<pre><code class="language-swift">enum JSONValue: Codable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
+    case null
+}
+</code></pre>
+<p>解码器先将不可知的 <code>Any</code> 映射到强类型的 <code>JSONValue</code> 树状结构中，再在属性包装器的 <code>wrappedValue</code> 访问器中将其递归解包为原始的 <code>[String: Any]</code>，从而在不破坏 Codable 协议契约的前提下，完美兼容了任意动态结构。</p>
+<hr>
+<h2 id="四-全维对比矩阵五种解析方案的工程权衡">四、全维对比矩阵：五种解析方案的工程权衡</h2>
+<p>为了在工程选型中做到胸有成竹，我们将 iOS 历史上与当前的五大主流方案放在统一维度下进行横向对比：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评估维度</th>
+<th style="text-align:left">Objective-C KVC</th>
+<th style="text-align:left">ObjectMapper</th>
+<th style="text-align:left">HandyJSON</th>
+<th style="text-align:left">原生 Codable</th>
+<th style="text-align:left">SmartCodable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>底层实现机制</strong></td>
+<td style="text-align:left">ObjC Runtime 反射</td>
+<td style="text-align:left">自定义操作符重载</td>
+<td style="text-align:left">逆向 Swift 内存偏移</td>
+<td style="text-align:left">编译器 AST 静态合成</td>
+<td style="text-align:left">静态合成 + 自研容错引擎</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>内存安全性</strong></td>
+<td style="text-align:left">较安全（通过 KVC）</td>
+<td style="text-align:left">绝对安全</td>
+<td style="text-align:left"><strong>高危</strong>（裸指针写入）</td>
+<td style="text-align:left">绝对安全</td>
+<td style="text-align:left">绝对安全（Mirror 仅读）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>样板代码量</strong></td>
+<td style="text-align:left">适中</td>
+<td style="text-align:left">极高（双重声明）</td>
+<td style="text-align:left">极低（零样板）</td>
+<td style="text-align:left">低（声明即解析）</td>
+<td style="text-align:left">极低（声明即解析）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>弱类型与脏数据容错</strong></td>
+<td style="text-align:left">依赖手动类型过滤</td>
+<td style="text-align:left">依赖 Transform</td>
+<td style="text-align:left">极强（自动兼顾默认值）</td>
+<td style="text-align:left"><strong>极差</strong>（严格抛错熔断）</td>
+<td style="text-align:left"><strong>极强</strong>（多层自动降级）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>默认初始值生效</strong></td>
+<td style="text-align:left">生效</td>
+<td style="text-align:left">生效</td>
+<td style="text-align:left">生效</td>
+<td style="text-align:left"><strong>不生效</strong></td>
+<td style="text-align:left"><strong>完美生效</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>支持纯 Struct</strong></td>
+<td style="text-align:left">否（必须 NSObject）</td>
+<td style="text-align:left">是</td>
+<td style="text-align:left">是</td>
+<td style="text-align:left">是</td>
+<td style="text-align:left">是</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>维护与兼容风险</strong></td>
+<td style="text-align:left">稳定（老技术）</td>
+<td style="text-align:left">停止积极演进</td>
+<td style="text-align:left"><strong>Swift ABI/编译器风险</strong></td>
+<td style="text-align:left">官方长期背书</td>
+<td style="text-align:left">需跟随框架更新</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="五-2026-年现代-ios-项目的架构演进与落地建议">五、2026 年现代 iOS 项目的架构演进与落地建议</h2>
+<p>回到最初的问题：“<strong>都 2026 年了，iOS JSON 解析还需要第三方库吗？</strong>”</p>
+<p>答案是：<strong>它不是一个“要”还是“不要”的二元对立选择，而是一场关于“契约质量”与“架构防腐”的工程权衡。</strong></p>
+<h3 id="1-业务场景决策树">1. 业务场景决策树</h3>
+<pre><code class="language-mermaid">flowchart TD
+    Start[&quot;评估项目架构与业务接口现状&quot;] --&gt; Q1{&quot;后端契约是否严谨标准?\n(GraphQL / gRPC / BFF 统一治理 / 规范严格)&quot;}
+    Q1 -- 是 --&gt; PickCodable[&quot;首选：原生 Codable\n• 零第三方依赖\n• 纯粹类型安全\n• 编译速度与包体积最优&quot;]
+    Q1 -- 否 --&gt; Q2{&quot;是大型老旧项目迁移\n还是全新业务开发?&quot;}
+    
+    Q2 -- 存在大量旧代码 --&gt; Q3{&quot;现有旧模型是哪种?&quot;}
+    Q3 -- HandyJSON --&gt; MigrateHandy[&quot;逐步切至 SmartCodable\n模型结构相似，迁移摩擦力最低&quot;]
+    Q3 -- ObjectMapper --&gt; MigrateOM[&quot;新建 Codable DTO 逐步替换\n严禁模型同时混用两套协议&quot;]
+    
+    Q2 -- 全新业务但有脏数据 --&gt; PickEnhance[&quot;首选：基于 Codable 的增强方案\n• 团队偏向极简：自研轻量级 PropertyWrapper\n• 团队追求省心：引入 SmartCodable&quot;]
+</code></pre>
+<h3 id="2-架构红线严禁让单个模型脚踏两条船">2. 架构红线：严禁让单个模型“脚踏两条船”</h3>
+<p>在进行老项目改造时，经常有开发者为了省事，让同一个模型同时遵循新旧两套协议：</p>
+<pre><code class="language-swift">// ⚠️ 极其危险的架构反模式！严禁这样编写
+struct UserModel: HandyJSON, SmartCodableX {
+    var userId: Int = 0
+    var nickname: String = &quot;&quot;
+}
+</code></pre>
+<p>这种做法表面上看起来“既能用旧方法解，又能用新方法解”，但在工程层面是灾难性的：</p>
+<ol>
+<li><strong>命名与入口歧义</strong>：两套框架都包含 <code>deserialize(from:)</code> 或类似的扩展方法，极易触发编译器重载决议混乱（Ambiguous Use）；</li>
+<li><strong>多套规则冲突</strong>：HandyJSON 的 <code>mapping(mapper:)</code> 和 SmartCodable 的 <code>mappingForKey()</code> 各自为政，当字段名称发生变更时极易出现“改了这里漏了那里”的隐蔽 Bug；</li>
+<li><strong>架构腐化加剧</strong>：这会导致新老业务边界彻底模糊，原本计划的“渐进式迁移”最终演变成“永久性屎山”。</li>
+</ol>
+<h3 id="3-最佳实践引入防腐层anti-corruption-layer">3. 最佳实践：引入防腐层（Anti-Corruption Layer）</h3>
+<p>真正优雅的迁移与解析架构应当将反序列化约束在<strong>网络层与数据访问层的边界之内</strong>，杜绝将任何解析框架的协议浸染到业务核心领域模型（Domain Entities）中：</p>
+<pre><code class="language-mermaid">flowchart LR
+    Network[&quot;原始网络 JSON&quot;] --&gt; DTO[&quot;网络传输对象 (DTO)\n遵循 Codable / SmartCodable&quot;]
+    DTO --&gt; Converter[&quot;Mapper / 转换器\n(数据清洗、业务校验)&quot;]
+    Converter --&gt; Domain[&quot;业务领域实体 (Domain Entity)\n纯 Swift Struct，无框架依赖&quot;]
+    Domain --&gt; UI[&quot;UI 与业务用例 (ViewModel / View)&quot;]
+</code></pre>
+<ul>
+<li><strong>DTO 承担脏活累活</strong>：即使引入 SmartCodable 或自定义 PropertyWrapper，也仅让其在网络传输层 DTO 中生效，负责吸收外部接口的不确定性；</li>
+<li><strong>业务实体保持洁癖</strong>：进入 ViewModel 和业务逻辑的实体永远是干净、非空确定的纯 Swift 类型；</li>
+<li><strong>解耦替换零成本</strong>：当未来后端治理完善、或者 Apple 在原生 Codable 中推出了更完备的容错机制时，你只需要修改 DTO 转换层，全工程上百个业务页面无需修改哪怕一行代码。</li>
+</ul>
+<hr>
+<h2 id="六-总结">六、总结</h2>
+<p>软件工程的本质，就是在<strong>纯粹的技术理想</strong>与<strong>复杂的业务现实</strong>之间寻找最佳平衡点。</p>
+<ul>
+<li>原生 <code>Codable</code> 代表了现代语言类型系统的崇高理想：静态化、编译期保证、零冗余、内存安全；</li>
+<li>而像 <code>SmartCodable</code> 这样的框架之所以在 2026 年依然有其不可替代的生态位，是因为它们在坚守类型系统红线的同时，承担起了将工业界生产环境中的泥泞与混乱隔绝在外的防腐重任。</li>
+</ul>
+<p>选择哪种方案，并不取决于哪行代码写起来显得更短，而取决于你的团队正在面对怎样的后端生态，以及你准备在哪个层级为数据的不确定性买单。</p>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>原文链接</strong>：<a href="https://mp.weixin.qq.com/s/x5lMUuVM2fQDXqBmFVa6Mg">都 2026 年了，iOS JSON 解析还需要第三方库吗？ - CoderChan (微信公众号)</a></li>
+<li><strong>开源项目</strong>：<a href="https://github.com/iAmMccc/SmartCodable">SmartCodable - GitHub (iAmMccc)</a></li>
+<li><strong>官方文档</strong>：<a href="https://developer.apple.com/documentation/swift/codable">Apple Swift Codable Documentation</a></li>
+<li><strong>参考项目</strong>：<a href="https://github.com/alibaba/HandyJSON">HandyJSON - GitHub (alibaba)</a></li>
+<li><strong>参考项目</strong>：<a href="https://github.com/tristanhimmelman/ObjectMapper">ObjectMapper - GitHub (tristanhimmelman)</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-%E5%9B%9B%E5%A4%A7%E6%8A%80%E6%9C%AF%E4%BB%A3%E9%99%85%E5%8D%81%E5%B9%B4%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E5%B7%A5%E7%A8%8B%E8%A7%92%E5%8A%9B">一、四大技术代际：十年反序列化的工程角力</a>
+<ul>
+<li><a href="#1-%E7%AC%AC%E4%B8%80%E4%BB%A3objective-c-runtime-%E4%B8%8E-kvc-%E6%97%B6%E4%BB%A3">1. 第一代：Objective-C Runtime 与 KVC 时代</a></li>
+<li><a href="#2-%E7%AC%AC%E4%BA%8C%E4%BB%A3swift-%E6%8B%93%E8%8D%92%E6%9C%9F%E7%9A%84%E4%B8%A4%E6%9E%81%E5%88%86%E5%8C%96">2. 第二代：Swift 拓荒期的两极分化</a>
+<ul>
+<li><a href="#%E6%B4%BE%E7%B3%BB-a%E6%98%BE%E5%BC%8F%E6%98%A0%E5%B0%84%E5%A5%91%E7%BA%A6-objectmapper">派系 A：显式映射契约 —— ObjectMapper</a></li>
+<li><a href="#%E6%B4%BE%E7%B3%BB-b%E9%80%86%E5%90%91%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%E7%9A%84%E9%BB%91%E5%AE%A2%E7%8B%82%E6%AC%A2-handyjson">派系 B：逆向内存布局的黑客狂欢 —— HandyJSON</a></li>
+</ul>
+</li>
+<li><a href="#3-%E7%AC%AC%E4%B8%89%E4%BB%A3%E5%AE%98%E6%96%B9%E6%AD%A3%E7%BB%9F-swift-codable-%E7%9A%84%E7%BC%96%E8%AF%91%E5%99%A8%E9%AD%94%E6%B3%95">3. 第三代：官方正统 —— Swift Codable 的编译器魔法</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%8C-%E6%92%95%E5%BC%80-codable-%E7%9A%84%E7%90%86%E6%83%B3%E5%9B%BD%E4%B8%BA%E4%BB%80%E4%B9%88%E7%94%9F%E4%BA%A7%E7%8E%AF%E5%A2%83%E5%B1%A1%E9%81%AD%E6%BB%91%E9%93%81%E5%8D%A2">二、撕开 Codable 的“理想国”：为什么生产环境屡遭滑铁卢？</a>
+<ul>
+<li><a href="#1-%E5%BC%B1%E7%B1%BB%E5%9E%8B%E5%85%BC%E5%AE%B9%E5%A4%B1%E8%B4%A5%E5%AD%97%E7%AC%A6%E4%B8%B2%E4%B8%8E%E6%95%B0%E5%AD%97%E7%9A%84%E6%A5%9A%E6%B2%B3%E6%B1%89%E7%95%8C">1. 弱类型兼容失败：字符串与数字的“楚河汉界”</a></li>
+<li><a href="#2-%E5%AD%97%E6%AE%B5%E7%A9%BA%E5%80%BC%E4%B8%8E%E7%BC%BA%E5%A4%B1nullability-%E5%88%BA%E5%AE%A2">2. 字段空值与缺失：Nullability 刺客</a></li>
+<li><a href="#3-%E9%BB%98%E8%AE%A4%E5%80%BC%E5%A4%B1%E6%95%88%E4%B9%8B%E8%B0%9C%E4%B8%BA%E4%BB%80%E4%B9%88-var-nickname-%E9%BB%98%E8%AE%A4-%E6%A0%B9%E6%9C%AC%E4%B8%8D%E8%B5%B7%E4%BD%9C%E7%94%A8">3. 默认值失效之谜：为什么 <code>var nickname = &quot;默认&quot;</code> 根本不起作用？</a></li>
+<li><a href="#4-%E5%88%97%E8%A1%A8%E6%95%B0%E6%8D%AE%E7%9A%84%E8%BF%9E%E5%B8%A6%E8%B4%A3%E4%BB%BB%E6%A0%AA%E8%BF%9E">4. 列表数据的“连带责任株连”</a></li>
+<li><a href="#5-%E5%8A%A8%E6%80%81%E7%B1%BB%E5%9E%8B-any-%E7%9A%84%E5%A4%A9%E7%84%B6%E7%BB%9D%E7%BC%98%E4%BD%93">5. 动态类型 Any 的天然绝缘体</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-smartcodable-%E7%9A%84%E6%8A%80%E6%9C%AF%E7%AA%81%E5%9B%B4%E4%BF%9D%E7%95%99%E4%BD%93%E7%B3%BB%E8%BF%98%E6%98%AF%E9%87%8D%E5%A1%91%E5%BC%95%E6%93%8E">三、SmartCodable 的技术突围：保留体系还是重塑引擎？</a>
+<ul>
+<li><a href="#1-smartcodable-%E7%A9%B6%E7%AB%9F%E7%AE%97%E4%B8%8D%E7%AE%97-codable">1. SmartCodable 究竟算不算 Codable？</a></li>
+<li><a href="#2-%E6%A0%B8%E5%BF%83%E9%BB%91%E7%A7%91%E6%8A%80%E4%B8%80%E5%9F%BA%E4%BA%8E-mirror-%E7%9A%84%E5%AE%89%E5%85%A8%E9%BB%98%E8%AE%A4%E5%80%BC%E6%81%A2%E5%A4%8D">2. 核心黑科技一：基于 Mirror 的安全默认值恢复</a></li>
+<li><a href="#3-%E6%A0%B8%E5%BF%83%E9%BB%91%E7%A7%91%E6%8A%80%E4%BA%8C%E5%A4%9A%E5%B1%82%E7%BA%A7%E5%AE%B9%E9%94%99%E8%A7%A3%E7%A0%81%E6%B5%81%E6%B0%B4%E7%BA%BF">3. 核心黑科技二：多层级容错解码流水线</a></li>
+<li><a href="#4-%E6%A0%B8%E5%BF%83%E9%BB%91%E7%A7%91%E6%8A%80%E4%B8%89smartany-%E5%8C%85%E8%A3%85%E5%99%A8%E6%94%BB%E5%85%8B%E5%8A%A8%E6%80%81%E5%AD%97%E5%85%B8">4. 核心黑科技三：@SmartAny 包装器攻克动态字典</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E5%85%A8%E7%BB%B4%E5%AF%B9%E6%AF%94%E7%9F%A9%E9%98%B5%E4%BA%94%E7%A7%8D%E8%A7%A3%E6%9E%90%E6%96%B9%E6%A1%88%E7%9A%84%E5%B7%A5%E7%A8%8B%E6%9D%83%E8%A1%A1">四、全维对比矩阵：五种解析方案的工程权衡</a></li>
+<li><a href="#%E4%BA%94-2026-%E5%B9%B4%E7%8E%B0%E4%BB%A3-ios-%E9%A1%B9%E7%9B%AE%E7%9A%84%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B%E4%B8%8E%E8%90%BD%E5%9C%B0%E5%BB%BA%E8%AE%AE">五、2026 年现代 iOS 项目的架构演进与落地建议</a>
+<ul>
+<li><a href="#1-%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF%E5%86%B3%E7%AD%96%E6%A0%91">1. 业务场景决策树</a></li>
+<li><a href="#2-%E6%9E%B6%E6%9E%84%E7%BA%A2%E7%BA%BF%E4%B8%A5%E7%A6%81%E8%AE%A9%E5%8D%95%E4%B8%AA%E6%A8%A1%E5%9E%8B%E8%84%9A%E8%B8%8F%E4%B8%A4%E6%9D%A1%E8%88%B9">2. 架构红线：严禁让单个模型“脚踏两条船”</a></li>
+<li><a href="#3-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5%E5%BC%95%E5%85%A5%E9%98%B2%E8%85%90%E5%B1%82anti-corruption-layer">3. 最佳实践：引入防腐层（Anti-Corruption Layer）</a></li>
+</ul>
+</li>
+<li><a href="#%E5%85%AD-%E6%80%BB%E7%BB%93">六、总结</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/amanu-macos-native-meeting-recorder-core-audio-offline-echo/">
+              <h3 class="post-title">
+                免拉 Bot 亦无虚拟驱动：macOS 原生会议助手 Amanu 的 Core Audio 分流与离线回声消除硬核剖析
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

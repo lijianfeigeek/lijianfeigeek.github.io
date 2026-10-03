@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>零内存访问与 34 个 objc_msgSend 分身：dyld 共享缓存与 Stub Islands 的微架构算术跃迁 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1791009880148">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="零内存访问与 34 个 objc_msgSend 分身：dyld 共享缓存与 Stub Islands 的微架构算术跃迁 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/dyld-shared-cache-stub-islands-arm64-microarchitecture-jump/">
+    <meta name="description" content="在 Darwin 与 iOS 操作系统的底层世界中，系统动态链接器（dyld）与动态库共享缓存（dyld_shared_cache）承载着全系统数千个动态库的高速链接与分发。随着系统规模的急剧膨胀，ARM64e 架构下的共享缓存镜像体积已经..." />
+    <meta name="keywords" content="dyld,ARM64,操作系统,编译原理,性能优化,逆向工程,iOS" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="零内存访问与 34 个 objc_msgSend 分身：dyld 共享缓存与 Stub Islands 的微架构算术跃迁">
+    <meta property="og:description" content="在 Darwin 与 iOS 操作系统的底层世界中，系统动态链接器（dyld）与动态库共享缓存（dyld_shared_cache）承载着全系统数千个动态库的高速链接与分发。随着系统规模的急剧膨胀，ARM64e 架构下的共享缓存镜像体积已经...">
+    <meta property="og:url" content="https://lijianfei.com/post/dyld-shared-cache-stub-islands-arm64-microarchitecture-jump/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/dyld-shared-cache-stub-islands-arm64-microarchitecture-jump.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-09-28T03:15:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="dyld">
+    
+    <meta property="article:tag" content="ARM64">
+    
+    <meta property="article:tag" content="操作系统">
+    
+    <meta property="article:tag" content="编译原理">
+    
+    <meta property="article:tag" content="性能优化">
+    
+    <meta property="article:tag" content="逆向工程">
+    
+    <meta property="article:tag" content="iOS">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="零内存访问与 34 个 objc_msgSend 分身：dyld 共享缓存与 Stub Islands 的微架构算术跃迁">
+    <meta name="twitter:description" content="在 Darwin 与 iOS 操作系统的底层世界中，系统动态链接器（dyld）与动态库共享缓存（dyld_shared_cache）承载着全系统数千个动态库的高速链接与分发。随着系统规模的急剧膨胀，ARM64e 架构下的共享缓存镜像体积已经...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/dyld-shared-cache-stub-islands-arm64-microarchitecture-jump.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "零内存访问与 34 个 objc_msgSend 分身：dyld 共享缓存与 Stub Islands 的微架构算术跃迁",
+      "description": "在 Darwin 与 iOS 操作系统的底层世界中，系统动态链接器（dyld）与动态库共享缓存（dyld_shared_cache）承载着全系统数千个动态库的高速链接与分发。随着系统规模的急剧膨胀，ARM64e 架构下的共享缓存镜像体积已经...",
+      "image": "https://lijianfei.com/post-images/dyld-shared-cache-stub-islands-arm64-microarchitecture-jump.png",
+      "datePublished": "2026-09-28T03:15:00.000Z",
+      "dateModified": "2026-09-28T03:15:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/dyld-shared-cache-stub-islands-arm64-microarchitecture-jump/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "dyld",
+          "item": "https://lijianfei.com/tag/dyld/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "零内存访问与 34 个 objc_msgSend 分身：dyld 共享缓存与 Stub Islands 的微架构算术跃迁",
+          "item": "https://lijianfei.com/post/dyld-shared-cache-stub-islands-arm64-microarchitecture-jump/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1791009880148" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              零内存访问与 34 个 objc_msgSend 分身：dyld 共享缓存与 Stub Islands 的微架构算术跃迁
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-09-28
+              </span>
+              <span>
+                21 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/dyld/" class="post-tag">
+                  # dyld
+                </a>
+              
+                <a href="https://lijianfei.com/tag/arm64/" class="post-tag">
+                  # ARM64
+                </a>
+              
+                <a href="https://lijianfei.com/tag/cao-zuo-xi-tong/" class="post-tag">
+                  # 操作系统
+                </a>
+              
+                <a href="https://lijianfei.com/tag/bian-yi-yuan-li/" class="post-tag">
+                  # 编译原理
+                </a>
+              
+                <a href="https://lijianfei.com/tag/xing-neng-you-hua/" class="post-tag">
+                  # 性能优化
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ni-xiang-gong-cheng/" class="post-tag">
+                  # 逆向工程
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ios/" class="post-tag">
+                  # iOS
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/dyld-shared-cache-stub-islands-arm64-microarchitecture-jump.png" alt="零内存访问与 34 个 objc_msgSend 分身：dyld 共享缓存与 Stub Islands 的微架构算术跃迁" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在 Darwin 与 iOS 操作系统的底层世界中，系统动态链接器（dyld）与动态库共享缓存（dyld_shared_cache）承载着全系统数千个动态库的高速链接与分发。随着系统规模的急剧膨胀，ARM64e 架构下的共享缓存镜像体积已经跃升至近 6 GiB。在如此辽阔的虚拟地址空间内，ARM64 架构固有的硬件跳转与寻址限制，与极致性能诉求之间爆发了尖锐的微架构冲突。</p>
+<p>资深安全研究员 CodeColorist 近期针对新一代系统底层展开逆向分析，揭示了 Apple 在 dyld 共享缓存与桩岛跳板（Stub Islands）架构上实施的一系列激进手术：通过彻底剔除二进制死截面、发明利用纯寄存器移位算术替代内存寻址的超宽跳板、在全缓存范围内离散部署 34 个 <code>objc_msgSend</code> 分身副本，以及将全局只读数据段精准锚定在地址空间几何中点，Apple 以巧夺天工的拓扑设计，彻底消除了动态调度的内存读取与指针认证开销。</p>
+<!-- more -->
+<hr>
+<h2 id="1-溯源独立-mach-o-与经典-dyld-桩岛stub-islands演进史">1. 溯源：独立 Mach-O 与经典 dyld 桩岛（Stub Islands）演进史</h2>
+<p>在理解新架构的激进突破前，我们首先需要回溯 Darwin 平台动态链接的基石 —— 桩函数（Stubs）与全局偏移表（GOT）。</p>
+<h3 id="11-独立二进制中的经典-pac-桩调用">1.1 独立二进制中的经典 PAC 桩调用</h3>
+<p>对于未打包进共享缓存的普通独立 Mach-O 二进制，外部符号的解析在运行时具有动态不确定性。当代码调用外部库函数（如 <code>_os_unfair_lock_unlock</code>）时，编译器会发射一条跳转指令进入本二进制的 <code>__auth_stubs</code> 段：</p>
+<pre><code class="language-assembly">__text:
+    BL              _os_unfair_lock_unlock ; 跳转到本模块的 __auth_stubs
+
+__auth_stubs: _os_unfair_lock_unlock
+    ADRL            X17, _os_unfair_lock_unlock_ptr ; 获取 __auth_got 表项地址
+    LDR             X16, [X17]                      ; 从 GOT 读取已签名的函数指针
+    BRAA            X16, X17                        ; 携带密钥与上下文执行 PAC 校验并跳转
+</code></pre>
+<p>在 <code>__auth_got</code> 段中，保存着经过指针身份认证（PAC，Pointer Authentication Code）签名的目标函数地址：</p>
+<pre><code class="language-assembly">_os_unfair_lock_unlock_ptr DCQ __imp__os_unfair_lock_unlock
+</code></pre>
+<p>这一标准流程存在两大微架构成本：</p>
+<ol>
+<li><strong>D-Cache 访存惩罚</strong>：必须通过 <code>LDR X16, [X17]</code> 执行一次数据内存读取。如果该 GOT 页面被换出或发生 L1/L2 数据缓存未命中，流水线将直接停顿数个乃至数十个时钟周期；</li>
+<li><strong>PAC 验证管线延迟</strong>：ARM64e 的 <code>BRAA</code> 指令需要硬件解密并校验签名合法性，虽提升了内存安全防线，但在极高频调用路径上不可避免地消耗额外的执行单元。</li>
+</ol>
+<h3 id="12-共享缓存与桩岛stub-islands的诞生">1.2 共享缓存与桩岛（Stub Islands）的诞生</h3>
+<p>当数千个动态库被预先打包进 <code>dyld_shared_cache</code> 时，所有模块之间的相对虚拟地址（VA）在离线构建期就已被完全确定，运行时符号解析退化为确定性的基址重定位（Rebase）。</p>
+<p>然而，ARM64 的分支跳转指令 <code>BL</code> 存在严格的硬件物理限制：</p>
+<ul>
+<li><strong><code>BL</code> 指令立即数范围</strong>：<code>BL</code> 指令使用 26 位有符号立即数，乘以 4 字节对齐后，最大相对寻址范围仅为 <strong>±128 MB</strong>（即 <code>-0x8000000</code> 至 <code>+0x7FFFFFC</code>）。</li>
+</ul>
+<p>当共享缓存的体积从早期的几百兆字节急剧扩张到数个吉字节（GiB）时，某个 Framework 的 <code>BL</code> 指令根本无法直接触达距离其数百兆乃至数吉字节外的目标函数。</p>
+<p>为此，Apple 在 dyld 优化器中引入了 “<strong>桩岛</strong>”（Stub Islands / Branch Islands）机制：</p>
+<ul>
+<li>dyld 在缓存内以每隔数十兆字节的密度均匀划分出一页页专用的桩岛页面；</li>
+<li>优化器重写模块内的 <code>BL</code> 指令，使其优先跳入距离当前 PC 不超过 128 MB 的本地桩岛；</li>
+<li>桩岛再通过大跨度寻址中继至最终的目标函数。</li>
+</ul>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Client[&quot;调用方 Framework (PC 空间)&quot;]
+        A[&quot;BL _os_unfair_lock_unlock&quot;]
+    end
+
+    subgraph StubIsland[&quot;局部桩岛 (Stub Island Page, 距调用方 &lt; 128 MB)&quot;]
+        B[&quot;桩跳板中继&quot;]
+    end
+
+    subgraph Target[&quot;目标系统库 (libsystem_kernel.dylib, 跨度数 GiB)&quot;]
+        C[&quot;_os_unfair_lock_unlock 实际实现&quot;]
+    end
+
+    A --&gt;|&quot;BL 硬件直跳 (±128 MB 内)&quot;| B
+    B --&gt;|&quot;跨越数 GiB 虚拟地址跨度&quot;| C
+</code></pre>
+<h3 id="13-传统桩岛遗留的历史包袱">1.3 传统桩岛遗留的“历史包袱”</h3>
+<p>尽管桩岛解决了跨库跳转问题，但在过去数代 iOS 系统中，dyld 共享缓存依然残留着明显的历史包袱：</p>
+<ol>
+<li><strong>死截面冗余</strong>（Dead Bloat）：各个动态库被收录进缓存后，虽然其内部调用已被重定向到桩岛，但每个 Mach-O 内部原有的 <code>__auth_stubs</code> 和 <code>__auth_got</code> 却未被清除，成为了毫无交叉引用的无用物理填充；</li>
+<li><strong>Objective-C 消息分发的双重重负</strong>：在传统架构下，高频的 Objective-C 桩调用（<code>__objc_stubs</code>）同样需要经历复杂的加载过程：</li>
+</ol>
+<pre><code class="language-assembly">__objc_stubs: _objc_msgSend$URLByAppendingPathComponent_
+    ADRP            X1, #selRef_URLByAppendingPathComponent_@PAGE
+    LDR             X1, [X1, #selRef_URLByAppendingPathComponent_@PAGEOFF] ; 访存 1：加载 selector
+    ADRL            X17, _objc_msgSend_ptr ; 访存 2：加载 objc_msgSend 入口
+    LDR             X16, [X17]
+    BRAA            X16, X17               ; PAC 校验并跳转
+</code></pre>
+<p>一次看似简单的消息发送，在真正进入 <code>objc_msgSend</code> 之前，竟然包含了 <strong>两次内存加载</strong>（LDR）与 <strong>一次 PAC 指针解密</strong>（BRAA）！在每秒发生数千万次消息分发的 iOS 系统中，这是无法忽视的微架构税。</p>
+<hr>
+<h2 id="2-瘦身外科手术死截面剔除与元数据全局归一化">2. 瘦身外科手术：死截面剔除与元数据全局归一化</h2>
+<p>在近期的系统构建中，dyld 团队首先进行了一场大快人心的“减肥手术”。</p>
+<h3 id="21-剔除无引用节区section-pruning">2.1 剔除无引用节区（Section Pruning）</h3>
+<p>在构建 dyld 共享缓存的最终阶段，优化器不再保留各个源 Mach-O 镜像内部废弃的 <code>__auth_stubs</code>。整个共享缓存中，只有全局统筹规划的桩岛页面（Stub Island Pages）得以幸存。</p>
+<p>更为彻底的是针对 Objective-C 符号元数据的清理：</p>
+<ul>
+<li>原本散落在各个 Framework 内部的 <code>__objc_methname</code>（方法名）、<code>__objc_methtype</code>（方法类型编码）以及 <code>__objc_classname</code>（类名）节区被全部物理剥离！</li>
+<li>所有数据引用统一指向一个全缓存共享的单例只读数据区 —— <strong><code>__OBJC_RO</code></strong> 段。</li>
+</ul>
+<h3 id="22-方法列表相对偏移架构演进">2.2 方法列表相对偏移架构演进</h3>
+<p>为了配合元数据的全局收敛，Objective-C 方法列表（<code>__objc2_meth_list</code>）的解析拓扑也完成了关键演进。</p>
+<p>在早期实现中，方法结构体中的选择子（Selector）字段记录的是相对于该字段自身地址的相对偏移值。而共享缓存优化器将其全面改造为基于全局基地址的偏移体系。该全局基地址直接锚定在 dyld 缓存头部的 <code>ObjCOptimizationHeader</code> 结构体中：</p>
+<pre><code class="language-c">struct dyld_cache_header {
+    // 省略其他字段...
+    uint64_t    objcOptsOffset;         // 缓存头部到 ObjC 优化头部的 VM 偏移
+    uint64_t    objcOptsSize;           // ObjC 优化头部尺寸
+};
+
+struct VIS_HIDDEN ObjCOptimizationHeader {
+    uint32_t version;
+    uint32_t flags;
+    uint64_t headerInfoROCacheOffset;
+    uint64_t headerInfoRWCacheOffset;
+    uint64_t selectorHashTableCacheOffset;
+    uint64_t classHashTableCacheOffset;
+    uint64_t protocolHashTableCacheOffset;
+    uint64_t relativeMethodSelectorBaseAddressOffset; // 全局选择子基地址偏移
+
+    // Version 2 新增：类型编码字符串同样纳入全局基地址偏移
+    uint64_t relativeMethodSelectorBufferSize;
+    uint64_t relativeMethodTypesBufferSize;
+};
+</code></pre>
+<p>在 Version 2 的优化规范下，系统不仅对 Selector 字符串应用全局偏移，方法类型编码（Method Types）也紧随其后共享同一套基地址寻址方案。跨库重复的字符串在全局范围内被完全合并去重，既大幅降低了常驻内存集（RSS），又极大提升了 CPU 数据缓存的局部命中率。</p>
+<hr>
+<h2 id="3-算术跃迁从内存加载指针认证到零访存纯算术跳板">3. 算术跃迁：从“内存加载+指针认证”到“零访存纯算术跳板”</h2>
+<p>在清除了冗余元数据后，Apple 将优化的核心对准了桩岛内部的指令序列。</p>
+<p>由于 dyld 共享缓存由内核在开机阶段整体校验签名并以只读方式映射进进程空间，其内部代码与拓扑结构在整个运行时是绝对不可变的、受信任的物理实体。在这一前提下，为每个跨库调用强行施加 GOT 内存加载与 PAC 验证，无异于“对信任区域重复安检”。</p>
+<p>Apple 顺理成章地重构了桩岛跳板，演进出了两种极其优雅的纯算术跳板模式。</p>
+<h3 id="31-变体一4-gib-内的零访存直跳">3.1 变体一：±4 GiB 内的零访存直跳</h3>
+<p>对于距离目标在 ±4 GiB 范围内的函数调用，桩岛彻底抛弃了 <code>LDR</code> 与 <code>BRAA</code>，演变为仅有两行指令的极致精简形式：</p>
+<pre><code class="language-assembly">_stubs: _open
+    ADRL            X16, _open   ; ADRP + ADD 宏：纯寄存器计算 PC 相对地址
+    BR              X16          ; 普通无条件间接跳转
+</code></pre>
+<ul>
+<li><strong><code>ADRL</code></strong>（伪指令，展开为 <code>ADRP</code> + <code>ADD</code>）：<code>ADRP</code> 能够提供以 4 KB 页面为粒度的 ±4 GiB 范围寻址，随后的 <code>ADD</code> 指令填补页内 12 位偏移量。</li>
+<li><strong>微架构收益</strong>：完全在 CPU 算术逻辑单元（ALU）内部完成目标地址合成，<strong>访存次数直接降为 0</strong>，消除了任何 L1/L2 缓存缺失导致的管线气泡，同时省去了 PAC 硬件校验单元的开销。</li>
+</ul>
+<h3 id="32-变体二突破-4-gib-极限的-128-gib-算术飞跃">3.2 变体二：突破 4 GiB 极限的 128 GiB 算术飞跃</h3>
+<p>然而，现实的挑战在于：现代 iOS 共享缓存的总体跨度已经达到近 6 GiB。</p>
+<p>以 <code>iPhone18,1/dyld_shared_cache_arm64e</code> 为例，其虚拟内存范围从 <code>0x180000000</code> 蔓延至 <code>0x2fb8b8000</code>，尺寸高达 <strong>5.93 GiB</strong>。一旦源桩岛与目标函数之间的物理距离超过 4 GiB，单条 <code>ADRL</code> 便会因立即数字长受限而发生位溢出。</p>
+<p>换作传统思路，此时只能无奈退回到“从内存 GOT 加载指针”的老路。然而 Apple 工程师在 ARM64 架构指令集上展现出了近乎艺术的微架构编码技巧：</p>
+<pre><code class="language-assembly">ADR             X16, 0x188060060        ; 加载基准锚点地址（PC 附近 ±1 MB 内）
+MOV             X17, #0x9B7             ; 存入 16 位无符号立即数
+ADD             X16, X16, X17, LSL #21  ; 纯算术大步长移位合成！
+BR              X16                     ; 飞向最终目标
+</code></pre>
+<p>让我们对这组指令的数值逻辑进行严格的数学推演：</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>X</mi><mn>16</mn><mo>=</mo><mn>0</mn><mi>x</mi><mn>188060060</mn><mo>+</mo><mo>(</mo><mn>0</mn><mi>x</mi><mn>9</mn><mi>B</mi><mn>7</mn><mo>≪</mo><mn>21</mn><mo>)</mo></mrow><annotation encoding="application/x-tex">X16 = 0x188060060 + (0x9B7 \ll 21)
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.07847em;">X</span><span class="mord">1</span><span class="mord">6</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.72777em;vertical-align:-0.08333em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">1</span><span class="mord">8</span><span class="mord">8</span><span class="mord">0</span><span class="mord">6</span><span class="mord">0</span><span class="mord">0</span><span class="mord">6</span><span class="mord">0</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">9</span><span class="mord mathdefault" style="margin-right:0.05017em;">B</span><span class="mord">7</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">≪</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">2</span><span class="mord">1</span><span class="mclose">)</span></span></span></span></span></p>
+<ol>
+<li>执行逻辑左移 21 位：<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>0</mn><mi>x</mi><mn>9</mn><mi>B</mi><mn>7</mn><mo>≪</mo><mn>21</mn><mo>=</mo><mn>0</mn><mi>x</mi><mn>136</mn><mi>E</mi><mn>00000</mn><mo>≈</mo><mn>4.857</mn><mtext> GiB</mtext></mrow><annotation encoding="application/x-tex">0x9B7 \ll 21 = 0x136E00000 \approx 4.857 \text{ GiB}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.72243em;vertical-align:-0.0391em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">9</span><span class="mord mathdefault" style="margin-right:0.05017em;">B</span><span class="mord">7</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">≪</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">2</span><span class="mord">1</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">1</span><span class="mord">3</span><span class="mord">6</span><span class="mord mathdefault" style="margin-right:0.05764em;">E</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord">4</span><span class="mord">.</span><span class="mord">8</span><span class="mord">5</span><span class="mord">7</span><span class="mord text"><span class="mord"> GiB</span></span></span></span></span></span></p>
+</li>
+<li>基址与偏移相加：<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>0</mn><mi>x</mi><mn>188060060</mn><mo>+</mo><mn>0</mn><mi>x</mi><mn>136</mn><mi>E</mi><mn>00000</mn><mo>=</mo><mn>0</mn><mi>x</mi><mn>2</mn><mi>B</mi><mi>E</mi><mi>E</mi><mn>60060</mn></mrow><annotation encoding="application/x-tex">0x188060060 + 0x136E00000 = 0x2BEE60060
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.72777em;vertical-align:-0.08333em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">1</span><span class="mord">8</span><span class="mord">8</span><span class="mord">0</span><span class="mord">6</span><span class="mord">0</span><span class="mord">0</span><span class="mord">6</span><span class="mord">0</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">1</span><span class="mord">3</span><span class="mord">6</span><span class="mord mathdefault" style="margin-right:0.05764em;">E</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">2</span><span class="mord mathdefault" style="margin-right:0.05017em;">B</span><span class="mord mathdefault" style="margin-right:0.05764em;">E</span><span class="mord mathdefault" style="margin-right:0.05764em;">E</span><span class="mord">6</span><span class="mord">0</span><span class="mord">0</span><span class="mord">6</span><span class="mord">0</span></span></span></span></span></p>
+</li>
+</ol>
+<p>计算得出的目标地址 <code>0x2BEE60060</code>，正是位于高位地址空间的数学库函数：<code>libsystem_m.dylib!_acosl</code>！</p>
+<pre><code class="language-mermaid">flowchart LR
+    A[&quot;ADR X16, 0x188060060&lt;br/&gt;(确定局部基准锚点)&quot;] --&gt; B[&quot;MOV X17, #0x9B7&lt;br/&gt;(载入 16 位偏移因子)&quot;]
+    B --&gt; C[&quot;ADD X16, X16, X17, LSL #21&lt;br/&gt;(左移 21 位：跨越 4.857 GiB 大峡谷)&quot;]
+    C --&gt; D[&quot;BR X16&lt;br/&gt;(零访存直达 libsystem_m!_acosl)&quot;]
+</code></pre>
+<h4 id="为什么是-lsl-21">为什么是 <code>LSL #21</code>？</h4>
+<p>在 ARM64 体系结构中，带移位的 <code>ADD</code> 指令允许对第二操作数进行任意常数移位。左移 21 位相当于以 <strong>2 MiB</strong> 为步长单元（<code>2^21 = 2,097,152</code> 字节）。</p>
+<ul>
+<li>当使用 16 位寄存器立即数 <code>imm16</code> 时，其最大取值可达 <code>0xFFFF</code>；</li>
+<li>该指令组合能够覆盖的单向地址跃迁跨度高达：<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>0</mn><mi>x</mi><mi>F</mi><mi>F</mi><mi>F</mi><mi>F</mi><mo>≪</mo><mn>21</mn><mo>≈</mo><mn>128</mn><mtext> GiB</mtext></mrow><annotation encoding="application/x-tex">0xFFFF \ll 21 \approx 128 \text{ GiB}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.72243em;vertical-align:-0.0391em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord mathdefault" style="margin-right:0.13889em;">F</span><span class="mord mathdefault" style="margin-right:0.13889em;">F</span><span class="mord mathdefault" style="margin-right:0.13889em;">F</span><span class="mord mathdefault" style="margin-right:0.13889em;">F</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">≪</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">2</span><span class="mord">1</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord">1</span><span class="mord">2</span><span class="mord">8</span><span class="mord text"><span class="mord"> GiB</span></span></span></span></span></span></p>
+</li>
+</ul>
+<p>通过引入这种前向偏移（Forward-biased）的寄存器纯算术合成方案，dyld 彻底解决了超大内存跨度下跳转指令溢出的世界性难题。即使在接近 6 GiB 的庞大缓存中跨越银河两端，也无需耗费哪怕一次内存总线读取！</p>
+<hr>
+<h2 id="4-破壁-128mb-限制34-个-objc_msgsend-分身构筑的分布式跳板网格">4. 破壁 128MB 限制：34 个 objc_msgSend 分身构筑的分布式跳板网格</h2>
+<p>如果说跨模块 C 函数调用的重构已经足够惊艳，那么针对 Objective-C 核心命脉 —— 消息发送（Message Dispatch）的重构，则堪称构筑了现代操作系统的微架构奇观。</p>
+<h3 id="41-极致压缩的两条指令">4.1 极致压缩的两条指令</h3>
+<p>在新一代系统中，各个二进制调用 Objective-C 方法的桩代码，被压缩至不可思议的两条指令：</p>
+<pre><code class="language-assembly">ADRL            X1, sel_length                               ; 直接载入选择子指针到 X1 参数寄存器
+B               _objc_msgSend ; /usr/lib/objc/libobjcMsgSend.dylib ; 硬件无条件直接跳转！
+</code></pre>
+<p>对比旧时代的 5 条指令、两次内存加载与一次 PAC 解密，现在的跳板没有多余的动作：</p>
+<ul>
+<li>第一条指令直接将选择子写入传参寄存器 <code>X1</code>；</li>
+<li>第二条指令使用最原始、硬件开销最低的直接分支指令 <code>B</code> 呼叫 <code>_objc_msgSend</code>！</li>
+</ul>
+<h3 id="42-128-mb-物理围城下的悖论">4.2 128 MB 物理围城下的悖论</h3>
+<p>熟悉 ARM 汇编的工程师看到这里，必然会本能地产生巨大疑窦：</p>
+<ul>
+<li><strong><code>B</code> 指令的绝对寻址硬伤</strong>：ARM64 的无条件分支指令 <code>B &lt;target&gt;</code> 是将 26 位有符号立即数左移 2 位写入 PC，其硬件跳转极限被锁死在 <strong>±128 MB</strong>；</li>
+<li>共享缓存总跨度接近 6 GiB，散落在各个角落的上千个系统库，怎么可能单凭一条只能跑 128 MB 的 <code>B</code> 指令，全部跳转到唯一的 <code>/usr/lib/libobjc.A.dylib</code> 中的 <code>_objc_msgSend</code>？</li>
+</ul>
+<h3 id="43-答案揭晓分布式的-34-个-libobjcmsgsend-实体分身">4.3 答案揭晓：分布式的 34 个 <code>libobjcMsgSend</code> 实体分身</h3>
+<p>逆向工具解析该共享缓存导出的镜像列表（Image List）时，展现出了令人击节赞赏的真相：</p>
+<pre><code class="language-text">/usr/lib/objc/libobjcMsgSend.dylib
+/usr/lib/objc/libobjcMsgSend1.dylib
+/usr/lib/objc/libobjcMsgSend2.dylib
+/usr/lib/objc/libobjcMsgSend3.dylib
+...
+/usr/lib/objc/libobjcMsgSend33.dylib
+</code></pre>
+<p>在整整 5.93 GiB 的共享缓存全境中，dyld 优化器竟然离散克隆并部署了 <strong>整整 34 份完全独立的 <code>objc_msgSend</code> 物理实现副本</strong>！</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Cluster1[&quot;缓存低位区 (0x180000000 ~)&quot;]
+        F1[&quot;Framework A (UIKit 等)&quot;] --&gt;|&quot;B (直跳 &lt; 128MB)&quot;| M0[&quot;libobjcMsgSend.dylib&quot;]
+        F2[&quot;Framework B&quot;] --&gt;|&quot;B (直跳 &lt; 128MB)&quot;| M1[&quot;libobjcMsgSend1.dylib&quot;]
+    end
+
+    subgraph Cluster2[&quot;缓存中位区 (0x230000000 ~)&quot;]
+        F3[&quot;Framework C&quot;] --&gt;|&quot;B (直跳 &lt; 128MB)&quot;| M16[&quot;libobjcMsgSend16.dylib&quot;]
+        F4[&quot;Framework D&quot;] --&gt;|&quot;B (直跳 &lt; 128MB)&quot;| M17[&quot;libobjcMsgSend17.dylib&quot;]
+    end
+
+    subgraph Cluster3[&quot;缓存高位区 (~ 0x2fb8b8000)&quot;]
+        F5[&quot;Framework E&quot;] --&gt;|&quot;B (直跳 &lt; 128MB)&quot;| M32[&quot;libobjcMsgSend32.dylib&quot;]
+        F6[&quot;Framework F&quot;] --&gt;|&quot;B (直跳 &lt; 128MB)&quot;| M33[&quot;libobjcMsgSend33.dylib&quot;]
+    end
+</code></pre>
+<h4 id="为什么值得为它复制-34-份">为什么值得为它复制 34 份？</h4>
+<ol>
+<li><strong>微小的代码体积</strong>：<code>objc_msgSend</code> 是经过高精度微架构打磨的纯汇编例程，核心逻辑仅包含缓存哈希查找（Cache Lookup），总指令数只有数十条，编译后体积仅约几千字节。复制 34 份的内存代价还不到 100 KB，这在近 6 GiB 的共享缓存中完全是九牛一毛；</li>
+<li><strong>彻底解放硬件分支预测器</strong>：使用间接跳转指令（<code>BR</code> 或 <code>BRAA</code>）时，CPU 必须依赖分支目标缓冲器（BTB，Branch Target Buffer）进行动态推测，极易引发预测错误与管线冲刷。而直接跳转指令 <code>B</code> 的目标地址直接内嵌于指令码本身，前端译码器可在第一时间捕获目标，实现零惩罚的流水线饱满吞吐！</li>
+</ol>
+<hr>
+<h2 id="5-宇宙中心假说__objc_ro-的黄金分割几何布局">5. 宇宙中心假说：__OBJC_RO 的黄金分割几何布局</h2>
+<p>解决了 <code>B _objc_msgSend</code> 的寻址难题，反方向的悖论又浮出了水面：</p>
+<pre><code class="language-assembly">ADRL            X1, sel_length
+</code></pre>
+<p>前文已经论证，<code>ADRL</code>（<code>ADRP</code> + <code>ADD</code>）的极限寻址能力是 <strong>±4 GiB</strong>。</p>
+<ul>
+<li><code>objc_msgSend</code> 代码可以通过分布在 34 个副本中的某一个来解决 128 MB 的跳转范围；</li>
+<li>但是，<strong>所有的选择子（Selector）字符串全部集中收录在唯一的单例只读数据段 <code>__OBJC_RO</code> 中</strong>，并未被离散复制！</li>
+<li>面对一个跨度 5.93 GiB 的宏大世界，分散在缓存各处的所有二进制，如何仅凭一条寻址范围仅为 ±4 GiB 的 <code>ADRL</code>，全部精准命中唯一的 <code>__OBJC_RO</code>？</li>
+</ul>
+<h3 id="51-地址空间拓扑实测">5.1 地址空间拓扑实测</h3>
+<p>查看该 dyld 共享缓存导出的真实内存映射边界：</p>
+<pre><code class="language-text">shared_region_start   0x180000000
+shared_region_end     0x2fb8b8000   ; 总跨度 0x17b8b8000，约 5.93 GiB
+</code></pre>
+<p>虽然 <code>libobjc</code> 是整个镜像列表中的第一个动态库，但 dyld 链接器并没有将它的数据段机械地排布在缓存最前端，而是将其 <code>__OBJC_RO</code> 段单独撕裂并搬运到了一个不可思议的位置：</p>
+<pre><code class="language-text">libobjc.A.dylib:__OBJC_RO             0x1f552e240 - 0x1fcff44e8
+</code></pre>
+<h3 id="52-严密的几何中点数学验证">5.2 严密的几何中点数学验证</h3>
+<p>让我们以 <code>__OBJC_RO</code> 的基准地址为参照物，分别计算其与共享缓存头部和尾部的物理距离跨度：</p>
+<ol>
+<li>
+<p><strong>距离缓存起点的跨度</strong>：</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>0</mn><mi>x</mi><mn>1</mn><mi>f</mi><mn>552</mn><mi>e</mi><mn>240</mn><mo>−</mo><mn>0</mn><mi>x</mi><mn>180000000</mn><mo>=</mo><mn>0</mn><mi>x</mi><mn>7552</mn><mi>e</mi><mn>240</mn><mo>≈</mo><mn>1.83</mn><mtext> GiB</mtext></mrow><annotation encoding="application/x-tex">0x1f552e240 - 0x180000000 = 0x7552e240 \approx 1.83 \text{ GiB}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8888799999999999em;vertical-align:-0.19444em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">1</span><span class="mord mathdefault" style="margin-right:0.10764em;">f</span><span class="mord">5</span><span class="mord">5</span><span class="mord">2</span><span class="mord mathdefault">e</span><span class="mord">2</span><span class="mord">4</span><span class="mord">0</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">1</span><span class="mord">8</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">7</span><span class="mord">5</span><span class="mord">5</span><span class="mord">2</span><span class="mord mathdefault">e</span><span class="mord">2</span><span class="mord">4</span><span class="mord">0</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord">1</span><span class="mord">.</span><span class="mord">8</span><span class="mord">3</span><span class="mord text"><span class="mord"> GiB</span></span></span></span></span></span></p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mrow><mn mathvariant="bold">1.83</mn><mtext> GiB</mtext></mrow><mo>&lt;</mo><mrow><mn mathvariant="bold">4.0</mn><mtext> GiB</mtext></mrow><mspace width="1em"/><mo>(</mo><mtext>完全落在 </mtext><mi>A</mi><mi>D</mi><mi>R</mi><mi>L</mi><mtext> 寻址半径内</mtext><mo>)</mo></mrow><annotation encoding="application/x-tex">\mathbf{1.83 \text{ GiB}} \lt \mathbf{4.0 \text{ GiB}} \quad (\text{完全落在 } ADRL \text{ 寻址半径内})
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.72243em;vertical-align:-0.0391em;"></span><span class="mord"><span class="mord mathbf">1</span><span class="mord mathbf">.</span><span class="mord mathbf">8</span><span class="mord mathbf">3</span><span class="mord text"><span class="mord"> GiB</span></span></span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">&lt;</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord"><span class="mord mathbf">4</span><span class="mord mathbf">.</span><span class="mord mathbf">0</span><span class="mord text"><span class="mord"> GiB</span></span></span><span class="mspace" style="margin-right:1em;"></span><span class="mopen">(</span><span class="mord text"><span class="mord cjk_fallback">完全落在</span><span class="mord"> </span></span><span class="mord mathdefault">A</span><span class="mord mathdefault" style="margin-right:0.02778em;">D</span><span class="mord mathdefault" style="margin-right:0.00773em;">R</span><span class="mord mathdefault">L</span><span class="mord text"><span class="mord"> </span><span class="mord cjk_fallback">寻址半径内</span></span><span class="mclose">)</span></span></span></span></span></p>
+</li>
+<li>
+<p><strong>距离缓存终点的跨度</strong>：</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>0</mn><mi>x</mi><mn>2</mn><mi>f</mi><mi>b</mi><mn>8</mn><mi>b</mi><mn>8000</mn><mo>−</mo><mn>0</mn><mi>x</mi><mn>1</mn><mi>f</mi><mi>c</mi><mi>f</mi><mi>f</mi><mn>44</mn><mi>e</mi><mn>8</mn><mo>=</mo><mn>0</mn><mi>x</mi><mi>f</mi><mi>e</mi><mn>8</mn><mi>c</mi><mn>3</mn><mi>b</mi><mn>18</mn><mo>≈</mo><mn>3.977</mn><mtext> GiB</mtext></mrow><annotation encoding="application/x-tex">0x2fb8b8000 - 0x1fcff44e8 = 0xfe8c3b18 \approx 3.977 \text{ GiB}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8888799999999999em;vertical-align:-0.19444em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">2</span><span class="mord mathdefault" style="margin-right:0.10764em;">f</span><span class="mord mathdefault">b</span><span class="mord">8</span><span class="mord mathdefault">b</span><span class="mord">8</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.8888799999999999em;vertical-align:-0.19444em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord">1</span><span class="mord mathdefault" style="margin-right:0.10764em;">f</span><span class="mord mathdefault">c</span><span class="mord mathdefault" style="margin-right:0.10764em;">f</span><span class="mord mathdefault" style="margin-right:0.10764em;">f</span><span class="mord">4</span><span class="mord">4</span><span class="mord mathdefault">e</span><span class="mord">8</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.8888799999999999em;vertical-align:-0.19444em;"></span><span class="mord">0</span><span class="mord mathdefault">x</span><span class="mord mathdefault" style="margin-right:0.10764em;">f</span><span class="mord mathdefault">e</span><span class="mord">8</span><span class="mord mathdefault">c</span><span class="mord">3</span><span class="mord mathdefault">b</span><span class="mord">1</span><span class="mord">8</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord">3</span><span class="mord">.</span><span class="mord">9</span><span class="mord">7</span><span class="mord">7</span><span class="mord text"><span class="mord"> GiB</span></span></span></span></span></span></p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mrow><mn mathvariant="bold">3.977</mn><mtext> GiB</mtext></mrow><mo>&lt;</mo><mrow><mn mathvariant="bold">4.0</mn><mtext> GiB</mtext></mrow><mspace width="1em"/><mo>(</mo><mtext>极其精准地收敛在 </mtext><mn>4.0</mn><mtext> GiB </mtext><mi>A</mi><mi>D</mi><mi>R</mi><mi>L</mi><mtext> 极限边界内！</mtext><mo>)</mo></mrow><annotation encoding="application/x-tex">\mathbf{3.977 \text{ GiB}} \lt \mathbf{4.0 \text{ GiB}} \quad (\text{极其精准地收敛在 } 4.0 \text{ GiB } ADRL \text{ 极限边界内！})
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.72243em;vertical-align:-0.0391em;"></span><span class="mord"><span class="mord mathbf">3</span><span class="mord mathbf">.</span><span class="mord mathbf">9</span><span class="mord mathbf">7</span><span class="mord mathbf">7</span><span class="mord text"><span class="mord"> GiB</span></span></span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">&lt;</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord"><span class="mord mathbf">4</span><span class="mord mathbf">.</span><span class="mord mathbf">0</span><span class="mord text"><span class="mord"> GiB</span></span></span><span class="mspace" style="margin-right:1em;"></span><span class="mopen">(</span><span class="mord text"><span class="mord cjk_fallback">极其精准地收敛在</span><span class="mord"> </span></span><span class="mord">4</span><span class="mord">.</span><span class="mord">0</span><span class="mord text"><span class="mord"> GiB </span></span><span class="mord mathdefault">A</span><span class="mord mathdefault" style="margin-right:0.02778em;">D</span><span class="mord mathdefault" style="margin-right:0.00773em;">R</span><span class="mord mathdefault">L</span><span class="mord text"><span class="mord"> </span><span class="mord cjk_fallback">极限边界内！</span></span><span class="mclose">)</span></span></span></span></span></p>
+</li>
+</ol>
+<pre><code class="language-mermaid">flowchart LR
+    Start[&quot;0x180000000&lt;br/&gt;(缓存起点)&quot;] --- |&quot;1.83 GiB&lt;br/&gt;(安全在 ±4 GiB 内)&quot;| RO[&quot;__OBJC_RO 区域&lt;br/&gt;0x1f552e240 ~ 0x1fcff44e8&lt;br/&gt;(系统的绝对拓扑中心)&quot;]
+    RO --- |&quot;3.977 GiB&lt;br/&gt;(极限贴合 4.0 GiB 边界)&quot;| End[&quot;0x2fb8b8000&lt;br/&gt;(缓存终点)&quot;]
+</code></pre>
+<p>这是操作系统拓扑规划上令人叹为观止的“几何中心布局法”：<br>
+dyld 优化器将单例的 <code>__OBJC_RO</code> 放置在近 6 GiB 缓存的物理黄金几何分割点上。<strong>无论是处于最左端 0x180000000 的库，还是处于最右端 0x2fb8b8000 的库，只要向其发射一条 <code>ADRL</code> 指令，都能在不超过 4 GiB 的半径内完美触达这一数据中心！</strong></p>
+<hr>
+<h2 id="6-全维度架构对比传统-stubs-vs-新一代-stub-islands">6. 全维度架构对比：传统 Stubs vs 新一代 Stub Islands</h2>
+<p>为了系统梳理这一演进带来的本质跃迁，我们将传统动态链接桩与新一代桩岛跳板进行全维度技术对齐：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评估维度</th>
+<th style="text-align:left">传统二进制 / 早期 DSC 桩实现</th>
+<th style="text-align:left">新一代微架构桩岛设计（iOS 共享缓存重构）</th>
+<th style="text-align:left">微架构收益本质</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>桩代码指令条数</strong></td>
+<td style="text-align:left">3~5 条指令</td>
+<td style="text-align:left"><strong>2~4 条指令</strong></td>
+<td style="text-align:left">减少取指与译码队列压力</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>数据内存访问</strong>（LDR）</td>
+<td style="text-align:left">每次调用 1~2 次（GOT / selrefs）</td>
+<td style="text-align:left"><strong>0 次</strong>（纯寄存器算术计算）</td>
+<td style="text-align:left">彻底消除 D-Cache Miss 停顿</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>指针认证</strong>（PAC）开销</td>
+<td style="text-align:left">每次调用强制执行 <code>BRAA</code></td>
+<td style="text-align:left"><strong>受信缓存内部跳过 PAC 校验</strong></td>
+<td style="text-align:left">节约硬件密码学解密流水线周期</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>跨模块大范围寻址</strong></td>
+<td style="text-align:left">依赖外部 GOT 表项间接中转</td>
+<td style="text-align:left"><strong><code>ADD X16, X16, X17, LSL #21</code></strong>（跨度达 128 GiB）</td>
+<td style="text-align:left">寄存器纯算术支持超宽地址跃迁</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Objective-C 分发跳转</strong></td>
+<td style="text-align:left">间接跳转 <code>BRAA</code>（依赖 BTB 动态推测）</td>
+<td style="text-align:left"><strong>硬件直接跳转 <code>B</code></strong>（34 个克隆副本就近直跳）</td>
+<td style="text-align:left">分支预测零失误，消除管线冲刷</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>选择子寻址方案</strong></td>
+<td style="text-align:left">查表读取本模块 selrefs 局部指针</td>
+<td style="text-align:left"><strong><code>ADRL</code> 直达居中的单例 <code>__OBJC_RO</code></strong></td>
+<td style="text-align:left">全局统一消重，节约内存且无访存</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>冗余截面状态</strong></td>
+<td style="text-align:left">每个 Mach-O 保留废弃 <code>__auth_stubs</code></td>
+<td style="text-align:left"><strong>彻底裁剪废弃截面，仅留桩岛</strong></td>
+<td style="text-align:left">减少镜像体积与静态解析死重</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="7-总结与系统级工程启示">7. 总结与系统级工程启示</h2>
+<p>通过对新一代 dyld 共享缓存与桩岛跳板的逆向拆解，Apple 向系统级软件工程展示了一整套极具震撼力的性能优化哲学：</p>
+<ol>
+<li><strong>确定性环境下的去中心化与零访存</strong>：当运行环境具备确定性（静态布局只读缓存）时，不要盲目套用通用的间接内存寻址与安全校验模型。利用 CPU 强大的寄存器移位与加法算术运算取代内存读取，是压榨指令级并发（IPC）的终极手段；</li>
+<li><strong>空间换时间的微观尺度权衡</strong>：仅仅消耗几十 KB 的代码空间离散复制 34 份轻量级的 <code>objc_msgSend</code>，就破解了 ARM64 硬件 128 MB 直接跳转的百年物理枷锁，将高频动态分发全部收敛为零惩罚的直接硬件分支；</li>
+<li><strong>内存拓扑也是一种算法</strong>：解决寻址距离不足的手段不只有“增加跳板与指针级联”，通过全局规划将热点数据结构布置在虚拟地址空间的几何重心（Centroid），同样能以优雅的几何对称性降维消除物理边界。</li>
+</ol>
+<p>这一系列精密如机械钟表般的微架构革新，正是 Apple 系统在日常交互与高频函数调用下始终保持极致丝滑的真正幕后功臣。</p>
+<hr>
+<h2 id="8-原文链接与参考资料">8. 原文链接与参考资料</h2>
+<ul>
+<li><strong>原文链接</strong>：<a href="https://codecolor.ist/posts/2026-06-15-ios27-reworked-stub-islands/">Inside iOS 27's Reworked Stub Islands - CodeColorist</a></li>
+<li><strong>Apple dyld 官方开源代码库</strong>：<a href="https://github.com/apple-oss-distributions/dyld">apple-oss-distributions/dyld (GitHub)</a></li>
+<li><strong>dyld 共享缓存结构定义</strong>：<a href="https://github.com/apple-oss-distributions/dyld/blob/e9da5ae571b4191dcdbcfd827363f19847c84561/common/DyldSharedCache.h">DyldSharedCache.h (Apple OSS)</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#1-%E6%BA%AF%E6%BA%90%E7%8B%AC%E7%AB%8B-mach-o-%E4%B8%8E%E7%BB%8F%E5%85%B8-dyld-%E6%A1%A9%E5%B2%9Bstub-islands%E6%BC%94%E8%BF%9B%E5%8F%B2">1. 溯源：独立 Mach-O 与经典 dyld 桩岛（Stub Islands）演进史</a>
+<ul>
+<li><a href="#11-%E7%8B%AC%E7%AB%8B%E4%BA%8C%E8%BF%9B%E5%88%B6%E4%B8%AD%E7%9A%84%E7%BB%8F%E5%85%B8-pac-%E6%A1%A9%E8%B0%83%E7%94%A8">1.1 独立二进制中的经典 PAC 桩调用</a></li>
+<li><a href="#12-%E5%85%B1%E4%BA%AB%E7%BC%93%E5%AD%98%E4%B8%8E%E6%A1%A9%E5%B2%9Bstub-islands%E7%9A%84%E8%AF%9E%E7%94%9F">1.2 共享缓存与桩岛（Stub Islands）的诞生</a></li>
+<li><a href="#13-%E4%BC%A0%E7%BB%9F%E6%A1%A9%E5%B2%9B%E9%81%97%E7%95%99%E7%9A%84%E5%8E%86%E5%8F%B2%E5%8C%85%E8%A2%B1">1.3 传统桩岛遗留的“历史包袱”</a></li>
+</ul>
+</li>
+<li><a href="#2-%E7%98%A6%E8%BA%AB%E5%A4%96%E7%A7%91%E6%89%8B%E6%9C%AF%E6%AD%BB%E6%88%AA%E9%9D%A2%E5%89%94%E9%99%A4%E4%B8%8E%E5%85%83%E6%95%B0%E6%8D%AE%E5%85%A8%E5%B1%80%E5%BD%92%E4%B8%80%E5%8C%96">2. 瘦身外科手术：死截面剔除与元数据全局归一化</a>
+<ul>
+<li><a href="#21-%E5%89%94%E9%99%A4%E6%97%A0%E5%BC%95%E7%94%A8%E8%8A%82%E5%8C%BAsection-pruning">2.1 剔除无引用节区（Section Pruning）</a></li>
+<li><a href="#22-%E6%96%B9%E6%B3%95%E5%88%97%E8%A1%A8%E7%9B%B8%E5%AF%B9%E5%81%8F%E7%A7%BB%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B">2.2 方法列表相对偏移架构演进</a></li>
+</ul>
+</li>
+<li><a href="#3-%E7%AE%97%E6%9C%AF%E8%B7%83%E8%BF%81%E4%BB%8E%E5%86%85%E5%AD%98%E5%8A%A0%E8%BD%BD%E6%8C%87%E9%92%88%E8%AE%A4%E8%AF%81%E5%88%B0%E9%9B%B6%E8%AE%BF%E5%AD%98%E7%BA%AF%E7%AE%97%E6%9C%AF%E8%B7%B3%E6%9D%BF">3. 算术跃迁：从“内存加载+指针认证”到“零访存纯算术跳板”</a>
+<ul>
+<li><a href="#31-%E5%8F%98%E4%BD%93%E4%B8%804-gib-%E5%86%85%E7%9A%84%E9%9B%B6%E8%AE%BF%E5%AD%98%E7%9B%B4%E8%B7%B3">3.1 变体一：±4 GiB 内的零访存直跳</a></li>
+<li><a href="#32-%E5%8F%98%E4%BD%93%E4%BA%8C%E7%AA%81%E7%A0%B4-4-gib-%E6%9E%81%E9%99%90%E7%9A%84-128-gib-%E7%AE%97%E6%9C%AF%E9%A3%9E%E8%B7%83">3.2 变体二：突破 4 GiB 极限的 128 GiB 算术飞跃</a>
+<ul>
+<li><a href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-lsl-21">为什么是 <code>LSL #21</code>？</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#4-%E7%A0%B4%E5%A3%81-128mb-%E9%99%90%E5%88%B634-%E4%B8%AA-objc_msgsend-%E5%88%86%E8%BA%AB%E6%9E%84%E7%AD%91%E7%9A%84%E5%88%86%E5%B8%83%E5%BC%8F%E8%B7%B3%E6%9D%BF%E7%BD%91%E6%A0%BC">4. 破壁 128MB 限制：34 个 objc_msgSend 分身构筑的分布式跳板网格</a>
+<ul>
+<li><a href="#41-%E6%9E%81%E8%87%B4%E5%8E%8B%E7%BC%A9%E7%9A%84%E4%B8%A4%E6%9D%A1%E6%8C%87%E4%BB%A4">4.1 极致压缩的两条指令</a></li>
+<li><a href="#42-128-mb-%E7%89%A9%E7%90%86%E5%9B%B4%E5%9F%8E%E4%B8%8B%E7%9A%84%E6%82%96%E8%AE%BA">4.2 128 MB 物理围城下的悖论</a></li>
+<li><a href="#43-%E7%AD%94%E6%A1%88%E6%8F%AD%E6%99%93%E5%88%86%E5%B8%83%E5%BC%8F%E7%9A%84-34-%E4%B8%AA-libobjcmsgsend-%E5%AE%9E%E4%BD%93%E5%88%86%E8%BA%AB">4.3 答案揭晓：分布式的 34 个 <code>libobjcMsgSend</code> 实体分身</a>
+<ul>
+<li><a href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%80%BC%E5%BE%97%E4%B8%BA%E5%AE%83%E5%A4%8D%E5%88%B6-34-%E4%BB%BD">为什么值得为它复制 34 份？</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#5-%E5%AE%87%E5%AE%99%E4%B8%AD%E5%BF%83%E5%81%87%E8%AF%B4__objc_ro-%E7%9A%84%E9%BB%84%E9%87%91%E5%88%86%E5%89%B2%E5%87%A0%E4%BD%95%E5%B8%83%E5%B1%80">5. 宇宙中心假说：__OBJC_RO 的黄金分割几何布局</a>
+<ul>
+<li><a href="#51-%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4%E6%8B%93%E6%89%91%E5%AE%9E%E6%B5%8B">5.1 地址空间拓扑实测</a></li>
+<li><a href="#52-%E4%B8%A5%E5%AF%86%E7%9A%84%E5%87%A0%E4%BD%95%E4%B8%AD%E7%82%B9%E6%95%B0%E5%AD%A6%E9%AA%8C%E8%AF%81">5.2 严密的几何中点数学验证</a></li>
+</ul>
+</li>
+<li><a href="#6-%E5%85%A8%E7%BB%B4%E5%BA%A6%E6%9E%B6%E6%9E%84%E5%AF%B9%E6%AF%94%E4%BC%A0%E7%BB%9F-stubs-vs-%E6%96%B0%E4%B8%80%E4%BB%A3-stub-islands">6. 全维度架构对比：传统 Stubs vs 新一代 Stub Islands</a></li>
+<li><a href="#7-%E6%80%BB%E7%BB%93%E4%B8%8E%E7%B3%BB%E7%BB%9F%E7%BA%A7%E5%B7%A5%E7%A8%8B%E5%90%AF%E7%A4%BA">7. 总结与系统级工程启示</a></li>
+<li><a href="#8-%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">8. 原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/apple-reference-image-verifiable-photography-architecture/">
+              <h3 class="post-title">
+                从传感器硬件直签到后量子信标：Apple Reference Image 如何重塑数字摄影的真实性根基
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
