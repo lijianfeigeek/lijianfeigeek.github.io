@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>单图驱动可动虚拟形象：剖析 Mesh Avatar Studio 的 2.5D 网格形变、膜方程修补与 Agent 协同管线 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1791517533639">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="单图驱动可动虚拟形象：剖析 Mesh Avatar Studio 的 2.5D 网格形变、膜方程修补与 Agent 协同管线 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/mesh-avatar-studio-architecture-and-pipeline/">
+    <meta name="description" content="在虚拟主播（VTuber）与数字人交互领域，制作一个生动灵巧的 2D 可动形象向来是一项极其繁琐且昂贵的手艺活。传统的 Live2D 制作需要原画师手动拆分数十乃至上百个独立图层（眼白、瞳孔、高光、上下睫毛、双眼皮折痕、各级发丝与五官），再..." />
+    <meta name="keywords" content="Live2D,虚拟主播,WebGL,计算机图形学,AI Agent" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="单图驱动可动虚拟形象：剖析 Mesh Avatar Studio 的 2.5D 网格形变、膜方程修补与 Agent 协同管线">
+    <meta property="og:description" content="在虚拟主播（VTuber）与数字人交互领域，制作一个生动灵巧的 2D 可动形象向来是一项极其繁琐且昂贵的手艺活。传统的 Live2D 制作需要原画师手动拆分数十乃至上百个独立图层（眼白、瞳孔、高光、上下睫毛、双眼皮折痕、各级发丝与五官），再...">
+    <meta property="og:url" content="https://lijianfei.com/post/mesh-avatar-studio-architecture-and-pipeline/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/mesh-avatar-studio-architecture-and-pipeline.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-10-08T13:15:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="Live2D">
+    
+    <meta property="article:tag" content="虚拟主播">
+    
+    <meta property="article:tag" content="WebGL">
+    
+    <meta property="article:tag" content="计算机图形学">
+    
+    <meta property="article:tag" content="AI Agent">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="单图驱动可动虚拟形象：剖析 Mesh Avatar Studio 的 2.5D 网格形变、膜方程修补与 Agent 协同管线">
+    <meta name="twitter:description" content="在虚拟主播（VTuber）与数字人交互领域，制作一个生动灵巧的 2D 可动形象向来是一项极其繁琐且昂贵的手艺活。传统的 Live2D 制作需要原画师手动拆分数十乃至上百个独立图层（眼白、瞳孔、高光、上下睫毛、双眼皮折痕、各级发丝与五官），再...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/mesh-avatar-studio-architecture-and-pipeline.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "单图驱动可动虚拟形象：剖析 Mesh Avatar Studio 的 2.5D 网格形变、膜方程修补与 Agent 协同管线",
+      "description": "在虚拟主播（VTuber）与数字人交互领域，制作一个生动灵巧的 2D 可动形象向来是一项极其繁琐且昂贵的手艺活。传统的 Live2D 制作需要原画师手动拆分数十乃至上百个独立图层（眼白、瞳孔、高光、上下睫毛、双眼皮折痕、各级发丝与五官），再...",
+      "image": "https://lijianfei.com/post-images/mesh-avatar-studio-architecture-and-pipeline.png",
+      "datePublished": "2026-10-08T13:15:00.000Z",
+      "dateModified": "2026-10-08T13:15:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/mesh-avatar-studio-architecture-and-pipeline/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Live2D",
+          "item": "https://lijianfei.com/tag/live2d/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "单图驱动可动虚拟形象：剖析 Mesh Avatar Studio 的 2.5D 网格形变、膜方程修补与 Agent 协同管线",
+          "item": "https://lijianfei.com/post/mesh-avatar-studio-architecture-and-pipeline/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1791517533639" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              单图驱动可动虚拟形象：剖析 Mesh Avatar Studio 的 2.5D 网格形变、膜方程修补与 Agent 协同管线
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-10-08
+              </span>
+              <span>
+                30 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/live2d/" class="post-tag">
+                  # Live2D
+                </a>
+              
+                <a href="https://lijianfei.com/tag/xu-ni-zhu-bo/" class="post-tag">
+                  # 虚拟主播
+                </a>
+              
+                <a href="https://lijianfei.com/tag/webgl/" class="post-tag">
+                  # WebGL
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ji-suan-ji-tu-xing-xue/" class="post-tag">
+                  # 计算机图形学
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ai-agent/" class="post-tag">
+                  # AI Agent
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/mesh-avatar-studio-architecture-and-pipeline.png" alt="单图驱动可动虚拟形象：剖析 Mesh Avatar Studio 的 2.5D 网格形变、膜方程修补与 Agent 协同管线" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在虚拟主播（VTuber）与数字人交互领域，制作一个生动灵巧的 2D 可动形象向来是一项极其繁琐且昂贵的手艺活。传统的 Live2D 制作需要原画师手动拆分数十乃至上百个独立图层（眼白、瞳孔、高光、上下睫毛、双眼皮折痕、各级发丝与五官），再由模型师进行长达数天的网格绑定、蒙皮权重与形变参数调试；而近期的扩散模型神经渲染方案虽然实现了单图驱动，却面临着端侧算力开销巨大、延迟难以压至 60FPS 实时推流、显存消耗高以及无法原生输出干净透明通道等工程瓶颈。</p>
+<p>日本开发者 shinshin86 开源的 <strong>Mesh Avatar Studio</strong>，走出了一条令人眼前一亮的 2.5D 几何渲染与工程融合路径：仅凭单张平面立绘，通过轻量级 WebGL2 网格形变、数学膜方程孔洞修补、多尺度高斯光影重建，并巧妙引入 AI Coding Agent（如 Claude Code / Codex）自动化完成繁重的特征点测量与图层切片，让人人都能在本地拥有一个 60FPS、零延迟、支持 OBS 透明直推的生动可动形象。</p>
+<!-- more -->
+<hr>
+<h2 id="1-痛点与范式跃迁2d-虚拟形象的技术路线抉择">1. 痛点与范式跃迁：2D 虚拟形象的技术路线抉择</h2>
+<p>在数字人与虚拟内容创作生态中，二维角色的可动化（Avatar Rigging）始终在“表现力”、“资产制作成本”与“运行端算力”之间寻求妥协。在 Mesh Avatar Studio 出现之前，行业主要依赖两条截然不同的技术路线：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph TraditionalPipeline [&quot;传统工艺路线&quot;]
+        A[&quot;原画绘制&quot;] --&gt; B[&quot;全手动多图层精细拆解&lt;br/&gt;50~100+ PSD 图层&quot;]
+        B --&gt; C[&quot;Live2D Cubism 绑定&lt;br/&gt;手动布点与形变参数映射&quot;]
+        C --&gt; D[&quot;工业级表现力 / 极高人工成本&quot;]
+    end
+
+    subgraph NeuralPipeline [&quot;纯神经渲染路线&quot;]
+        E[&quot;单张静态立绘&quot;] --&gt; F[&quot;深度扩散模型 / 生成对抗网络&lt;br/&gt;LivePortrait / Hallo / AniPortrait&quot;]
+        F --&gt; G[&quot;逐帧神经重绘&lt;br/&gt;高显存 / 高延迟 / 算力黑洞&quot;]
+    end
+
+    subgraph MeshAvatarPipeline [&quot;Mesh Avatar Studio 破局点&quot;]
+        H[&quot;单张静态立绘&quot;] --&gt; I[&quot;Coding Agent 辅助视觉测算&lt;br/&gt;自动标定与膜方程图层切分&quot;]
+        I --&gt; J[&quot;本地 WebGL2 几何形变引擎&lt;br/&gt;24点样条眨眼 + 2.5D光影重构&quot;]
+        J --&gt; K[&quot;60FPS 极速推流 / 零显存门槛 / OBS 原生透明&quot;]
+    end
+</code></pre>
+<p>为了直观理解这三类架构的工程差异，我们可以从生产管线与运行时指标进行横向对比：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评估维度</th>
+<th style="text-align:left">传统工业级 Live2D (Cubism)</th>
+<th style="text-align:left">扩散模型 / 神经渲染 (LivePortrait 等)</th>
+<th style="text-align:left">Mesh Avatar Studio 架构</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>资产输入门槛</strong></td>
+<td style="text-align:left">必须由画师提供高精度分层 PSD（50~100+ 图层）</td>
+<td style="text-align:left">任意单张角色肖像（JPG / PNG）</td>
+<td style="text-align:left">任意单张半身透明底 PNG 立绘</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>绑骨与拆层成本</strong></td>
+<td style="text-align:left">需专业模型师手动蒙皮调试，耗时数天至数周</td>
+<td style="text-align:left">零拆层，算法隐式驱动</td>
+<td style="text-align:left"><strong>AI Agent 自动化切分与标定</strong>（几分钟即可完成初步 Rig）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>运行端算力要求</strong></td>
+<td style="text-align:left">极低（CPU / 基础 GPU 即刻流畅运行）</td>
+<td style="text-align:left">极高（需 RTX 3080/4090 等独立显卡，占用数 GB 显存）</td>
+<td style="text-align:left"><strong>极低（浏览器原生 WebGL2，集成显卡即可满帧）</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>实时推流延迟</strong></td>
+<td style="text-align:left">&lt; 16ms（真实 60 FPS 零感知延迟）</td>
+<td style="text-align:left">150ms ~ 500ms+（端侧算力不足时频频掉帧卡顿）</td>
+<td style="text-align:left"><strong>&lt; 16ms（Web Worker 隔离面捕，满血 60 FPS）</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>画面几何稳定性</strong></td>
+<td style="text-align:left">极高（矢量网格仿射变形，绝对不产生幻觉形变）</td>
+<td style="text-align:left">较低（扩散模型易产生局部闪烁、五官漂移与伪影）</td>
+<td style="text-align:left"><strong>极高（确定性 2.5D 网格变形，五官结构坚固）</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>流媒体推流通道</strong></td>
+<td style="text-align:left">原生支持 Alpha 透明通道</td>
+<td style="text-align:left">多数神经管线输出带背景视频，需昂贵抠图模型</td>
+<td style="text-align:left"><strong>原生透明背景，OBS 浏览器源一键即插即用</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Mesh Avatar Studio 并未试图在纯人工手绘的极致细节上完全取代耗时数周的顶级商业 Live2D 模型，而是精准切中了轻量级 AITuber、独立内容创作者、游戏 NPC 快速原型以及视频会议数字人的高频刚需：<strong>用单张现成的二次元立绘，在几分钟内跑起一套坚固、高帧率、无违和感的 2.5D 可动数字身躯。</strong></p>
+<hr>
+<h2 id="2-架构全景四阶段协同流水线">2. 架构全景：四阶段协同流水线</h2>
+<p>Mesh Avatar Studio 的设计精妙之处在于它将整个生命周期划分为清晰的“Agent 端前置标定”、“人工端可视化微调”、“差分变体绘制”以及“端侧实时追踪渲染”四个阶段。</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    actor User as 创作者 (Human)
+    participant Agent as Coding Agent (Claude/Codex)
+    participant Tools as Python 几何分析与图层构建 (uv/OpenCV)
+    participant Editor as Vite + React 19 本地编辑器
+    participant Live as 实时面捕与推流引擎 (MediaPipe/OBS)
+
+    User-&gt;&gt;Agent: 提供单张透明底立绘 (source.png)
+    Agent-&gt;&gt;Tools: 执行 vision-check.py 校准视觉坐标感知能力
+    Agent-&gt;&gt;Tools: 执行 grid.py 局部放大测量，编写 rig.draft.json
+    Agent-&gt;&gt;Tools: 调用 build-layers.py 执行膜方程修补与图层切片
+    Tools--&gt;&gt;Editor: 输出 built/ 目录 (base, hairmask, eye ball/lash/low/crease)
+    User-&gt;&gt;Editor: 启动 npm run dev，打开本地可视化项目
+    User-&gt;&gt;Editor: 拖拽微调五官多边形，进行眨眼与元音口型实时测试
+    opt 生成手绘差分
+        Editor-&gt;&gt;Agent: 导出闭眼与元音 (A/I/U/E/O) 引导 Prompt 与遮罩
+        Agent--&gt;&gt;Editor: 生成高质量透明手绘 Sprite
+    end
+    User-&gt;&gt;Live: 开启 /live.html 页面，启动摄像头与麦克风
+    Live-&gt;&gt;Live: Web Worker MediaPipe 面捕追踪 + 阻尼平滑滤波
+    Live--&gt;&gt;User: 导出 OBS 专属 Browser Source 链接 (/stream.html)
+</code></pre>
+<p>整个工作流在工程实现上具备两个显著特性：</p>
+<ol>
+<li><strong>完全基于本地文件系统（Zero Telemetry）</strong>：所有的图片、权重文件与音视频数据均存放在本地 <code>projects/</code> 目录与本地 Vite 服务（<code>127.0.0.1</code>），摄像头与麦克风特征数据在浏览器端直接消费，彻底杜绝个人隐私与商业原画资产泄露；</li>
+<li><strong>渐进式画质增强</strong>：当没有手绘差分素材时，引擎完全依靠数学网格形变完成闭眼与张嘴；若用户希望追求更自然的眨眼与说话质感，可以通过变体生成器引入手绘差分图层（Sprite Atlas），实现无缝降级与升级。</li>
+</ol>
+<hr>
+<h2 id="3-图层切片与孔洞修复膜方程松弛与去光晕解耦算法">3. 图层切片与孔洞修复：膜方程松弛与去光晕解耦算法</h2>
+<p>在传统的图形切片中，直接对原画眼睛、手部进行简单抠图会带来两个灾难性缺陷：</p>
+<ul>
+<li><strong>孔洞空缺（Black Hole Artifact）</strong>：当角色闭眼、眼球移动或抬起手臂时，原本被睫毛或手部遮挡的皮肤区域会暴露出底层的虚空；</li>
+<li><strong>边缘光晕污染（Color Fringe / Halo Fringe）</strong>：原画中的睫毛与阴影线条带有抗锯齿半透明边缘，其半透明像素已经与底部的肤色发生了 Alpha 混合。如果直接把睫毛抠出来移动，睫毛边缘会带着一层洗不掉的原肤色“白边”，在位移时产生极度突兀的视觉噪点。</li>
+</ul>
+<p>Mesh Avatar Studio 在 <code>tools/build-layers.py</code> 中给出了教科书级的图形学解法。</p>
+<h3 id="31-基于高斯金字塔与膜方程的皮肤无缝外推membrane-solve">3.1 基于高斯金字塔与膜方程的皮肤无缝外推（Membrane Solve）</h3>
+<p>为了在挖去眼眶和配件后填补底层肤色，代码实现了一套基于拉普拉斯平滑（Laplacian Smoothing）的偏微分方程（PDE）膜求解器：</p>
+<pre><code class="language-python">def fill_skin(img, hole):
+    &quot;&quot;&quot;通过多尺度高斯先验与膜方程松弛迭代，将周围肤色无缝延展到切除孔洞中&quot;&quot;&quot;
+    if not np.any(hole):
+        return img.copy()
+    rgb = img[..., :3].astype(np.float32)
+    colour, tolerance = skin_samples(img, hole)
+    skin = (
+        (hole == 0) &amp; (np.abs(rgb - colour).max(-1) &lt; tolerance) &amp; (img[..., 3] &gt; 200)
+    )
+    est = rgb.copy()
+    known = skin.astype(np.float32)
+    
+    # 1. 多尺度高斯金字塔粗扩散，构建空间平滑场先验
+    for sigma in (3, 6, 12, 24, 48):
+        num = cv2.GaussianBlur(rgb * known[..., None], (0, 0), sigma)
+        den = cv2.GaussianBlur(known, (0, 0), sigma)[..., None]
+        fill = (known == 0) &amp; (den[..., 0] &gt; 0.02)
+        est[fill] = (num / np.maximum(den, 1e-4))[fill]
+        known = np.maximum(known, fill.astype(np.float32) * 0.5)
+        
+    solve = (hole &gt; 0) | ((cv2.dilate(hole, np.ones((17, 17), np.uint8)) &gt; 0) &amp; ~skin)
+    ys, xs = np.where(solve)
+    y0, y1 = max(ys.min() - 2, 0), min(ys.max() + 3, img.shape[0])
+    x0, x1 = max(xs.min() - 2, 0), min(xs.max() + 3, img.shape[1])
+    cur = np.where(solve[..., None], est, rgb)[y0:y1, x0:x1].copy()
+    m = solve[y0:y1, x0:x1]
+    fixed = cur.copy()
+    
+    # 2. 600 次边界约束均值松弛迭代（离散化膜方程稳态求解）
+    for _ in range(600):
+        cur = np.where(m[..., None], cv2.blur(cur, (3, 3)), fixed)
+        
+    out = rgb.copy()
+    out[y0:y1, x0:x1] = cur
+    k = cv2.GaussianBlur((hole &gt; 0).astype(np.float32), (0, 0), 1.0)[..., None]
+    res = img.copy()
+    res[..., :3] = np.clip(rgb * (1 - k) + out * k, 0, 255).astype(np.uint8)
+    return res
+</code></pre>
+<blockquote>
+<p>[!NOTE] 膜方程平滑原理<br>
+算法首先在孔洞外围的未遮挡区域采样皮肤主色（<code>colour</code>）与方差容差；接着利用多尺度高斯核从 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>σ</mi><mo>=</mo><mn>3</mn></mrow><annotation encoding="application/x-tex">\sigma=3</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.43056em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">σ</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">3</span></span></span></span> 到 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>σ</mi><mo>=</mo><mn>48</mn></mrow><annotation encoding="application/x-tex">\sigma=48</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.43056em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">σ</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">4</span><span class="mord">8</span></span></span></span> 进行逐级能量扩散，得到低频光照趋势图；最后在待修补区域内执行 600 次 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>3</mn><mo>×</mo><mn>3</mn></mrow><annotation encoding="application/x-tex">3 \times 3</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.72777em;vertical-align:-0.08333em;"></span><span class="mord">3</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">3</span></span></span></span> 盒式模糊松弛。这在数学上等价于在狄利克雷边界条件（Dirichlet Boundary Conditions）下数值求解拉普拉斯方程 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><msup><mi mathvariant="normal">∇</mi><mn>2</mn></msup><mi>u</mi><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">\nabla^2 u = 0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8141079999999999em;vertical-align:0em;"></span><span class="mord"><span class="mord">∇</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mord mathdefault">u</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">0</span></span></span></span>，保证了孔洞内部的肤色渐变不仅完美衔接边缘原画，而且连续无断层。</p>
+</blockquote>
+<h3 id="32-边缘反向解耦去光晕算法unblend">3.2 边缘反向解耦去光晕算法（<code>unblend</code>）</h3>
+<p>为了彻底根除睫毛和描边移动时的背景光晕污染，<code>build-layers.py</code> 实现了一套反向 Alpha 混合求解算法：</p>
+<pre><code class="language-python">def unblend(rgba, skin_rgb, mask, ink):
+    &quot;&quot;&quot;
+    对位于原画肤色上的描边像素进行色彩解耦：
+    根据已知背景肤色与参考墨线纯色，逆向推导固有色彩与纯净 Alpha
+    &quot;&quot;&quot;
+    orig = rgba[..., :3].astype(np.float32)
+    sk = skin_rgb.astype(np.float32)
+    ref = np.array(ink, np.float32)
+    # 计算当前像素在背景肤色与墨线颜色之间的线性插值权重
+    a = np.clip(((sk - orig) / np.maximum(sk - ref, 1)).max(-1), 0, 1)
+    a *= mask &gt; 0
+    # 逆向解出剥离肤色后的真实前景固有色
+    col = np.clip(
+        (orig - sk * (1 - a[..., None])) / np.maximum(a[..., None], 1e-3), 0, 255
+    )
+    out = np.zeros_like(rgba)
+    out[..., :3] = col.astype(np.uint8)
+    out[..., 3] = (a * 255).astype(np.uint8)
+    return out
+</code></pre>
+<p>传统 Alpha 混合的顺向公式为：</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>C</mi><mtext>orig</mtext></msub><mo>=</mo><mi>α</mi><mo>⋅</mo><msub><mi>C</mi><mtext>ink</mtext></msub><mo>+</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>α</mi><mo>)</mo><mo>⋅</mo><msub><mi>C</mi><mtext>skin</mtext></msub></mrow><annotation encoding="application/x-tex">C_{\text{orig}} = \alpha \cdot C_{\text{ink}} + (1 - \alpha) \cdot C_{\text{skin}}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.969438em;vertical-align:-0.286108em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.317502em;"><span style="top:-2.5500000000000003em;margin-left:-0.07153em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">orig</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.44445em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.0037em;">α</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.83333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.33610799999999996em;"><span style="top:-2.5500000000000003em;margin-left:-0.07153em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">ink</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault" style="margin-right:0.0037em;">α</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.83333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.33610799999999996em;"><span style="top:-2.5500000000000003em;margin-left:-0.07153em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">skin</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></span></p>
+<p>当从原图切出睫毛层时，常规工具往往保留原有的 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>C</mi><mtext>orig</mtext></msub></mrow><annotation encoding="application/x-tex">C_{\text{orig}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.969438em;vertical-align:-0.286108em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.317502em;"><span style="top:-2.5500000000000003em;margin-left:-0.07153em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">orig</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span></span></span></span> 并附加截断蒙版，导致移位后 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>C</mi><mtext>skin</mtext></msub></mrow><annotation encoding="application/x-tex">C_{\text{skin}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.83333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.33610799999999996em;"><span style="top:-2.5500000000000003em;margin-left:-0.07153em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">skin</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span> 作为固有色残留。而 <code>unblend</code> 函数反向解出纯净的前景颜色：</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>C</mi><mtext>fg</mtext></msub><mo>=</mo><mfrac><mrow><msub><mi>C</mi><mtext>orig</mtext></msub><mo>−</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>α</mi><mo>)</mo><mo>⋅</mo><msub><mi>C</mi><mtext>skin</mtext></msub></mrow><mi>α</mi></mfrac></mrow><annotation encoding="application/x-tex">C_{\text{fg}} = \frac{C_{\text{orig}} - (1 - \alpha) \cdot C_{\text{skin}}}{\alpha}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.969438em;vertical-align:-0.286108em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361079999999999em;"><span style="top:-2.5500000000000003em;margin-left:-0.07153em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">fg</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:2.113em;vertical-align:-0.686em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.427em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.0037em;">α</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.317502em;"><span style="top:-2.5500000000000003em;margin-left:-0.07153em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">orig</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mopen">(</span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mord mathdefault" style="margin-right:0.0037em;">α</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.33610799999999996em;"><span style="top:-2.5500000000000003em;margin-left:-0.07153em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">skin</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span></p>
+<p>经过该公式重构后，上睫毛层（<code>lash</code>）哪怕平移滑落到瞳孔或眼白上方，其边缘半透明过渡像素也能呈现纯净柔和的墨线衰减，彻底杜绝了眼部运动时的视觉白斑。</p>
+<hr>
+<h2 id="4-微表情动力学眼部-24-采样点多项式拟合">4. 微表情动力学：眼部 24 采样点多项式拟合</h2>
+<p>在 2D 骨骼与网格形变中，面部最难表现的器官就是眼睛。如果直接使用四边形晶格（Lattice）或仿射变换进行纵向压扁，睫毛线条会在眼角处产生严重的锯齿形折角，且无法模拟“普通闭眼（上睫毛下移压合）”与“微笑眯眼（上下睫毛呈圆弧状相对闭合）”的微妙形态差异。</p>
+<p>Mesh Avatar Studio 在 <code>src/engine/rig.js</code> 中设计了一套基于 <strong>24 采样点轮廓样条插值 + 5-Tap 高斯平滑核</strong> 的连续形变模型。</p>
+<pre><code class="language-mermaid">flowchart LR
+    A[&quot;眼白与瞳孔开孔多边形 opening&quot;] --&gt; B[&quot;24 列等间距纵向跨度采样&lt;br/&gt;EYE_N = 24&quot;]
+    B --&gt; C[&quot;眼皮基础闭合线计算 eyeLidsRaw&lt;br/&gt;结合二次抛物线 hump 拟合弧度&quot;]
+    C --&gt; D[&quot;5-Tap 纵向加权平滑滤波 LID_TAPS&lt;br/&gt;消除内外眼角尖锐畸变&quot;]
+    D --&gt; E[&quot;多层运动学分层传递 eyePartY&lt;br/&gt;lash 压合 / low 微笑上浮 / crease 双眼皮拉伸&quot;]
+</code></pre>
+<h3 id="41-采样与平滑核心算法">4.1 采样与平滑核心算法</h3>
+<p>引擎首先沿眼球开孔（<code>opening</code>）的左右端点等距划分 24 列，测量每一列的上边缘坐标 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>y</mi><mtext>top</mtext></msub></mrow><annotation encoding="application/x-tex">y_{\text{top}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.716668em;vertical-align:-0.286108em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.28055599999999997em;"><span style="top:-2.5500000000000003em;margin-left:-0.03588em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">top</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span></span></span></span> 与下边缘坐标 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>y</mi><mtext>bot</mtext></msub></mrow><annotation encoding="application/x-tex">y_{\text{bot}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.19444em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.33610799999999996em;"><span style="top:-2.5500000000000003em;margin-left:-0.03588em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">bot</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>：</p>
+<pre><code class="language-javascript">// src/engine/rig.js
+const EYE_N = 24;
+const LID_TAPS = [[-2, 1], [-1, 2], [0, 3], [1, 2], [2, 1]], LID_STEP = 5;
+
+// 计算在归一化水平坐标 u 处的基准闭合位置
+function eyeLidsRaw(e, u, open, smile) {
+  u = Math.min(1, Math.max(0, u));
+  const top = sampled(e.top, u), bot = sampled(e.bot, u);
+  const b = 1 - open;
+  // 二次凸起抛物线，峰值位于眼球正中央 u = 0.5
+  const hump = 4 * u * (1 - u);
+  const H = sampled(e.bot, 0.5) - sampled(e.top, 0.5);
+  // 微笑时的月牙形弯曲弧线
+  const arc = e.top[0] + (e.top[EYE_N - 1] - e.top[0]) * u - 0.3 * H * hump;
+  const closed = Math.max(top, bot + 1 + (arc - bot - 1) * smile);
+  
+  return [
+    (closed - top) * Math.max(b, -0.07),
+    b &gt; 0 ? (closed - bot) * b * smile : 0
+  ];
+}
+
+// 跨列平滑卷积：防止眼角陡峭边缘导致睫毛曲率突变产生折线
+function eyeLids(e, x, open, smile) {
+  let du = 0, db = 0;
+  for (const [k, w] of LID_TAPS) {
+    const [a, c] = eyeLidsRaw(e, (x + k * LID_STEP - e.x0) / (e.x1 - e.x0), open, smile);
+    du += a * w / 9;
+    db += c * w / 9;
+  }
+  const u = Math.min(1, Math.max(0, (x - e.x0) / (e.x1 - e.x0)));
+  const top = sampled(e.top, u), bot = sampled(e.bot, u);
+  return { top, bot, b: 1 - open, lid: top + du, bc: bot + db };
+}
+</code></pre>
+<h3 id="42-运动学层级联动">4.2 运动学层级联动</h3>
+<p>计算出平滑眼睑位置后，系统通过 <code>eyePartY</code> 与 <code>eyePartAlpha</code> 将形变逐层分配给眼部的四个物理切片：</p>
+<ol>
+<li><strong>上睫毛（<code>lash</code>）</strong>：跟随闭合线向下贴合，并在接近完全闭合时按比例微量变细（模拟眼睑下垂时的透视压缩）：<pre><code class="language-javascript">if (part === 'lash') return L.lid - (L.top - y) * (1 - 0.3 * Math.min(1, Math.max(0, L.b)));
+</code></pre>
+</li>
+<li><strong>下睫毛（<code>low</code>）</strong>：在普通眨眼时保持静止；但在微笑（<code>smile &gt; 0</code>）时向上弧形抬起，并在闭合瞬间逐渐将透明度降至 0，从而与上睫毛自然融合成一条月牙线，避免两条粗细不一的黑线重叠：<pre><code class="language-javascript">if (part === 'low') return y + (L.bc - L.bot);
+// Alpha 渐变淡出
+const b = Math.min(1, Math.max(0, 1 - open));
+if (part === 'low') return 1 - Math.min(1, b * smile * 1.2);
+</code></pre>
+</li>
+<li><strong>双眼皮折痕（<code>crease</code>）</strong>：随着眼皮闭合以约 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>22</mn><mi mathvariant="normal">%</mi></mrow><annotation encoding="application/x-tex">22\%</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.80556em;vertical-align:-0.05556em;"></span><span class="mord">2</span><span class="mord">2</span><span class="mord">%</span></span></span></span> 的阻尼系数轻微向下延展，模拟眼窝表皮的物理拉伸，并在完全闭合时适度淡化；</li>
+<li><strong>眼球底板（<code>ball</code>）</strong>：保持在眼眶下层，当睫毛覆盖时自然被上层遮挡裁剪。</li>
+</ol>
+<hr>
+<h2 id="5-25d-法线重建与实时动态光影系统">5. 2.5D 法线重建与实时动态光影系统</h2>
+<p>大多数 2D 虚拟形象在直播推流时只能展现原本原画绘制时的固定明暗。如果主播希望营造戏剧性的舞台灯光、夜间氛围或跟随鼠标投射的动态高光，传统做法必须由原画师逐个图层手绘不同光照贴图（Normal Map / Shading Map），这对于单张立绘而言几乎是不可能完成的任务。</p>
+<p>Mesh Avatar Studio 的创新之处在于构建了一套纯算法驱动的 <strong>2.5D 法线场与高度图实时推导引擎</strong>（<code>src/lighting/normals.ts</code> 与 <code>shading.ts</code>）。</p>
+<pre><code class="language-mermaid">flowchart TD
+    A[&quot;单张立绘切片 Alpha 通道&quot;] --&gt; B[&quot;双扫描倒角距离场 silhouetteDistance&lt;br/&gt;生成轮廓圆角曲面&quot;]
+    C[&quot;骨架解析几何场 rigHeight&lt;br/&gt;头部椭球 + 鼻尖高斯峰 + 面颊突起&quot;] --&gt; D[&quot;几何高度混合&lt;br/&gt;基础 3D 宏观体积形态&quot;]
+    B --&gt; D
+    E[&quot;原画色彩亮度场 luminance&quot;] --&gt; F[&quot;多尺度盒式模糊差分 detailGradient&lt;br/&gt;fine - coarse 分离高频笔触&quot;]
+    D --&gt; G[&quot;复合梯度法线场生成&lt;br/&gt;法向量 N = normalize(-dx, -dy, 1)&quot;]
+    F --&gt; G
+    G --&gt; H{&quot;着色器光照计算&quot;}
+    H --&gt; I[&quot;Soft Shading: 连续漫反射 + 高光 + 边缘光&quot;]
+    H --&gt; J[&quot;Cel Shading: 二次元阶梯二值化赛璐珞着色&quot;]
+</code></pre>
+<h3 id="51-轮廓倒角距离场chamfer-distance-transform">5.1 轮廓倒角距离场（Chamfer Distance Transform）</h3>
+<p>系统首先通过两次遍历（从左上到右下，再从右下到左上），计算每个不透明像素到透明边界的最短欧几里得距离逼近：</p>
+<pre><code class="language-typescript">export function silhouetteDistance(alpha: Uint8Array, width: number, height: number, cropped = false) {
+  const boundary = cropped ? Math.max(width, height) * 2 : 1;
+  const d = new Float32Array(alpha.length), diagonal = Math.SQRT2;
+  // 第一次正向扫描：上方与左方邻域
+  for (let y = 0; y &lt; height; y++) for (let x = 0; x &lt; width; x++) {
+    const i = y * width + x;
+    if (alpha[i] &lt;= 3) continue;
+    d[i] = Math.min(
+      x ? d[i - 1] + 1 : boundary,
+      y ? d[i - width] + 1 : boundary,
+      x &amp;&amp; y ? d[i - width - 1] + diagonal : boundary,
+      y &amp;&amp; x + 1 &lt; width ? d[i - width + 1] + diagonal : boundary
+    );
+  }
+  // 第二次反向扫描：下方与右方邻域
+  for (let y = height - 1; y &gt;= 0; y--) for (let x = width - 1; x &gt;= 0; x--) {
+    const i = y * width + x;
+    if (!alpha[i] || alpha[i] &lt;= 3) continue;
+    d[i] = Math.min(
+      d[i],
+      x + 1 &lt; width ? d[i + 1] + 1 : boundary,
+      y + 1 &lt; height ? d[i + width] + 1 : boundary,
+      x &amp;&amp; y + 1 &lt; height ? d[i + width - 1] + diagonal : boundary,
+      x + 1 &lt; width &amp;&amp; y + 1 &lt; height ? d[i + width + 1] + diagonal : boundary
+    );
+  }
+  return d;
+}
+</code></pre>
+<p>通过这一距离场，平面的角色轮廓边缘被瞬间赋予了一个自然向外圆滑过渡的弧形深度（Capsule / Rounded Profile）。</p>
+<h3 id="52-解析几何体积注入与高频浮雕提取">5.2 解析几何体积注入与高频浮雕提取</h3>
+<p>仅有边缘倒角无法呈现面部的立体感。引擎巧妙地将骨架参数（<code>rig.json</code>）映射为解析三维曲面：</p>
+<ol>
+<li><strong>头部椭球体（Ellipsoid）</strong>：以头部中心 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mo>(</mo><msub><mi>c</mi><mi>x</mi></msub><mo separator="true">,</mo><msub><mi>c</mi><mi>y</mi></msub><mo>)</mo></mrow><annotation encoding="application/x-tex">(c_x, c_y)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.036108em;vertical-align:-0.286108em;"></span><span class="mopen">(</span><span class="mord"><span class="mord mathdefault">c</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.151392em;"><span style="top:-2.5500000000000003em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">x</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord"><span class="mord mathdefault">c</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.15139200000000003em;"><span style="top:-2.5500000000000003em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right:0.03588em;">y</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span><span class="mclose">)</span></span></span></span> 与半径 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mo>(</mo><msub><mi>r</mi><mi>x</mi></msub><mo separator="true">,</mo><msub><mi>r</mi><mi>y</mi></msub><mo>)</mo></mrow><annotation encoding="application/x-tex">(r_x, r_y)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.036108em;vertical-align:-0.286108em;"></span><span class="mopen">(</span><span class="mord"><span class="mord mathdefault" style="margin-right:0.02778em;">r</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.151392em;"><span style="top:-2.5500000000000003em;margin-left:-0.02778em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">x</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.02778em;">r</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.15139200000000003em;"><span style="top:-2.5500000000000003em;margin-left:-0.02778em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right:0.03588em;">y</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span><span class="mclose">)</span></span></span></span> 构建半球深度模型：<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>z</mi><mtext>head</mtext></msub><mo>=</mo><mn>0.8</mn><mo>⋅</mo><msub><mi>r</mi><mi>x</mi></msub><msqrt><mrow><mi>max</mi><mo>⁡</mo><mrow><mo fence="true">(</mo><mn>0</mn><mo separator="true">,</mo><mn>1</mn><mo>−</mo><msup><mrow><mo fence="true">(</mo><mfrac><mrow><mi>x</mi><mo>−</mo><msub><mi>c</mi><mi>x</mi></msub></mrow><msub><mi>r</mi><mi>x</mi></msub></mfrac><mo fence="true">)</mo></mrow><mn>2</mn></msup><mo>−</mo><msup><mrow><mo fence="true">(</mo><mfrac><mrow><mi>y</mi><mo>−</mo><msub><mi>c</mi><mi>y</mi></msub></mrow><msub><mi>r</mi><mi>y</mi></msub></mfrac><mo fence="true">)</mo></mrow><mn>2</mn></msup><mo fence="true">)</mo></mrow></mrow></msqrt></mrow><annotation encoding="application/x-tex">z_{\text{head}} = 0.8 \cdot r_x \sqrt{\max\left(0, 1 - \left(\frac{x - c_x}{r_x}\right)^2 - \left(\frac{y - c_y}{r_y}\right)^2\right)}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.58056em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.33610799999999996em;"><span style="top:-2.5500000000000003em;margin-left:-0.04398em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">head</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">0</span><span class="mord">.</span><span class="mord">8</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:3.2277799999999996em;vertical-align:-1.25003em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.02778em;">r</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.151392em;"><span style="top:-2.5500000000000003em;margin-left:-0.02778em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">x</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mord sqrt"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.9777499999999997em;"><span class="svg-align" style="top:-5.18778em;"><span class="pstrut" style="height:5.18778em;"></span><span class="mord" style="padding-left:1.056em;"><span class="mop">max</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="minner"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size4">(</span></span><span class="mord">0</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="minner"><span class="minner"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size3">(</span></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.2603300000000002em;"><span style="top:-2.3139999999999996em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mord mathdefault" style="margin-right:0.02778em;">r</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.151392em;"><span style="top:-2.5500000000000003em;margin-left:-0.02778em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">x</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathdefault">x</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mord"><span class="mord mathdefault">c</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.151392em;"><span style="top:-2.5500000000000003em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight">x</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.8360000000000001em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size3">)</span></span></span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:1.6540080000000001em;"><span style="top:-3.9029000000000003em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="minner"><span class="minner"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size3">(</span></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.26033em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mord mathdefault" style="margin-right:0.02778em;">r</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.15139200000000003em;"><span style="top:-2.5500000000000003em;margin-left:-0.02778em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right:0.03588em;">y</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mord"><span class="mord mathdefault">c</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.15139200000000003em;"><span style="top:-2.5500000000000003em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathdefault mtight" style="margin-right:0.03588em;">y</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.286108em;"><span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.972108em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size3">)</span></span></span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:1.6540080000000001em;"><span style="top:-3.9029000000000003em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size4">)</span></span></span></span></span><span style="top:-3.9377500000000003em;"><span class="pstrut" style="height:5.18778em;"></span><span class="hide-tail" style="min-width:0.742em;height:3.2677799999999997em;"><svg width='400em' height='3.2677799999999997em' viewBox='0 0 400000 3267' preserveAspectRatio='xMinYMin slice'><path d='M702 80H400000v40H742v3133l-4 4-4 4c-.667.7
+-2 1.5-4 2.5s-4.167 1.833-6.5 2.5-5.5 1-9.5 1h-12l-28-84c-16.667-52-96.667
+-294.333-240-727l-212 -643 -85 170c-4-3.333-8.333-7.667-13 -13l-13-13l77-155
+ 77-156c66 199.333 139 419.667 219 661 l218 661zM702 80H400000v40H742z'/></svg></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.25003em;"><span></span></span></span></span></span></span></span></span></span></p>
+</li>
+<li><strong>五官特征高斯峰（Gaussian Bump）</strong>：在鼻尖和面颊区域叠加二维高斯分布，使鼻子在侧面受光时形成自然的高耸明暗；</li>
+<li><strong>原画固有高频浮雕（Detail Gradient）</strong>：<pre><code class="language-typescript">export function detailGradient(luminance: Float32Array, alpha: Uint8Array, width: number, height: number) {
+  const fine = boxBlur(luminance, width, height, 1);
+  const coarse = boxBlur(luminance, width, height, 6);
+  const relief = new Float32Array(luminance.length);
+  for (let i = 0; i &lt; relief.length; i++) {
+    // 通过细模糊减粗模糊，提取局部暗色描边与发丝缝隙
+    relief[i] = alpha[i] &gt; 128 ? fine[i] - coarse[i] : 0;
+  }
+  // 计算局部浮雕梯度向量...
+}
+</code></pre>
+这种频域分离技术只提取原画线条的局部反差，而不会将原画大面积的阴影误判为几何凹陷。最终，合成法线场驱动的 WebGL 着色器不仅能够呈现柔和的漫反射（Soft Shading），还能一键切换为二次元风格鲜明的 <strong>赛璐珞分色阶梯（Cel Shading）</strong>，并伴随实时边缘光（Rim Light）与动态投影。</li>
+</ol>
+<hr>
+<h2 id="6-实时面捕追踪与零延迟推流管线">6. 实时面捕追踪与零延迟推流管线</h2>
+<p>在实时开播与视频互动场景下，面捕追踪的实时性与稳定性决定了虚拟主播的可用性。许多基于 Electron 或 Python 的方案在后台运行时极易遭遇事件循环阻塞，导致推流画面卡顿掉帧。</p>
+<p>Mesh Avatar Studio 在推流架构上采取了极致轻量化的前后端解耦策略：</p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph LiveCollector [&quot;浏览器采集端 (Live 页面)&quot;]
+        Cam[&quot;摄像头采集 60FPS&quot;] --&gt; Worker[&quot;Web Worker 独立线程&quot;]
+        Worker --&gt; MP[&quot;MediaPipe Face Landmarker&lt;br/&gt;GPU 加速 / CPU 兜底&quot;]
+        MP --&gt; Filter[&quot;指数阻尼平滑滤波&lt;br/&gt;alpha = 1 - e^-dt/tau&quot;]
+        Filter --&gt; WSClient[&quot;WebSocket 客户端&quot;]
+    end
+
+    WSClient --&gt;|仅传输数十字节数值包| Server[&quot;本地 Node.js 极速转发服务&lt;br/&gt;127.0.0.1:5173&quot;]
+
+    subgraph OBSReceiver [&quot;OBS 捕获端 (Stream 页面)&quot;]
+        Server --&gt;|WebSocket 广播| StreamPage[&quot;OBS 浏览器源 /stream.html&quot;]
+        StreamPage --&gt; WebGLCanvas[&quot;纯 WebGL2 Canvas 渲染&lt;br/&gt;原生透明 Alpha 混合&quot;]
+        WebGLCanvas --&gt; OBSOutput[&quot;OBS 虚拟摄像头 / 视频会议 / 录播&quot;]
+    end
+</code></pre>
+<h3 id="61-变换矩阵正交化与欧拉角解算">6.1 变换矩阵正交化与欧拉角解算</h3>
+<p>在 <code>src/live/tracking.ts</code> 中，代码直接消费 MediaPipe 导出的 16 元素列优先仿射变换矩阵（<code>facialTransformationMatrixes</code>）。为了防止人脸透视形变引入尺度畸变，代码首先对旋转矩阵的列向量进行严格的正交化（Gram-Schmidt 归一化），再解算欧拉角：</p>
+<pre><code class="language-typescript">export function readFace(result: FaceResult): RawFace | null {
+  const matrix = result.facialTransformationMatrixes[0]?.data;
+  if (!result.faceLandmarks.length || !matrix || matrix.length !== 16) return null;
+  
+  const m = [...matrix];
+  // 消除列向量缩放尺度，提取纯旋转分量
+  for (const offset of [0, 4, 8]) {
+    const length = Math.hypot(m[offset], m[offset + 1], m[offset + 2]);
+    if (length &lt; 1e-6) return null;
+    for (let i = 0; i &lt; 3; i++) m[offset + i] /= length;
+  }
+  const degrees = 180 / Math.PI;
+  // 严格解算偏航角 Yaw、俯仰角 Pitch 与翻滚角 Roll
+  return {
+    yaw: Math.atan2(m[8], m[10]) * degrees,
+    pitch: Math.asin(clamp(-m[9], -1, 1)) * degrees,
+    roll: Math.atan2(m[1], m[5]) * degrees,
+    shapes: Object.fromEntries(
+      (result.faceBlendshapes[0]?.categories ?? []).map(shape =&gt; [shape.categoryName, clamp(shape.score)])
+    )
+  };
+}
+</code></pre>
+<h3 id="62-阻尼抗抖动平滑器">6.2 阻尼抗抖动平滑器</h3>
+<p>网络摄像头帧率往往存在轻微时钟抖动，如果直接把原始 Blendshape 赋给网格，角色眼睛和嘴角会产生高频微颤。引擎实现了连续时间指数平滑滤波器：</p>
+<pre><code class="language-typescript">export function smoothParameters(
+  current: Record&lt;string, number&gt;,
+  target: Record&lt;string, number&gt;,
+  dt: number,
+  smoothing: number
+) {
+  const tau = clamp(smoothing) * 0.25;
+  // 连续时间指数阻尼公式
+  const alpha = tau === 0 ? 1 : 1 - Math.exp(-Math.max(0, dt) / tau);
+  return Object.fromEntries(
+    Object.entries(target).map(([key, value]) =&gt; [
+      key,
+      (current[key] ?? value) + (value - (current[key] ?? value)) * alpha
+    ])
+  );
+}
+</code></pre>
+<blockquote>
+<p>[!TIP] 时间常数平滑的工程优势<br>
+使用基于物理时间步长 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi mathvariant="normal">Δ</mi><mi>t</mi></mrow><annotation encoding="application/x-tex">\Delta t</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord">Δ</span><span class="mord mathdefault">t</span></span></span></span> 的指数衰减 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>α</mi><mo>=</mo><mn>1</mn><mo>−</mo><msup><mi>e</mi><mrow><mo>−</mo><mi mathvariant="normal">Δ</mi><mi>t</mi><mi mathvariant="normal">/</mi><mi>τ</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\alpha = 1 - e^{-\Delta t / \tau}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.43056em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.0037em;">α</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.72777em;vertical-align:-0.08333em;"></span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.8879999999999999em;vertical-align:0em;"></span><span class="mord"><span class="mord mathdefault">e</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8879999999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">Δ</span><span class="mord mathdefault mtight">t</span><span class="mord mtight">/</span><span class="mord mathdefault mtight" style="margin-right:0.1132em;">τ</span></span></span></span></span></span></span></span></span></span></span></span>，无论用户的摄像头是 30 FPS、60 FPS 还是偶尔由于算力调度出现瞬时帧间隔拉长，滤波器的阻尼物理响应曲线始终保持完全一致，既彻底消除了静止时的微小抖动，又保证了快速转头、眨眼时的跟手响应。</p>
+</blockquote>
+<hr>
+<h2 id="7-ai-coding-agent-协同范式ai-原生图形工程的落地实践">7. AI Coding Agent 协同范式：AI 原生图形工程的落地实践</h2>
+<p>Mesh Avatar Studio 最具启发性的亮点，莫过于它重新定义了开发者与 AI Coding Agent（如 Claude Code、OpenAI Codex）在计算机图形学工作流中的分工。</p>
+<p>在传统的软件工程中，AI Agent 往往只用于编写纯文本代码或修复单元测试。而在这个项目中，<strong>Coding Agent 成为了一位“坐镇流水线的自动化模型绑定师”</strong>：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph AgentDomain [&quot;Agent 执行域 (CLI / Sandbox)&quot;]
+        A1[&quot;vision-check.py&lt;br/&gt;测试 Agent 读取像素坐标精度&quot;] --&gt; A2[&quot;grid.py 区域网格普查&lt;br/&gt;生成 5px / 10px 局部坐标标尺&quot;]
+        A2 --&gt; A3[&quot;编写 rig.draft.json&lt;br/&gt;填报眼廓、发丝节点、身体权重椭圆&quot;]
+        A3 --&gt; A4[&quot;调用 build-layers.py 编译&lt;br/&gt;无缝执行膜方程修补与色彩解耦&quot;]
+        A4 --&gt; A5[&quot;npm run render-poses&lt;br/&gt;Playwright 无头多角度大图质检&quot;]
+    end
+
+    subgraph HumanDomain [&quot;人类创作者决策域 (Visual Editor)&quot;]
+        H1[&quot;打开本地编辑器 / 实时所见即所得&quot;]
+        H2[&quot;直观拖拽微调个别偏差句柄&quot;]
+        H3[&quot;一键复制差分绘制 Prompt 并交给 Agent&quot;]
+    end
+
+    A5 --&gt;|生成姿态巡检接触印样| H1
+    H2 --&gt;|满意后直接推流开播| H3
+</code></pre>
+<ol>
+<li><strong>视觉标定预检（<code>tools/vision-check.py</code>）</strong>：在开始绑定之前，Agent 必须先运行标定工具。系统生成一张带有随机编号标记的校验图，要求 Agent 输出其像素坐标，只有当多模态视觉识别精度达标后，流程才会继续执行。这有效防止了低能力模型盲目猜测坐标导致整个骨架报废；</li>
+<li><strong>标尺测绘（<code>tools/grid.py</code>）</strong>：Agent 不直接对着大图估测，而是通过脚本生成局部放大的网格图（带 10px / 50px 坐标标尺），以极高的几何精度测出眼球边缘多边形、发丝悬垂骨骼与脖子转动轴心；</li>
+<li><strong>闭环无头质检（<code>render-poses.mjs</code>）</strong>：Agent 在调用 Python 完成图层切除后，自动通过 Playwright 启动无头 Chromium 渲染各种极限姿态（左转 30°、右转 30°、仰头、低头、眨眼、大笑、发丝摆动），生成一张多姿态对比接触印样（Contact Sheet）。Agent 自行审阅渲染图，若发现眨眼漏光或网格撕裂，便自动修正参数并重新编译，直到质检完全达标再交接给人类创作者。</li>
+</ol>
+<p>这种模式完美解决了大语言模型“缺乏图形交互界面”的短板，将 Agent 强大的精密逻辑推演、格式遵守能力与无头浏览器质检结合，构建出了高度可复制的 AI 原生创作管线。</p>
+<hr>
+<h2 id="8-本地实战指南与踩坑建议">8. 本地实战指南与踩坑建议</h2>
+<h3 id="81-快速上手步骤">8.1 快速上手步骤</h3>
+<p>该项目基于纯 Node.js 与 Python 现代化工具链，部署十分直观：</p>
+<pre><code class="language-bash"># 1. 克隆项目仓库
+git clone https://github.com/shinshin86/mesh-avatar-studio.git
+cd mesh-avatar-studio
+
+# 2. 安装前端依赖
+npm install
+
+# 3. 启动本地开发与渲染服务器
+npm run dev
+</code></pre>
+<p>启动后在浏览器中打开 <code>http://127.0.0.1:5173/</code>，即可看到内置的 Miko 示例模型。</p>
+<p>如果你拥有 Claude Code 或 Codex，只需将一张二次元半身肖像（<code>your-avatar.png</code>）放入目录，并向 Agent 发送指令：</p>
+<blockquote>
+<p>Create an avatar from this image following docs/agent-guide.md: <code>your-avatar.png</code></p>
+</blockquote>
+<p>Agent 将全自动完成坐标勘测、膜方程图层切分与骨架生成；生成完成后在编辑器中点击 <strong>Open project</strong> 即可载入。</p>
+<h3 id="82-核心踩坑与优化经验">8.2 核心踩坑与优化经验</h3>
+<p>在实战测试与模型切片过程中，以下经验至关重要：</p>
+<ol>
+<li><strong>原画选型规范</strong>：
+<ul>
+<li><strong>推荐</strong>：正面或极小角度偏侧脸（微侧 5° 以内）、五官清晰、带透明通道的半身 PNG 立绘；</li>
+<li><strong>避坑</strong>：避免大角度四分之三侧脸（7:3 侧脸），这会导致转头时远景耳朵与下巴产生严重的透视拉伸撕裂；同时尽量避免双手交叉挡在胸前或面部正前方；</li>
+</ul>
+</li>
+<li><strong>眼部开孔（<code>opening</code>）必须贴紧眼白</strong>：
+<ul>
+<li>在调整 <code>eyes[*].opening</code> 时，多边形节点必须严格落在眼白与虹膜边缘内侧约 1~2px，<strong>切忌将上睫毛的黑线圈入开孔中</strong>。如果睫毛被圈入开孔，系统会将其误判为眼球内部资产，导致眨眼时睫毛破碎并残留黑块；</li>
+</ul>
+</li>
+<li><strong>OBS 虚拟摄像头透明度配置</strong>：
+<ul>
+<li>OBS 浏览器源（Browser Source）原生支持透明背景（直接输入 <code>/stream.html?project=xxx</code> 即可）；</li>
+<li>但若想通过 <strong>OBS Virtual Camera</strong> 注入 Zoom、Google Meet 或腾讯会议，由于虚拟摄像头驱动层不传递透明通道，透明区域会默认变黑。<strong>解决方案</strong>：在推流 URL 中追加 <code>bg=green</code> 参数，并在 OBS 中添加一层色度键（Chroma Key）滤镜，或直接在 OBS 场景后方垫一张美观的虚拟背景底图。</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2 id="9-结语">9. 结语</h2>
+<p>Mesh Avatar Studio 的诞生，为计算机图形学与生成式 AI 的深度融合提供了一个极具参考价值的范本。它没有盲目堆砌高显存开销的端到端大模型黑盒，而是将传统的 <strong>几何网格形变、偏微分方程修补与频域法线合成</strong> 封装成精巧的确定性运行时，同时借助 <strong>AI Coding Agent</strong> 攻克了最繁重、最劝退的人工拆层与关键点标定环节。</p>
+<p>这种“Agent 负责繁琐前置资产工程，经典算法负责端侧极致低延时渲染”的协同范式，不仅让普通创作者轻松跨越了 Live2D 的高昂门槛，更为未来无数跨模态数字人、轻量级互动游戏以及智能 Agent 虚拟形象的普惠化演进，照亮了一条极具工程美感的新路径。</p>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>GitHub 开源仓库</strong>：<a href="https://github.com/shinshin86/mesh-avatar-studio">shinshin86/mesh-avatar-studio</a></li>
+<li><strong>GitHub Daily 官方推荐</strong>：<a href="https://x.com/GitHub_Daily/status/2108135341014364348">GitHub Daily 动态追踪 (Status 2108135341014364348)</a></li>
+<li><strong>Google MediaPipe 面部特征点追踪</strong>：<a href="https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker">MediaPipe Face Landmarker Documentation</a></li>
+<li><strong>作者与许可协议</strong>：<a href="https://github.com/shinshin86/mesh-avatar-studio/blob/main/LICENSE">MIT License - shinshin86</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#1-%E7%97%9B%E7%82%B9%E4%B8%8E%E8%8C%83%E5%BC%8F%E8%B7%83%E8%BF%812d-%E8%99%9A%E6%8B%9F%E5%BD%A2%E8%B1%A1%E7%9A%84%E6%8A%80%E6%9C%AF%E8%B7%AF%E7%BA%BF%E6%8A%89%E6%8B%A9">1. 痛点与范式跃迁：2D 虚拟形象的技术路线抉择</a></li>
+<li><a href="#2-%E6%9E%B6%E6%9E%84%E5%85%A8%E6%99%AF%E5%9B%9B%E9%98%B6%E6%AE%B5%E5%8D%8F%E5%90%8C%E6%B5%81%E6%B0%B4%E7%BA%BF">2. 架构全景：四阶段协同流水线</a></li>
+<li><a href="#3-%E5%9B%BE%E5%B1%82%E5%88%87%E7%89%87%E4%B8%8E%E5%AD%94%E6%B4%9E%E4%BF%AE%E5%A4%8D%E8%86%9C%E6%96%B9%E7%A8%8B%E6%9D%BE%E5%BC%9B%E4%B8%8E%E5%8E%BB%E5%85%89%E6%99%95%E8%A7%A3%E8%80%A6%E7%AE%97%E6%B3%95">3. 图层切片与孔洞修复：膜方程松弛与去光晕解耦算法</a>
+<ul>
+<li><a href="#31-%E5%9F%BA%E4%BA%8E%E9%AB%98%E6%96%AF%E9%87%91%E5%AD%97%E5%A1%94%E4%B8%8E%E8%86%9C%E6%96%B9%E7%A8%8B%E7%9A%84%E7%9A%AE%E8%82%A4%E6%97%A0%E7%BC%9D%E5%A4%96%E6%8E%A8membrane-solve">3.1 基于高斯金字塔与膜方程的皮肤无缝外推（Membrane Solve）</a></li>
+<li><a href="#32-%E8%BE%B9%E7%BC%98%E5%8F%8D%E5%90%91%E8%A7%A3%E8%80%A6%E5%8E%BB%E5%85%89%E6%99%95%E7%AE%97%E6%B3%95unblend">3.2 边缘反向解耦去光晕算法（<code>unblend</code>）</a></li>
+</ul>
+</li>
+<li><a href="#4-%E5%BE%AE%E8%A1%A8%E6%83%85%E5%8A%A8%E5%8A%9B%E5%AD%A6%E7%9C%BC%E9%83%A8-24-%E9%87%87%E6%A0%B7%E7%82%B9%E5%A4%9A%E9%A1%B9%E5%BC%8F%E6%8B%9F%E5%90%88">4. 微表情动力学：眼部 24 采样点多项式拟合</a>
+<ul>
+<li><a href="#41-%E9%87%87%E6%A0%B7%E4%B8%8E%E5%B9%B3%E6%BB%91%E6%A0%B8%E5%BF%83%E7%AE%97%E6%B3%95">4.1 采样与平滑核心算法</a></li>
+<li><a href="#42-%E8%BF%90%E5%8A%A8%E5%AD%A6%E5%B1%82%E7%BA%A7%E8%81%94%E5%8A%A8">4.2 运动学层级联动</a></li>
+</ul>
+</li>
+<li><a href="#5-25d-%E6%B3%95%E7%BA%BF%E9%87%8D%E5%BB%BA%E4%B8%8E%E5%AE%9E%E6%97%B6%E5%8A%A8%E6%80%81%E5%85%89%E5%BD%B1%E7%B3%BB%E7%BB%9F">5. 2.5D 法线重建与实时动态光影系统</a>
+<ul>
+<li><a href="#51-%E8%BD%AE%E5%BB%93%E5%80%92%E8%A7%92%E8%B7%9D%E7%A6%BB%E5%9C%BAchamfer-distance-transform">5.1 轮廓倒角距离场（Chamfer Distance Transform）</a></li>
+<li><a href="#52-%E8%A7%A3%E6%9E%90%E5%87%A0%E4%BD%95%E4%BD%93%E7%A7%AF%E6%B3%A8%E5%85%A5%E4%B8%8E%E9%AB%98%E9%A2%91%E6%B5%AE%E9%9B%95%E6%8F%90%E5%8F%96">5.2 解析几何体积注入与高频浮雕提取</a></li>
+</ul>
+</li>
+<li><a href="#6-%E5%AE%9E%E6%97%B6%E9%9D%A2%E6%8D%95%E8%BF%BD%E8%B8%AA%E4%B8%8E%E9%9B%B6%E5%BB%B6%E8%BF%9F%E6%8E%A8%E6%B5%81%E7%AE%A1%E7%BA%BF">6. 实时面捕追踪与零延迟推流管线</a>
+<ul>
+<li><a href="#61-%E5%8F%98%E6%8D%A2%E7%9F%A9%E9%98%B5%E6%AD%A3%E4%BA%A4%E5%8C%96%E4%B8%8E%E6%AC%A7%E6%8B%89%E8%A7%92%E8%A7%A3%E7%AE%97">6.1 变换矩阵正交化与欧拉角解算</a></li>
+<li><a href="#62-%E9%98%BB%E5%B0%BC%E6%8A%97%E6%8A%96%E5%8A%A8%E5%B9%B3%E6%BB%91%E5%99%A8">6.2 阻尼抗抖动平滑器</a></li>
+</ul>
+</li>
+<li><a href="#7-ai-coding-agent-%E5%8D%8F%E5%90%8C%E8%8C%83%E5%BC%8Fai-%E5%8E%9F%E7%94%9F%E5%9B%BE%E5%BD%A2%E5%B7%A5%E7%A8%8B%E7%9A%84%E8%90%BD%E5%9C%B0%E5%AE%9E%E8%B7%B5">7. AI Coding Agent 协同范式：AI 原生图形工程的落地实践</a></li>
+<li><a href="#8-%E6%9C%AC%E5%9C%B0%E5%AE%9E%E6%88%98%E6%8C%87%E5%8D%97%E4%B8%8E%E8%B8%A9%E5%9D%91%E5%BB%BA%E8%AE%AE">8. 本地实战指南与踩坑建议</a>
+<ul>
+<li><a href="#81-%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B%E6%AD%A5%E9%AA%A4">8.1 快速上手步骤</a></li>
+<li><a href="#82-%E6%A0%B8%E5%BF%83%E8%B8%A9%E5%9D%91%E4%B8%8E%E4%BC%98%E5%8C%96%E7%BB%8F%E9%AA%8C">8.2 核心踩坑与优化经验</a></li>
+</ul>
+</li>
+<li><a href="#9-%E7%BB%93%E8%AF%AD">9. 结语</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/swift-asyncsequence-iterative-data-loading/">
+              <h3 class="post-title">
+                驯服高频并发的协作线程池：基于 AsyncSequence 的 Swift 渐进式数据流治理
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
