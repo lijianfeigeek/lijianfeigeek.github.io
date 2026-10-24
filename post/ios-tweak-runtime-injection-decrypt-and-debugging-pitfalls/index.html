@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>掌控他人进程的底层逻辑：iOS 越狱 Tweak 运行时注入、脱壳重签与 6 处静默陷阱实战复盘 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1792839825987">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="掌控他人进程的底层逻辑：iOS 越狱 Tweak 运行时注入、脱壳重签与 6 处静默陷阱实战复盘 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/ios-tweak-runtime-injection-decrypt-and-debugging-pitfalls/">
+    <meta name="description" content="在 iOS 安全攻防与系统底层研究中，改变一个第三方 App 的既定运行轨迹往往是极具挑战的课题。表面上看，将一款第三方应用（以经典轻量应用「骰子」为例）底部碍眼的广告横幅拦截、替换为自定义文案并在点击后优雅塌陷，只需要不到两百行的 Obj..." />
+    <meta name="keywords" content="Tweak,动态注入,Mach-O,越狱,逆向工程,iOS" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="掌控他人进程的底层逻辑：iOS 越狱 Tweak 运行时注入、脱壳重签与 6 处静默陷阱实战复盘">
+    <meta property="og:description" content="在 iOS 安全攻防与系统底层研究中，改变一个第三方 App 的既定运行轨迹往往是极具挑战的课题。表面上看，将一款第三方应用（以经典轻量应用「骰子」为例）底部碍眼的广告横幅拦截、替换为自定义文案并在点击后优雅塌陷，只需要不到两百行的 Obj...">
+    <meta property="og:url" content="https://lijianfei.com/post/ios-tweak-runtime-injection-decrypt-and-debugging-pitfalls/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/ios-tweak-runtime-injection-decrypt-and-debugging-pitfalls.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-10-14T08:40:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="Tweak">
+    
+    <meta property="article:tag" content="动态注入">
+    
+    <meta property="article:tag" content="Mach-O">
+    
+    <meta property="article:tag" content="越狱">
+    
+    <meta property="article:tag" content="逆向工程">
+    
+    <meta property="article:tag" content="iOS">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="掌控他人进程的底层逻辑：iOS 越狱 Tweak 运行时注入、脱壳重签与 6 处静默陷阱实战复盘">
+    <meta name="twitter:description" content="在 iOS 安全攻防与系统底层研究中，改变一个第三方 App 的既定运行轨迹往往是极具挑战的课题。表面上看，将一款第三方应用（以经典轻量应用「骰子」为例）底部碍眼的广告横幅拦截、替换为自定义文案并在点击后优雅塌陷，只需要不到两百行的 Obj...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/ios-tweak-runtime-injection-decrypt-and-debugging-pitfalls.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "掌控他人进程的底层逻辑：iOS 越狱 Tweak 运行时注入、脱壳重签与 6 处静默陷阱实战复盘",
+      "description": "在 iOS 安全攻防与系统底层研究中，改变一个第三方 App 的既定运行轨迹往往是极具挑战的课题。表面上看，将一款第三方应用（以经典轻量应用「骰子」为例）底部碍眼的广告横幅拦截、替换为自定义文案并在点击后优雅塌陷，只需要不到两百行的 Obj...",
+      "image": "https://lijianfei.com/post-images/ios-tweak-runtime-injection-decrypt-and-debugging-pitfalls.png",
+      "datePublished": "2026-10-14T08:40:00.000Z",
+      "dateModified": "2026-10-14T08:40:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/ios-tweak-runtime-injection-decrypt-and-debugging-pitfalls/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Tweak",
+          "item": "https://lijianfei.com/tag/tweak/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "掌控他人进程的底层逻辑：iOS 越狱 Tweak 运行时注入、脱壳重签与 6 处静默陷阱实战复盘",
+          "item": "https://lijianfei.com/post/ios-tweak-runtime-injection-decrypt-and-debugging-pitfalls/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1792839825987" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              掌控他人进程的底层逻辑：iOS 越狱 Tweak 运行时注入、脱壳重签与 6 处静默陷阱实战复盘
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-10-14
+              </span>
+              <span>
+                24 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/tweak/" class="post-tag">
+                  # Tweak
+                </a>
+              
+                <a href="https://lijianfei.com/tag/dong-tai-zhu-ru/" class="post-tag">
+                  # 动态注入
+                </a>
+              
+                <a href="https://lijianfei.com/tag/mach-o/" class="post-tag">
+                  # Mach-O
+                </a>
+              
+                <a href="https://lijianfei.com/tag/yue-yu/" class="post-tag">
+                  # 越狱
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ni-xiang-gong-cheng/" class="post-tag">
+                  # 逆向工程
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ios/" class="post-tag">
+                  # iOS
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/ios-tweak-runtime-injection-decrypt-and-debugging-pitfalls.png" alt="掌控他人进程的底层逻辑：iOS 越狱 Tweak 运行时注入、脱壳重签与 6 处静默陷阱实战复盘" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在 iOS 安全攻防与系统底层研究中，改变一个第三方 App 的既定运行轨迹往往是极具挑战的课题。表面上看，将一款第三方应用（以经典轻量应用「骰子」为例）底部碍眼的广告横幅拦截、替换为自定义文案并在点击后优雅塌陷，只需要不到两百行的 Objective-C 代码；然而在现代苹果防御体系下，这一动作背后却牵引出两条底层哲学截然对立的交付管线：真机环境下的运行时动态注入，以及无越狱沙盒环境下的 Mach-O 内存脱壳、<code>LC_LOAD_DYLIB</code> 植入与重签名链条。</p>
+<p>更关键的是，在这类直面 Mach-O 二进制、内核安全模块（AMFI）以及动态链接器（dyld）的深度工程中，最致命的敌人从不是显式的 Crash 报错，而是“工具正常退出、产物表面完整、但目标代码从未被执行”的静默假象。本文基于第一视角真实实战记录，完整拆解这两条交付链路的底层机制，并深度复盘 6 处极具隐蔽性的工程暗坑。</p>
+<!-- more -->
+<hr>
+<h2 id="0-核心全景两条交付路径的底层分野">0. 核心全景：两条交付路径的底层分野</h2>
+<p>在不改变原 App 源码的前提下改造其行为，技术手段的选择完全取决于宿主环境的安全边界。我在本次攻坚中实现了同一份逻辑在两种环境下的全链路打通：</p>
+<pre><code class="language-mermaid">flowchart TD
+    Source[&quot;同一份 Tweak 动态库源码 (diceadbanner.m)&quot;]
+    
+    subgraph PathA [&quot;路径 A：越狱真机 (Dopamine + ElleKit)&quot;]
+        CompileA[&quot;clang 编译为通用 arm64/arm64e dylib&quot;]
+        SignA[&quot;ldid -S 做 ad-hoc 签名&quot;]
+        Deb[&quot;打包为标准 .deb (带 Filter.plist)&quot;]
+        DeployA[&quot;dpkg 安装至 /var/jb/.../TweakInject&quot;]
+        RuntimeA[&quot;应用启动时被替换的 dyld (systemhook) 动态加载&quot;]
+        RunA[&quot;App 包完全保持原版 FairPlay 密文，0 改动&quot;]
+    end
+
+    subgraph PathB [&quot;路径 B：无越狱沙盒 / 虚拟设备 (vphone guest)&quot;]
+        DumpB[&quot;Frida 内存转储 FairPlay 解密段 (4074 字节)&quot;]
+        PatchB[&quot;二进制打补丁并置 cryptid = 0&quot;]
+        InjectB[&quot;修改 Mach-O Header：追加 LC_LOAD_DYLIB&quot;]
+        ResignB[&quot;对主可执行文件与所有 Frameworks 重签名 (ldid 格式)&quot;]
+        RepackB[&quot;重打包为 IPA 并通过通信通道安装&quot;]
+        RunB[&quot;修改后的 App 二进制直接由内核加载并运行&quot;]
+    end
+
+    Source --&gt; CompileA
+    CompileA --&gt; SignA --&gt; Deb --&gt; DeployA --&gt; RuntimeA --&gt; RunA
+    
+    Source --&gt; DumpB
+    DumpB --&gt; PatchB --&gt; InjectB --&gt; ResignB --&gt; RepackB --&gt; RunB
+</code></pre>
+<p>如上图所示，两条路线的本质差异在于 <strong>注入发生的时机与空间</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评估维度</th>
+<th style="text-align:left">真机越狱交付（ElleKit 动态注入）</th>
+<th style="text-align:left">虚拟/未越狱交付（IPA 改包注入）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>代码注入时机</strong></td>
+<td style="text-align:left"><strong>运行时（Runtime）</strong>：App 进程启动阶段</td>
+<td style="text-align:left"><strong>构建时（Build-time）</strong>：修改磁盘二进制</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>FairPlay 密文解密</strong></td>
+<td style="text-align:left">❌ <strong>完全不需要</strong>（磁盘保持密文，内核加载时透明解密）</td>
+<td style="text-align:left">✅ <strong>必须解密</strong>（无法直接在密文上修改 Load Command）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>代码重签名</strong></td>
+<td style="text-align:left">❌ <strong>不需要</strong>（原 App 签名未动，Tweak 自身仅需 ad-hoc）</td>
+<td style="text-align:left">✅ <strong>必须全量重签</strong>（逐页哈希已破坏，不签则 AMFI 拒载）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>原 App 完整性</strong></td>
+<td style="text-align:left"><strong>100% 原封不动</strong>（App Store 原版）</td>
+<td style="text-align:left"><strong>二进制被修改</strong>（增加依赖库、重置加密标记）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>部署步骤与成本</strong></td>
+<td style="text-align:left"><strong>1 步</strong>（推送 <code>.deb</code> 安装，卸载仅需 <code>dpkg -r</code>）</td>
+<td style="text-align:left"><strong>5 步</strong>（脱壳 → 补丁 → 注入 → 重签 → 重打包）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>核心工程价值</strong></td>
+<td style="text-align:left">极简、干净、无副作用，调试周期极短</td>
+<td style="text-align:left">脱离越狱限制，便于构建高度隔离的自动化实验台</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="1-概念澄清越狱工具链的四层物理拓扑">1. 概念澄清：越狱工具链的四层物理拓扑</h2>
+<p>在深入代码之前，必须彻底理清 iOS 逆向生态中被滥用的一系列专有名词。被改造的 App 好比一栋封顶的现代大楼，我需要把一段定制代码塞入其中。从最底层的内存修改到最外层的安装分发，技术栈清晰地划分为四个层次：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph L4 [&quot;第 4 层：分发与安装 (Distribution)&quot;]
+        DEB[&quot;.deb 软件包&quot;] --&gt; PackageMgr[&quot;包管理器 (dpkg / Sileo / Zebra)&quot;]
+    end
+
+    subgraph L3 [&quot;第 3 层：注入执行器 (Injector)&quot;]
+        HookLoader[&quot;ElleKit / Cydia Substrate / Substitute (越狱动态载入)&quot;]
+        LoadCommand[&quot;Mach-O LC_LOAD_DYLIB (未越狱改包静态载入)&quot;]
+    end
+
+    subgraph L2 [&quot;第 2 层：代码实体 (Payload)&quot;]
+        Dylib[&quot;.dylib 动态库文件 (Mach-O MH_DYLIB)&quot;]
+        Tweak[&quot;Tweak = 寄生型 dylib + Filter.plist 白名单&quot;]
+        Dylib --&gt; Tweak
+    end
+
+    subgraph L1 [&quot;第 1 层：行为篡改底层技术 (Mechanism)&quot;]
+        Swizzle[&quot;ObjC Method Swizzling (修改 Class 方法分发表)&quot;]
+        InlineHook[&quot;Inline Hook (改写函数首指令跳转，适用于 C/纯 Swift)&quot;]
+        FishHook[&quot;Fishhook (重绑定 Mach-O 符号导入表 __la_symbol_ptr)&quot;]
+    end
+
+    L4 --&gt; L3
+    L3 --&gt; L2
+    L2 --&gt; L1
+</code></pre>
+<h3 id="11-dylib-与-tweak-的真实关系">1.1 dylib 与 Tweak 的真实关系</h3>
+<ul>
+<li><strong>dylib（Dynamic Library）</strong>：苹果平台标准的动态共享库（Mach-O 类型为 <code>MH_DYLIB</code>）。其特征是程序启动后由动态链接器 <code>dyld</code> 映射进内存，具备独立的 <code>install_name</code>，并通过导出符号与其他模块交互。在一个典型的 iOS 进程中，往往同时映射着多达数百个 dylib（例如骰子进程实测挂载了 <strong>823 个</strong>动态库镜像，绝大多数由 dyld shared cache 预加载）。</li>
+<li><strong>Tweak 的特化定义</strong>：在越狱语境中，Tweak 不是独立存在的 App，其本质是一个<strong>专门寄生于他人进程空间、旨在劫持并修改宿主逻辑的 dylib</strong>。它绝不会独立运行，必须配合一个同名的 <code>Filter.plist</code> 过滤器文件，向注入器声明目标应用的 Bundle ID。</li>
+</ul>
+<h3 id="12-注入框架的演进代际">1.2 注入框架的演进代际</h3>
+<p>从 Cydia Substrate、Substitute 到 Dopamine 时代的 <strong>ElleKit</strong>，注入框架的核心使命始终聚焦于两点：</p>
+<ol>
+<li><strong>进程启动加载器</strong>：在目标进程刚拉起时，截获其生命周期，解析 <code>TweakInject</code> 目录下的 plist 规则，若当前 Bundle ID 命中白名单，则调用 <code>dlopen</code> 将对应 dylib 映射入该进程地址空间；</li>
+<li><strong>Hook API 封装</strong>：提供跨架构、标准化的指令级 Hook 接口（如 <code>MSHookMessageEx</code>、<code>MSHookFunction</code>）。</li>
+</ol>
+<blockquote>
+<p>[!NOTE]<br>
+<strong>兼容性红利</strong>：尽管三代框架内核更迭，但它们全部沿用了最初由 Saurik 确立的目录布局与 <code>Filter.plist</code> 结构。这解释了为何一段编写规范的 Tweak 产物能够零修改跨越不同越狱版本稳定加载。</p>
+</blockquote>
+<h3 id="13-为何本案放弃-theos-转用裸-clang-编译">1.3 为何本案放弃 Theos 转用裸 clang 编译？</h3>
+<p>Theos 是越狱开发中经典的 Makefile 框架与 Logos（<code>%hook</code> / <code>%orig</code>）语法糖集合。但在本案中，我选择直接调用 Xcode 原生工具链进行编译与打包：</p>
+<ul>
+<li><strong>目标极其聚焦</strong>：单源文件实现（不到 200 行），无需庞大的 Makefile 抽象；</li>
+<li><strong>底层清晰透明</strong>：手动调用 <code>class_replaceMethod</code> 仅需十余行代码，摆脱 Logos 预处理层可更直观地审视编译输出与签名逻辑；</li>
+<li><strong>消除外部依赖</strong>：仅需调用 macOS 宿主已有的 <code>xcrun clang</code>、<code>ldid</code> 与 <code>dpkg-deb</code>，便于构建极简的自动化流水线。</li>
+</ul>
+<hr>
+<h2 id="2-深入机理dopamine-运行时加载与-mach-o-静态注入">2. 深入机理：Dopamine 运行时加载与 Mach-O 静态注入</h2>
+<h3 id="21-轨一ellekit-运行时九步加载链路">2.1 轨一：ElleKit 运行时九步加载链路</h3>
+<p>在装配 Dopamine（Rootless）的真机环境下，一个 Tweak 从磁盘文件到真正掌控 App 内存，严格遵循以下 9 步精密链路：</p>
+<pre><code>① 用户点击屏幕图标启动 App
+        ↓
+② XNU 内核创建进程并映射主可执行文件，将控制权移交定制版 dyld（gen/dyld）
+        ↓
+③ dyld 按照越狱引导机制，将 systemhook.dylib 强制注入目标进程地址空间
+        ↓
+④ systemhook.dylib 扫描 /var/jb/usr/lib/TweakInject 目录下的所有 *.plist
+        ↓
+⑤ 读取当前进程的 Bundle Identifier（例如 com.viper.dice），与 Filter.Bundles 数组精确匹配
+        ↓
+⑥ 匹配命中成功，systemhook 调用 dlopen(&quot;/var/jb/.../diceadbanner.dylib&quot;, RTLD_NOW)
+        ↓
+⑦ dyld 映射该 dylib 镜像，解析其符号依赖，并触发该镜像的构造函数
+        ↓
+⑧ 我在动态库中声明的 __attribute__((constructor)) 立即执行，向 ObjC 运行时安装方法替换
+        ↓
+⑨ App 后续执行到该生命周期方法时，程序计数器（PC 寄存器）直接偏转至我注入的实现
+</code></pre>
+<p><strong>这一机制推演出的三条铁律</strong>：</p>
+<ol>
+<li><strong>Filter 决定访问特权</strong>：plist 遗漏或 Bundle ID 书写错误，注入器将完全忽略该 dylib；</li>
+<li><strong>启动时加载特性</strong>：dylib 注入只发生在进程初始化阶段。因此修改 Tweak 必须彻底杀死进程重新冷启动，或触发 <code>sbreload</code> 重载 SpringBoard；</li>
+<li><strong>静默拒载特征</strong>：若 dylib 缺少合法代码签名，或架构与目标进程不兼容，<code>dlopen</code> 会在内核/dyld 层面直接静默失败，<strong>宿主进程不会产生任何崩溃日志，更不会在控制台输出显式报错</strong>。</li>
+</ol>
+<h3 id="22-轨二mach-o-header-物理注入原理">2.2 轨二：Mach-O Header 物理注入原理</h3>
+<p>在无越狱环境（如 vphone 隔离沙盒）中，缺乏内核级挂钩能力的支撑，我只能通过修改磁盘文件将依赖固化到二进制内部：</p>
+<pre><code>┌────────────────────────────────────────────────────────┐
+│               mach_header_64 (32 字节)                  │
+│       magic / cputype / cpusubtype / ncmds / sizeofcmds │
+├────────────────────────────────────────────────────────┤
+│                     Load Commands                      │
+│   ├── LC_SEGMENT_64 (__PAGEZERO)                       │
+│   ├── LC_SEGMENT_64 (__TEXT)                           │
+│   ├── LC_ENCRYPTION_INFO_64 (FairPlay 声明)            │
+│   ├── ...                                              │
+│   └── (新增) LC_LOAD_DYLIB (72 字节) ◄── 物理追加点    │
+├────────────────────────────────────────────────────────┤
+│           Padding 空隙 (编译器对齐留白，约数百至数 KB)   │
+├────────────────────────────────────────────────────────┤
+│           __TEXT Segment (代码段首个 Section)           │
+└────────────────────────────────────────────────────────┘
+</code></pre>
+<p>Mach-O 在 <code>load commands</code> 区域与第一个物理段 <code>__TEXT</code> 之间，为了满足内存分页对其要求（通常是 16KB 对齐），天然存在一段空白区域（Padding）。注入工具的核心逻辑即利用此间隙：</p>
+<ol>
+<li>在 <code>header + sizeofcmds</code> 的物理偏移处，写入一条完整的 <code>dylib_command</code> 结构体；</li>
+<li>将依赖库路径设置为相对路径：<code>@executable_path/Frameworks/diceadbanner.dylib</code>；</li>
+<li>将 <code>mach_header_64</code> 中的 <code>ncmds</code> 递增 1，同时 <code>sizeofcmds</code> 加上该命令长度（必须 8 字节对齐）。</li>
+</ol>
+<p>当 App 在任何受控 iOS 系统中启动时，官方 dyld 会像加载原生依赖一样加载我注入的动态库。</p>
+<h3 id="23-swift-命名重整与-objc-运行时映射">2.3 Swift 命名重整与 ObjC 运行时映射</h3>
+<p>目标应用采用 Swift 开发，但其 UI 控件必须派生自系统库的 <code>UIView</code>。这一继承关系导致 Swift 类必然会被注册进全局 Objective-C 运行时。<br>
+Swift 编译器会对类名进行符号重整（Mangling）：</p>
+<pre><code>_TtC 4 dice 14 LAdsBannerView
+ │   │  │    │  └─ 原始类名 (14 字符)
+ │   │  │    └──── 类名长度标记
+ │   │  └───────── 模块名 (dice)
+ │   └──────────── 模块名长度标记 (4 字符)
+ └──────────────── Swift 类名前缀
+</code></pre>
+<p>通过直接对二进制执行明文字符串抽取，可精确定位到该类名。在运行时通过 <code>objc_getClass(&quot;_TtC4dice14LAdsBannerView&quot;)</code>，我便能稳固捕获该类对象。</p>
+<blockquote>
+<p>[!WARNING]<br>
+<strong>运行时边界法则</strong>：仅有通过 <code>@objc</code> 修饰、<code>dynamic</code> 声明或继承自 <code>NSObject</code> 的方法，才会在 ObjC 消息调度表（Method List）中建立符号映射。纯 Swift 内部方法采用虚函数表（vtable）或内联派发，Objective-C 的 Method Swizzling 根本无法触及。这也是我必须将 Hook 挂钩点锁定在系统通用生命周期方法上的根本原因。</p>
+</blockquote>
+<hr>
+<h2 id="3-tweak-源码工程优雅拦截与几何物理塌陷">3. Tweak 源码工程：优雅拦截与几何物理塌陷</h2>
+<p>替换广告看似简单，若缺乏对 iOS 视图渲染机制的敬畏，极易引发内存泄漏、图层冲突或第三方 SDK 内部空指针崩溃。</p>
+<h3 id="31-挂钩点决策为什么不是-init">3.1 挂钩点决策：为什么不是 init？</h3>
+<p>在拦截目标视图时，初学者往往习惯 Hook <code>initWithFrame:</code> 或构造函数：</p>
+<ul>
+<li><strong>构造函数陷阱</strong>：Swift 类的构造器映射为 ObjC Selector 的规则极其复杂，且常常存在多个重载，猜测签名的失误率极高；</li>
+<li><strong>生命周期必达法则</strong>：无论视图如何被实例化，当它真正要呈现于屏幕上时，必须调用 <code>UIView</code> 的生命周期方法 <code>-didMoveToWindow</code> 与 <code>-layoutSubviews</code>。</li>
+</ul>
+<p>因此，挂钩 <code>-didMoveToWindow</code> 具有百分之百的命中保证。</p>
+<h3 id="32-严禁-exchange使用-class_replacemethod-消除全局污染">3.2 严禁 exchange：使用 class_replaceMethod 消除全局污染</h3>
+<p>在 Objective-C 逆向中，直接调用 <code>method_exchangeImplementations</code> 是极度危险的违规操作：</p>
+<pre><code class="language-objc">// ❌ 错误示范：极具破坏性的全局污染
+Method m = class_getInstanceMethod(targetClass, @selector(didMoveToWindow));
+method_exchangeImplementations(m, myMethod);
+</code></pre>
+<p>若 <code>_TtC4dice14LAdsBannerView</code> 自身没有覆写 <code>didMoveToWindow</code>，<code>class_getInstanceMethod</code> 会沿着继承链一路向上回溯，直接返回 <strong><code>UIView</code> 的基类实现</strong>！此时执行 exchange，相当于把整座 App 内部<strong>所有视图组件</strong>的 <code>didMoveToWindow</code> 全局劫持，瞬间引发灾难性连锁反应。</p>
+<p><strong>工程级标准范式</strong>：</p>
+<pre><code class="language-objc">Method m = class_getInstanceMethod(cls, sel);
+IMP originalIMP = method_getImplementation(m);
+
+// class_replaceMethod 会先尝试为当前子类添加该方法，若子类不存在该实现则就地添加
+// 从而将影响严格限定在当前类范围内，原实现指针保存在静态变量中
+class_replaceMethod(cls, sel, (IMP)DBHookedDidMoveToWindow, method_getTypeEncoding(m));
+</code></pre>
+<h3 id="33-视图隐藏与-auto-layout-物理塌陷算法">3.3 视图隐藏与 Auto Layout 物理塌陷算法</h3>
+<p>在用户点击替换横幅后，如果仅仅执行 <code>banner.hidden = YES</code>，页面底部会留下一大块尴尬的空白区域。要彻底“腾出空间”，必须彻底抹平其几何占用：</p>
+<pre><code class="language-objc">static void DBCollapseBanner(UIView *banner) {
+    if (!banner) return;
+    
+    // 1. 扫描当前视图及其父视图的所有约束，将涉及高度的约束全部归零
+    NSMutableArray *constraints = [NSMutableArray arrayWithArray:banner.constraints];
+    if (banner.superview) {
+        [constraints addObjectsFromArray:banner.superview.constraints];
+    }
+    
+    for (NSLayoutConstraint *c in constraints) {
+        BOOL involvesBanner = (c.firstItem == banner || c.secondItem == banner);
+        if (involvesBanner) {
+            if (c.firstAttribute == NSLayoutAttributeHeight || 
+                c.secondAttribute == NSLayoutAttributeHeight) {
+                c.constant = 0;
+            }
+        }
+    }
+    
+    // 2. 针对 Frame 布局（Autoresizing）的兜底兼容
+    if (banner.translatesAutoresizingMaskIntoConstraints) {
+        CGRect frame = banner.frame;
+        frame.size.height = 0;
+        banner.frame = frame;
+    }
+    
+    // 3. 隐藏图层并触发父容器重新排版
+    banner.hidden = YES;
+    if (banner.superview) {
+        [banner.superview setNeedsLayout];
+        [banner.superview layoutIfNeeded];
+    }
+}
+</code></pre>
+<blockquote>
+<p>[!TIP]<br>
+<strong>AdMob 内部防护策略</strong>：拦截横幅时，切记<strong>严禁</strong>直接将原有 AdMob 广告视图从树中 <code>removeFromSuperview</code>。许多广告聚合 SDK 内部持有弱引用并依赖定时心跳刷新，若强行释放其图层对象，后续事件分发将直接触发 <code>EXC_BAD_ACCESS</code> 崩溃。正确的做法是将原有广告子视图全部标记为 <code>hidden = YES</code>，仅插入自定义的覆盖组件。</p>
+</blockquote>
+<hr>
+<h2 id="4-fairplay-内存脱壳当自动化工具集体撒谎">4. FairPlay 内存脱壳：当自动化工具集体“撒谎”</h2>
+<p>为了将上述 Tweak 打包注入未越狱的 IPA 中，必须对主二进制完成脱壳。但在实际执行中，主流脱壳工具集体翻车，逼出了更硬核的直接内存比对与打补丁方案。</p>
+<h3 id="41-工具崩溃与静默假成功复盘">4.1 工具崩溃与“静默假成功”复盘</h3>
+<ol>
+<li><strong><code>frida-ios-dump</code> 彻底失效</strong>：社区广泛使用的 2.0 版本内部依赖旧版 Frida 的全局 <code>Module</code> 对象。而设备端安装的 <code>frida-server</code> 已升级为最新的 <strong>17.23.3</strong>，API 严重破坏，直接报错 <code>unexpected error while probing dyld of target process</code>，根本无法提取；</li>
+<li><strong><code>bagbak</code> 的虚假繁荣</strong>：运行 <code>bagbak com.viper.dice</code> 后，终端打印了完美的进度条与 <code>[info] Decrypting main app...</code> 提示，最终返回 Exit Code 0。然而将产出的二进制与设备原文件进行比对，<strong>两者的 SHA256 完全一致</strong>！工具只是照搬了磁盘文件，根本没有执行解密。</li>
+</ol>
+<h3 id="42-内存-vs-磁盘全量字节差分定位">4.2 内存 vs 磁盘全量字节差分定位</h3>
+<p>为了弄清楚设备上的真实加密状况，我编写了底层 Frida 脚本，将进程内存中的代码段直接按 64KB 分块导出，与磁盘文件进行逐字节 Diff 对比：</p>
+<pre><code>差异分析统计报告：
+全文件总大小 : 3,298,304 字节
+差异字节总数 : 451,768 (占比 13.70%)
+首个差异偏移 : 151,552 (0x25000) ◄── 恰好等于 LC_ENCRYPTION_INFO_64.cryptoff !
+
+分段统计：
+__TEXT 段 [0x0, 0x258000) 差异仅 4074 字节 ◄── 几乎完全等于 cryptsize (4096)
+后续数据段 [0x258000, 结尾) 差异 447,694 字节 ◄── 系 __DATA/__LINKEDIT 运行时重定位，完全合规
+</code></pre>
+<p><strong>这一实测揭示了本质事实</strong>：<br>
+App 在磁盘上绝大多数内容本就是明文（<code>__TEXT</code> 前半段均未被加密），只有 <code>[0x25000, 0x26000)</code> 这仅有的 4074 字节处于 FairPlay 硬件加密状态。</p>
+<pre><code class="language-mermaid">flowchart LR
+    Disk[&quot;磁盘上的主二进制 (未解密)&quot;] --&gt;|cryptid = 1| CryptOff[&quot;0x25000 处 4096 字节密文&quot;]
+    Kernel[&quot;XNU 内核 + 硬件 FairPlay Key&quot;] --&gt;|映射解密| Memory[&quot;进程内存中的主模块 (明文)&quot;]
+    Memory --&gt;|读取 4074 字节明文| Patch[&quot;写回磁盘覆盖 0x25000&quot;]
+    Patch --&gt;|重置标志位| Fixed[&quot;置 cryptid = 0 (偏移 0x2C + 16)&quot;]
+</code></pre>
+<h3 id="43-终极验收三法则硬指标防御">4.3 终极验收三法则（硬指标防御）</h3>
+<p>任何脱壳流程必须通过以下三项不可伪造的硬核检验，才算真正验收合格：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">校验层级</th>
+<th style="text-align:left">检验指令</th>
+<th style="text-align:left">预期合格标准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Header 标记</strong></td>
+<td style="text-align:left"><code>otool -l Payload/dice.app/dice | grep -A5 LC_ENCRYPTION_INFO</code></td>
+<td style="text-align:left"><code>cryptid 0</code>（明确告知操作系统该文件无密文）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>反汇编解析</strong></td>
+<td style="text-align:left"><code>otool -tV Payload/dice.app/dice</code>（反汇编原密文区）</td>
+<td style="text-align:left">解析出规整的 ARM64 指令（如 <code>ldr w14, [x19, #0x38]</code>）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>内存全息对齐</strong></td>
+<td style="text-align:left"><code>__TEXT</code> 段与 Frida 抓取的内存镜像逐字节对比</td>
+<td style="text-align:left"><strong>整段差异严格等于 1 字节</strong>（即被置为 0 的 <code>cryptid</code> 标志本身）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="5-致命暗坑深度复盘-6-个真实工程失误">5. 致命暗坑：深度复盘 6 个真实工程失误</h2>
+<p>在整个调试历程中，我遭遇了一系列极其耗时的阻塞性问题。将这些“痛苦的教训”逐一复盘，具有超越项目本身的通用工程指导价值。</p>
+<hr>
+<h3 id="坑-1盲信-40-字节断言本无加密">坑 1：盲信 40 字节断言“本无加密”</h3>
+<ul>
+<li><strong>事故经过</strong>：在反汇编检查主二进制时，我查看了 <code>__text</code> 起点（<code>0x4000</code> 处）的前几十个字节，看到工整的 ARM64 汇编指令，便草率断言：“这个 App 在 App Store 根本没有加密，是脱壳工具自己在空转。”</li>
+<li><strong>破案真相</strong>：<code>cryptoff</code> 声明的加密偏移量位于 <code>0x25000</code>（151,552 字节处），而审查的 <code>0x4000</code> 属于明文段，根本不在密文覆盖范围内！</li>
+<li><strong>认知迭代</strong>：<strong>结论的强度必须匹配验证的广度</strong>。局部证据只能推导出局部结论，绝不能以外围的局部明文直接推演全盘状态。</li>
+</ul>
+<hr>
+<h3 id="坑-2误将工具正常退出视为任务成功">坑 2：误将工具正常退出视为任务成功</h3>
+<ul>
+<li><strong>事故经过</strong>：在执行 <code>bagbak</code> 时，工具未抛出任何 Python/Node 异常，最后生成了 IPA。我直接将其投入后续注入环节，排查了数小时“为什么注入后的 App 闪退”。</li>
+<li><strong>破案真相</strong>：工具虽然运行完毕，但主二进制 SHA256 与原加密文件完全一致，密文区毫无变动。</li>
+<li><strong>认知迭代</strong>：<strong>绝对不要相信工具的自我汇报，要相信可独立交叉验证的客观状态</strong>。在涉及逆向的工程中，没有显式报错不代表成功。</li>
+</ul>
+<hr>
+<h3 id="坑-3用-fridaspawn-检验越狱-tweak-注入">坑 3：用 frida.spawn 检验越狱 Tweak 注入</h3>
+<ul>
+<li><strong>事故经过</strong>：在真机上部署完 <code>.deb</code> 后，为了快速自动化检验，我使用 <code>frida.spawn(&quot;com.viper.dice&quot;)</code> 启动应用并列出已加载模块，发现并没有我编写的 dylib，从而误判为“ElleKit 注入失败”，浪费了大量时间排查目录权限。</li>
+<li><strong>破案真相</strong>：Dopamine 的注入挂钩安装在系统标准的 <code>launchd</code> 与 SpringBoard 调用链上；而 <code>frida-server</code> 的 <code>spawn</code> 走的是自己的 ptrace / posix_spawn 底层调试管道，<strong>直接绕过了系统的常规启动入口</strong>！当用户在手机屏幕上物理点击图标时，Tweak 实际上早已完美生效。</li>
+<li><strong>认知迭代</strong>：<strong>测试手段绝对不能破坏被测对象的真实物理路径</strong>。在验证系统底层挂钩时，必须使用最贴近生产环境的用户触发路径（或对已启动进程执行 attach）。</li>
+</ul>
+<hr>
+<h3 id="坑-4deb-打包漏签导致静默拒载">坑 4：deb 打包漏签导致静默拒载</h3>
+<ul>
+<li><strong>事故经过</strong>：在 vphone 改包注入链条中，我认真调用了签名命令；但在真机打 <code>.deb</code> 包时，直接复制了 <code>build/</code> 目录下的原始 dylib。结果真机上的应用无论如何都无法触发 Hook。</li>
+<li><strong>破案真相</strong>：<code>xcrun clang</code> 产出的 dylib 裸文件未包含任何 Code Signature Blob，Rootless 越狱下的安全加载器会静默丢弃未签名的第三方库。</li>
+<li><strong>认知迭代</strong>：<strong>流程分叉后，单一路线上的修复极易遗漏到另一路线</strong>。必须将 <code>ldid -S</code> 固化收敛到编译的最前游（<code>build.sh</code>），保证所有下游消费者拿到的都是天然合规的签名产物。</li>
+</ul>
+<hr>
+<h3 id="坑-5仅编译-arm64-忽略-arm64e-abi">坑 5：仅编译 arm64 忽略 arm64e ABI</h3>
+<ul>
+<li><strong>事故经过</strong>：编译命令中仅配置了 <code>-arch arm64</code>。</li>
+<li><strong>破案真相</strong>：在 iPhone 11 Pro Max（A13 芯片）等具备 PAC（指针认证码）的机型上，<strong>SpringBoard 等系统核心进程全部以 arm64e 架构编译运行</strong>。当我在排查实验中将 Hook 挂钩到 SpringBoard 时，由于架构切片不匹配，dyld 再次执行了静默拒载。</li>
+<li><strong>认知迭代</strong>：构建目标动态库时，必须精准匹配<strong>目标进程</strong>的 ABI 要求而非泛泛的硬件设备。编译参数必须显式声明 <code>-arch arm64 -arch arm64e</code>。</li>
+</ul>
+<hr>
+<h3 id="坑-6ssh-n-参数导致远程配置被空文件覆盖">坑 6：ssh -n 参数导致远程配置被空文件覆盖</h3>
+<ul>
+<li><strong>事故经过</strong>：我试图通过一行命令将本地 plist 传至远程设备并覆盖旧配置：<pre><code class="language-bash">ssh -p 2233 mobile@127.0.0.1 'cat &gt; /tmp/target.plist' &lt; local.plist
+</code></pre>
+然而在全局 SSH 默认配置或别名中隐式携带了 <code>-n</code>（将标准输入重定向到 <code>/dev/null</code>），导致远程 <code>cat</code> 瞬间收到 0 字节，生成了一个空文件。紧接着的 <code>sudo cp</code> 直接把真机上合法的过滤器覆盖为 0 字节损坏文件。</li>
+<li><strong>破案真相</strong>：配置损坏导致整套过滤规则完全失效。</li>
+<li><strong>认知迭代</strong>：<strong>在执行任何破坏性覆盖操作之前，必须养成前置校验状态的习惯</strong>。通过 <code>ls -la</code> 确认文件体积，或采用管道传输前转 base64 校验，能拦截 99% 的灾难性误操作。</li>
+</ul>
+<hr>
+<h2 id="6-避坑方法论对照实验与分层验收">6. 避坑方法论：对照实验与分层验收</h2>
+<p>面对 iOS 这种充斥着“静默失败”的黑盒系统，如何建立一套高效的排错防线？本次攻关总结了两条核心方法论：</p>
+<h3 id="61-对照实验切分法the-springboard-slice">6.1 对照实验切分法（The SpringBoard Slice）</h3>
+<p>当 Tweak 无法在目标应用内加载时，切忌盲目乱改代码。此时最有效的一招是：<strong>寻找一个已知必定正确的系统锚点</strong>。<br>
+我在调试中，临时将 <code>Filter.plist</code> 的目标改为系统桌面：</p>
+<pre><code class="language-xml">&lt;key&gt;Filter&lt;/key&gt;
+&lt;dict&gt;
+  &lt;key&gt;Bundles&lt;/key&gt;
+  &lt;array&gt;&lt;string&gt;com.apple.springboard&lt;/string&gt;&lt;/array&gt;
+&lt;/dict&gt;
+</code></pre>
+<p>执行 <code>sbreload</code> 后，检查 SpringBoard 进程：</p>
+<ul>
+<li>若 dylib 成功混入 SpringBoard，则瞬间证明 <strong>ElleKit 完好、越狱环境完好、dylib 自身合法</strong>，问题必定出在目标 App 的进程特异性或 Filter 配置上；</li>
+<li>若 SpringBoard 也无法加载，则问题域立刻收敛至 <strong>dylib 自身的签名与架构切片</strong>。</li>
+</ul>
+<p>这一步对照实验，直接将模糊的排查范围缩减了 80%。</p>
+<h3 id="62-全流程分层验收矩阵">6.2 全流程分层验收矩阵</h3>
+<p>将验收标准贯穿到构建与部署的每一个物理断点，拒绝跨层级的模糊乐观：</p>
+<pre><code class="language-mermaid">flowchart TD
+    Step1[&quot;1. 二进制层验收&quot;] --&gt;|通过：otool 校验 cryptid=0、可反汇编、Thin 架构| Step2[&quot;2. 包体结构验收&quot;]
+    Step2 --&gt;|通过：Payload 目录规范、SC_Info 剔除、签名 blob 存在| Step3[&quot;3. 安装层验收&quot;]
+    Step3 --&gt;|通过：installd 成功返回、ideviceinstaller list 查见| Step4[&quot;4. 运行时加载验收&quot;]
+    Step4 --&gt;|通过：vmmap/模块列表捕获 dylib、constructor 触发| Step5[&quot;5. 业务逻辑验收&quot;]
+    Step5 --&gt;|通过：广告栏消失、标签展示、点击高度压平| Finish[&quot;交付完成&quot;]
+</code></pre>
+<hr>
+<h2 id="7-原文链接与参考资料">7. 原文链接与参考资料</h2>
+<ul>
+<li><strong>Dopamine Jailbreak 官方仓库</strong>：<a href="https://github.com/opa334/Dopamine">opa334/Dopamine (GitHub)</a> - 适用于 iOS 15.0 - 16.6.5 的现代 Rootless 越狱方案</li>
+<li><strong>ElleKit 源码与挂钩框架</strong>：<a href="https://github.com/evelyneee/ellekit">evelyneee/ellekit (GitHub)</a> - 针对 Rootless 越狱环境打造的现代化 Hook 与 Tweak 注入库</li>
+<li><strong>苹果官方开源动态链接器</strong>：<a href="https://opensource.apple.com/source/dyld/">Apple Open Source: dyld</a> - 动态链接器源码与 Mach-O 运行时加载规范</li>
+<li><strong>Frida 动态探针工具集</strong>：<a href="https://frida.re/docs/home/">Frida: Dynamic Instrumentation Toolkit</a> - 跨平台动态插桩与进程内存分析框架</li>
+<li><strong>ARM64 指针认证（PAC）架构规范</strong>：<a href="https://developer.apple.com/documentation/security/preparing-your-app-to-work-with-pointer-authentication">Apple Developer: Preparing Your App to Work with Pointer Authentication</a> - 深入理解 arm64e 架构与系统级保护机制</li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#0-%E6%A0%B8%E5%BF%83%E5%85%A8%E6%99%AF%E4%B8%A4%E6%9D%A1%E4%BA%A4%E4%BB%98%E8%B7%AF%E5%BE%84%E7%9A%84%E5%BA%95%E5%B1%82%E5%88%86%E9%87%8E">0. 核心全景：两条交付路径的底层分野</a></li>
+<li><a href="#1-%E6%A6%82%E5%BF%B5%E6%BE%84%E6%B8%85%E8%B6%8A%E7%8B%B1%E5%B7%A5%E5%85%B7%E9%93%BE%E7%9A%84%E5%9B%9B%E5%B1%82%E7%89%A9%E7%90%86%E6%8B%93%E6%89%91">1. 概念澄清：越狱工具链的四层物理拓扑</a>
+<ul>
+<li><a href="#11-dylib-%E4%B8%8E-tweak-%E7%9A%84%E7%9C%9F%E5%AE%9E%E5%85%B3%E7%B3%BB">1.1 dylib 与 Tweak 的真实关系</a></li>
+<li><a href="#12-%E6%B3%A8%E5%85%A5%E6%A1%86%E6%9E%B6%E7%9A%84%E6%BC%94%E8%BF%9B%E4%BB%A3%E9%99%85">1.2 注入框架的演进代际</a></li>
+<li><a href="#13-%E4%B8%BA%E4%BD%95%E6%9C%AC%E6%A1%88%E6%94%BE%E5%BC%83-theos-%E8%BD%AC%E7%94%A8%E8%A3%B8-clang-%E7%BC%96%E8%AF%91">1.3 为何本案放弃 Theos 转用裸 clang 编译？</a></li>
+</ul>
+</li>
+<li><a href="#2-%E6%B7%B1%E5%85%A5%E6%9C%BA%E7%90%86dopamine-%E8%BF%90%E8%A1%8C%E6%97%B6%E5%8A%A0%E8%BD%BD%E4%B8%8E-mach-o-%E9%9D%99%E6%80%81%E6%B3%A8%E5%85%A5">2. 深入机理：Dopamine 运行时加载与 Mach-O 静态注入</a>
+<ul>
+<li><a href="#21-%E8%BD%A8%E4%B8%80ellekit-%E8%BF%90%E8%A1%8C%E6%97%B6%E4%B9%9D%E6%AD%A5%E5%8A%A0%E8%BD%BD%E9%93%BE%E8%B7%AF">2.1 轨一：ElleKit 运行时九步加载链路</a></li>
+<li><a href="#22-%E8%BD%A8%E4%BA%8Cmach-o-header-%E7%89%A9%E7%90%86%E6%B3%A8%E5%85%A5%E5%8E%9F%E7%90%86">2.2 轨二：Mach-O Header 物理注入原理</a></li>
+<li><a href="#23-swift-%E5%91%BD%E5%90%8D%E9%87%8D%E6%95%B4%E4%B8%8E-objc-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%98%A0%E5%B0%84">2.3 Swift 命名重整与 ObjC 运行时映射</a></li>
+</ul>
+</li>
+<li><a href="#3-tweak-%E6%BA%90%E7%A0%81%E5%B7%A5%E7%A8%8B%E4%BC%98%E9%9B%85%E6%8B%A6%E6%88%AA%E4%B8%8E%E5%87%A0%E4%BD%95%E7%89%A9%E7%90%86%E5%A1%8C%E9%99%B7">3. Tweak 源码工程：优雅拦截与几何物理塌陷</a>
+<ul>
+<li><a href="#31-%E6%8C%82%E9%92%A9%E7%82%B9%E5%86%B3%E7%AD%96%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E6%98%AF-init">3.1 挂钩点决策：为什么不是 init？</a></li>
+<li><a href="#32-%E4%B8%A5%E7%A6%81-exchange%E4%BD%BF%E7%94%A8-class_replacemethod-%E6%B6%88%E9%99%A4%E5%85%A8%E5%B1%80%E6%B1%A1%E6%9F%93">3.2 严禁 exchange：使用 class_replaceMethod 消除全局污染</a></li>
+<li><a href="#33-%E8%A7%86%E5%9B%BE%E9%9A%90%E8%97%8F%E4%B8%8E-auto-layout-%E7%89%A9%E7%90%86%E5%A1%8C%E9%99%B7%E7%AE%97%E6%B3%95">3.3 视图隐藏与 Auto Layout 物理塌陷算法</a></li>
+</ul>
+</li>
+<li><a href="#4-fairplay-%E5%86%85%E5%AD%98%E8%84%B1%E5%A3%B3%E5%BD%93%E8%87%AA%E5%8A%A8%E5%8C%96%E5%B7%A5%E5%85%B7%E9%9B%86%E4%BD%93%E6%92%92%E8%B0%8E">4. FairPlay 内存脱壳：当自动化工具集体“撒谎”</a>
+<ul>
+<li><a href="#41-%E5%B7%A5%E5%85%B7%E5%B4%A9%E6%BA%83%E4%B8%8E%E9%9D%99%E9%BB%98%E5%81%87%E6%88%90%E5%8A%9F%E5%A4%8D%E7%9B%98">4.1 工具崩溃与“静默假成功”复盘</a></li>
+<li><a href="#42-%E5%86%85%E5%AD%98-vs-%E7%A3%81%E7%9B%98%E5%85%A8%E9%87%8F%E5%AD%97%E8%8A%82%E5%B7%AE%E5%88%86%E5%AE%9A%E4%BD%8D">4.2 内存 vs 磁盘全量字节差分定位</a></li>
+<li><a href="#43-%E7%BB%88%E6%9E%81%E9%AA%8C%E6%94%B6%E4%B8%89%E6%B3%95%E5%88%99%E7%A1%AC%E6%8C%87%E6%A0%87%E9%98%B2%E5%BE%A1">4.3 终极验收三法则（硬指标防御）</a></li>
+</ul>
+</li>
+<li><a href="#5-%E8%87%B4%E5%91%BD%E6%9A%97%E5%9D%91%E6%B7%B1%E5%BA%A6%E5%A4%8D%E7%9B%98-6-%E4%B8%AA%E7%9C%9F%E5%AE%9E%E5%B7%A5%E7%A8%8B%E5%A4%B1%E8%AF%AF">5. 致命暗坑：深度复盘 6 个真实工程失误</a>
+<ul>
+<li><a href="#%E5%9D%91-1%E7%9B%B2%E4%BF%A1-40-%E5%AD%97%E8%8A%82%E6%96%AD%E8%A8%80%E6%9C%AC%E6%97%A0%E5%8A%A0%E5%AF%86">坑 1：盲信 40 字节断言“本无加密”</a></li>
+<li><a href="#%E5%9D%91-2%E8%AF%AF%E5%B0%86%E5%B7%A5%E5%85%B7%E6%AD%A3%E5%B8%B8%E9%80%80%E5%87%BA%E8%A7%86%E4%B8%BA%E4%BB%BB%E5%8A%A1%E6%88%90%E5%8A%9F">坑 2：误将工具正常退出视为任务成功</a></li>
+<li><a href="#%E5%9D%91-3%E7%94%A8-fridaspawn-%E6%A3%80%E9%AA%8C%E8%B6%8A%E7%8B%B1-tweak-%E6%B3%A8%E5%85%A5">坑 3：用 frida.spawn 检验越狱 Tweak 注入</a></li>
+<li><a href="#%E5%9D%91-4deb-%E6%89%93%E5%8C%85%E6%BC%8F%E7%AD%BE%E5%AF%BC%E8%87%B4%E9%9D%99%E9%BB%98%E6%8B%92%E8%BD%BD">坑 4：deb 打包漏签导致静默拒载</a></li>
+<li><a href="#%E5%9D%91-5%E4%BB%85%E7%BC%96%E8%AF%91-arm64-%E5%BF%BD%E7%95%A5-arm64e-abi">坑 5：仅编译 arm64 忽略 arm64e ABI</a></li>
+<li><a href="#%E5%9D%91-6ssh-n-%E5%8F%82%E6%95%B0%E5%AF%BC%E8%87%B4%E8%BF%9C%E7%A8%8B%E9%85%8D%E7%BD%AE%E8%A2%AB%E7%A9%BA%E6%96%87%E4%BB%B6%E8%A6%86%E7%9B%96">坑 6：ssh -n 参数导致远程配置被空文件覆盖</a></li>
+</ul>
+</li>
+<li><a href="#6-%E9%81%BF%E5%9D%91%E6%96%B9%E6%B3%95%E8%AE%BA%E5%AF%B9%E7%85%A7%E5%AE%9E%E9%AA%8C%E4%B8%8E%E5%88%86%E5%B1%82%E9%AA%8C%E6%94%B6">6. 避坑方法论：对照实验与分层验收</a>
+<ul>
+<li><a href="#61-%E5%AF%B9%E7%85%A7%E5%AE%9E%E9%AA%8C%E5%88%87%E5%88%86%E6%B3%95the-springboard-slice">6.1 对照实验切分法（The SpringBoard Slice）</a></li>
+<li><a href="#62-%E5%85%A8%E6%B5%81%E7%A8%8B%E5%88%86%E5%B1%82%E9%AA%8C%E6%94%B6%E7%9F%A9%E9%98%B5">6.2 全流程分层验收矩阵</a></li>
+</ul>
+</li>
+<li><a href="#7-%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">7. 原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/ios-block-ota-update-tvos-profile-otadisabler-guide/">
+              <h3 class="post-title">
+                锁定 iOS 黄金固件：tvOS 描述文件欺骗、Daemon 拦截与网络层防 OTA 深度指南
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+    </script>
+  </body>
+</html>
