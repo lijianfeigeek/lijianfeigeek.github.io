@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>给 iOS 装上逐指令微距镜头：从 0x320 裸汇编跳板到 QBDI 虚拟栈，剖析 ios-qbdi-tracer 的双进程插桩架构 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1793449651176">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="给 iOS 装上逐指令微距镜头：从 0x320 裸汇编跳板到 QBDI 虚拟栈，剖析 ios-qbdi-tracer 的双进程插桩架构 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/ios-qbdi-instruction-tracer-architecture/">
+    <meta name="description" content="在长期从事 iOS 逆向分析与安全攻防的过程中，指令级追踪（Instruction-level Tracing）一直是我工具箱中最渴望却也最难以稳定的能力。尽管 Frida Stalker 在 Android 与桌面端表现亮眼，但在 iOS..." />
+    <meta name="keywords" content="QBDI,动态插桩,Dobby,iOS逆向,ARM64" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="给 iOS 装上逐指令微距镜头：从 0x320 裸汇编跳板到 QBDI 虚拟栈，剖析 ios-qbdi-tracer 的双进程插桩架构">
+    <meta property="og:description" content="在长期从事 iOS 逆向分析与安全攻防的过程中，指令级追踪（Instruction-level Tracing）一直是我工具箱中最渴望却也最难以稳定的能力。尽管 Frida Stalker 在 Android 与桌面端表现亮眼，但在 iOS...">
+    <meta property="og:url" content="https://lijianfei.com/post/ios-qbdi-instruction-tracer-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/ios-qbdi-instruction-tracer-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-10-20T03:20:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="QBDI">
+    
+    <meta property="article:tag" content="动态插桩">
+    
+    <meta property="article:tag" content="Dobby">
+    
+    <meta property="article:tag" content="iOS逆向">
+    
+    <meta property="article:tag" content="ARM64">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="给 iOS 装上逐指令微距镜头：从 0x320 裸汇编跳板到 QBDI 虚拟栈，剖析 ios-qbdi-tracer 的双进程插桩架构">
+    <meta name="twitter:description" content="在长期从事 iOS 逆向分析与安全攻防的过程中，指令级追踪（Instruction-level Tracing）一直是我工具箱中最渴望却也最难以稳定的能力。尽管 Frida Stalker 在 Android 与桌面端表现亮眼，但在 iOS...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/ios-qbdi-instruction-tracer-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "给 iOS 装上逐指令微距镜头：从 0x320 裸汇编跳板到 QBDI 虚拟栈，剖析 ios-qbdi-tracer 的双进程插桩架构",
+      "description": "在长期从事 iOS 逆向分析与安全攻防的过程中，指令级追踪（Instruction-level Tracing）一直是我工具箱中最渴望却也最难以稳定的能力。尽管 Frida Stalker 在 Android 与桌面端表现亮眼，但在 iOS...",
+      "image": "https://lijianfei.com/post-images/ios-qbdi-instruction-tracer-architecture.png",
+      "datePublished": "2026-10-20T03:20:00.000Z",
+      "dateModified": "2026-10-20T03:20:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/ios-qbdi-instruction-tracer-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "QBDI",
+          "item": "https://lijianfei.com/tag/qbdi/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "给 iOS 装上逐指令微距镜头：从 0x320 裸汇编跳板到 QBDI 虚拟栈，剖析 ios-qbdi-tracer 的双进程插桩架构",
+          "item": "https://lijianfei.com/post/ios-qbdi-instruction-tracer-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1793449651176" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              给 iOS 装上逐指令微距镜头：从 0x320 裸汇编跳板到 QBDI 虚拟栈，剖析 ios-qbdi-tracer 的双进程插桩架构
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-10-20
+              </span>
+              <span>
+                20 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/qbdi/" class="post-tag">
+                  # QBDI
+                </a>
+              
+                <a href="https://lijianfei.com/tag/dong-tai-cha-zhuang/" class="post-tag">
+                  # 动态插桩
+                </a>
+              
+                <a href="https://lijianfei.com/tag/dobby/" class="post-tag">
+                  # Dobby
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ios-ni-xiang/" class="post-tag">
+                  # iOS逆向
+                </a>
+              
+                <a href="https://lijianfei.com/tag/arm64/" class="post-tag">
+                  # ARM64
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/ios-qbdi-instruction-tracer-architecture.png" alt="给 iOS 装上逐指令微距镜头：从 0x320 裸汇编跳板到 QBDI 虚拟栈，剖析 ios-qbdi-tracer 的双进程插桩架构" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在长期从事 iOS 逆向分析与安全攻防的过程中，指令级追踪（Instruction-level Tracing）一直是我工具箱中最渴望却也最难以稳定的能力。尽管 Frida Stalker 在 Android 与桌面端表现亮眼，但在 iOS AArch64 环境下，面对复杂的 dyld 共享缓存重定位、线程上下文切换与严苛的内存保护，Stalker 频繁遭遇崩溃与缺页中断冲突；而基于 LLDB 硬件断点的单步调试，受限于 4 到 6 个硬件断点数量，单步通信开销更会让目标进程陷入长达数分钟的卡死。</p>
+<p>直到最近深入研读并实测了开源项目 <code>ios-qbdi-tracer</code>，我才看到了一种极具启发性的工程解法：它巧妙融合了 Dobby 的精确内联 Hook 能力与 QBDI（QuarkslaB Dynamic Binary Instrumentation）的虚拟执行引擎，通过一段长达 <code>0x320</code> 字节的 ARM64 裸汇编跳板完美接管执行流，并以“控制 App + 引擎 Tweak”的双进程无锁文件模型，实现了免重编译的手机端交互式指令级 Trace 与真实数据 Hook。本文将从底层汇编到虚拟化执行栈，全面拆解这套架构的设计机理与实战精髓。</p>
+<!-- more -->
+<hr>
+<h2 id="一-破局点为什么-ios-上的指令追踪如此艰难">一、 破局点：为什么 iOS 上的指令追踪如此艰难？</h2>
+<p>在逆向分析加固二进制、密码学白盒算法还原或排查深层执行路径时，粗粒度的函数级 Hook（如 Objective-C Method Swizzling 或标准 C 函数 Hook）往往无能为力。我需要知道的是：从地址 A 到地址 B 之间，CPU 到底逐条执行了哪些汇编指令？寄存器在每个周期发生了什么微妙突变？内存指针又是如何逐级寻址的？</p>
+<p>然而在 iOS 生态中，实现这一目标面临着三座难以逾越的高山：</p>
+<ol>
+<li><strong>Frida Stalker 的运行时水土不服</strong>：Stalker 的基本原理是在运行时动态重写代码块并缓存到 Code Cache 中。在 iOS AArch64（尤其是 iOS 15 及以上越狱环境）中，由于内核对代码签名、JIT 内存分页权限切换（<code>vm_protect</code> / <code>pthread_jit_write_protect_np</code>）以及指针认证机制（PAC）的严密设防，Stalker 在处理密集循环或异常分发时，极易诱发线程竞态崩溃与不可恢复的内核 Panic。</li>
+<li><strong>调试器单步通信的性能深渊</strong>：基于 LLDB 结合 <code>debugserver</code> 的单步跟踪，每前进一条指令都需要经历“内核 Mach 异常触发 -&gt; <code>debugserver</code> 捕获 -&gt; GDB 远程串行协议打包 -&gt; LLDB 解析”的漫长网络往返。要追踪一个仅执行 10,000 条指令的短函数，耗时往往需要数分钟甚至更久，目标 App 的心跳机制与看门狗早就触发了超时自杀。</li>
+<li><strong>QBDI 原生能力的“最后一公里”缺失</strong>：QBDI 作为 QuarkslaB 开源的高性能动态二进制插桩框架，能在虚拟环境中以基本块为单位 JIT 执行并分发指令回调，性能损耗控制在极低水平。然而 QBDI 本身是一个纯粹的插桩库，它不包含任何针对 iOS 进程的注入机制、缺乏地址符号自动加载链路，更没有开箱即用的交互配置能力。</li>
+</ol>
+<p><code>ios-qbdi-tracer</code> 的核心价值，正是将 QBDI 这台性能卓越但难以驾驭的工业引擎，改装成了一套可以随身携带、在真机屏幕上指尖轻点即可完成指令抓取的轻量级武器。</p>
+<hr>
+<h2 id="二-架构全景双进程分离与无锁文件通信">二、 架构全景：双进程分离与无锁文件通信</h2>
+<p>在整体架构设计上，作者采用了一种极度克制且高可靠的“两进程分离模型”（Dual-Process Architecture）。整个工程对外打包为一个标准的 <code>.deb</code> 插件（同时支持 Rootful 与 Rootless），但内部安装了两个职责分明的组件：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph UI_Process [&quot;控制 App：TracerGUI.app (SpringBoard)&quot;]
+        A[&quot;UIKit 表格视图交互&quot;] --&gt; B[&quot;模块选择 / 起始与结束偏移&quot;]
+        B --&gt; C[&quot;高级监视点表达式 (Watchpoint)&quot;]
+        C --&gt; D[&quot;原子写入持久化 JSON 配置&quot;]
+    end
+
+    subgraph Storage [&quot;共享存储区：/var/mobile/Documents/QBDITracer/&quot;]
+        D --&gt; E[&quot;settings.json (全局总开关/日志路径)&quot;]
+        D --&gt; F[&quot;config.json (Trace 只读追踪规则)&quot;]
+        D --&gt; G[&quot;hooks.json (Hook 真实改写规则)&quot;]
+    end
+
+    subgraph Target_Process [&quot;目标进程：Target App (Hook 注入)&quot;]
+        H[&quot;Cydia Substrate / ElleKit 注入&quot;] --&gt; I[&quot;TracerEngine.dylib (com.apple.UIKit)&quot;]
+        I --&gt; J{&quot;engine_start() 启动检查&quot;}
+        J -- &quot;自身 App / 全局禁用 / 无匹配&quot; --&gt; K[&quot;亚毫秒级直接空转退出&quot;]
+        J -- &quot;命中 BundleId&quot; --&gt; L[&quot;解析模块基址并装配 Dobby Hook&quot;]
+        L --&gt; M[&quot;0x320 裸汇编 Trampoline 劫持&quot;]
+        M --&gt; N[&quot;QBDI 虚拟栈插桩 / Dobby 原生修改&quot;]
+        N --&gt; O[&quot;落盘写入 trace_*.log 与 hook_*.log&quot;]
+    end
+
+    E -.-&gt; J
+    F -.-&gt; L
+    G -.-&gt; L
+</code></pre>
+<h3 id="1-为什么坚决不用进程间通信ipc">1. 为什么坚决不用进程间通信（IPC）？</h3>
+<p>在传统桌面软件思维中，控制前端与后台引擎往往采用 Mach Port、XPC 或 Local Socket 通信。但在越狱 iOS 环境下，目标进程千差万别（涵盖第三方沙盒 App、系统守护进程与 SpringBoard），跨沙盒建立 IPC 极其容易遭遇权限被拒、连接断开或多线程死锁。</p>
+<p><code>ios-qbdi-tracer</code> 选择了最简单也最坚固的方案：<strong>基于共享磁盘目录的单向快照通信</strong>。</p>
+<ul>
+<li>控制 App 作为独立工具安装在 <code>/Applications</code>，以手机 UI 界面负责写 JSON 规则；</li>
+<li>引擎 <code>TracerEngine.dylib</code> 通过 Substrate 过滤器挂载在 <code>com.apple.UIKit</code>，随目标 App 启动时一次性加载 JSON 快照；</li>
+<li>改完配置后，只需重新冷启动目标 App 即可生效，彻底规避了复杂的运行时状态同步机制。</li>
+</ul>
+<h3 id="2-亚毫秒级空转开销的设计取舍">2. 亚毫秒级空转开销的设计取舍</h3>
+<p>由于 <code>TracerEngine.dylib</code> 对所有加载 UIKit 的进程进行全量注入，很多开发者第一反应会担心系统性能损耗。但在 <code>Engine/src/engine.m</code> 的 <code>engine_start()</code> 入口处，代码做了极致精简的三道防线预检：</p>
+<ol>
+<li><strong>防自钩检测</strong>：若当前进程为控制 App 自身（<code>com.snk.qbditracer</code>），立即直接退出；</li>
+<li><strong>总开关检测</strong>：读取 <code>settings.json</code>，若 <code>enabled == false</code> 或文件不存在，直接退出；</li>
+<li><strong>BundleId 匹配</strong>：仅当当前 App 的 bundle identifier 严格匹配用户配置的条目时才分配内存与装载符号。</li>
+</ol>
+<p>对于未命中的非目标应用，注入开销仅是一次微秒级的动态库载入与几个布尔判断，对整个 iOS 系统的流畅度几乎完全无感。</p>
+<hr>
+<h2 id="三-核心突破0x320-字节-arm64-裸汇编跳板">三、 核心突破：0x320 字节 ARM64 裸汇编跳板</h2>
+<p>如果说架构设计体现了项目的宏观品味，那么 <code>Engine/src/tramp.c</code> 中的裸汇编跳板（Naked Trampoline），则集中展现了作者在底层体系结构与编译原理上的深厚功底。</p>
+<h3 id="1-中途截胡的宿命abi-契约的彻底失效">1. 中途截胡的宿命：ABI 契约的彻底失效</h3>
+<p>常规的 C 语言函数 Hook（例如 Frida Interceptor 或标准 Dobby），其拦截点通常位于函数的入口地址（Prologue）。在函数入口处，Calling Convention（调用约定）是严格生效的：参数在 <code>x0~x7</code>，调用者保留寄存器可以由 Callee 自由使用，被调用者保留寄存器（<code>x19~x28</code>）会被规范压栈。</p>
+<p>然而，指令级 Trace 的起始点往往位于<strong>函数的腹背中间</strong>（例如某个密文字符串解密循环内部）。在此处截胡执行流，编译器从未在中间位置提供任何 ABI 保护！原程序在这个绝对指令点上，通用寄存器、浮点向量、乃至条件标志位（NZCV）可能全部正处于临时计算的关键态。<strong>原代码此刻持有的一切硬件状态，在 Hook 结束返航时，必须完好无损地 100% 原样奉还</strong>。</p>
+<h3 id="2-0x320-栈帧空间全景">2. 0x320 栈帧空间全景</h3>
+<p>为了承载这一严苛要求，作者为每个 Trace、Trigger 与 Hook 插槽编写了一套纯汇编 <code>__attribute__((naked))</code> 宏。它在进入 C 语言调度层前，硬生生开辟了 <code>0x320</code>（800 字节）的绝对安全栈空间：</p>
+<pre><code>+-------------------------------------------------------------+  &lt;-- 旧 sp 顶部
+|  sp + 0x120 ~ 0x31F : q0 ~ q31 (32 个 128 位 NEON 向量寄存器, 512 字节) |
++-------------------------------------------------------------+
+|  sp + 0x110         : FPSR (浮点状态寄存器)                    |
+|  sp + 0x108         : FPCR (浮点控制寄存器)                    |
+|  sp + 0x100         : NZCV (PSTATE 条件标志位：负/零/进位/溢出)     |
++-------------------------------------------------------------+
+|  sp + 0x0F8         : 原始 sp (真实运行栈计算值：sp + 0x320)       |
+|  sp + 0x0F0         : x30 (lr 返回地址)                      |
+|  sp + 0x0E0 ~ 0x0E8 : x28, x29 (fp 栈基址)                   |
+|  sp + 0x000 ~ 0x0DF : x0 ~ x27 (全部通用寄存器)                 |
++-------------------------------------------------------------+  &lt;-- 新 sp (当前栈底)
+</code></pre>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant Target as 目标指令点
+    participant Dobby as Dobby Inline Hook
+    participant Tramp as 0x320 Naked Trampoline
+    participant C_Entry as trace_ctx_entry (C调度层)
+    participant QBDI as QBDI 虚拟执行引擎
+
+    Target -&gt;&gt; Dobby: 执行到目标偏移地址
+    Dobby -&gt;&gt; Tramp: 跳转至对应槽位汇编跳板
+    activate Tramp
+    Tramp -&gt;&gt; Tramp: 开辟 0x320 栈帧并存入 x0-x28, fp, lr, sp
+    Tramp -&gt;&gt; Tramp: 存入 NZCV, FPCR, FPSR
+    Tramp -&gt;&gt; Tramp: stp 存入 q0-q31 (NEON 向量态)
+    Tramp -&gt;&gt; C_Entry: bl trace_ctx_entry(rf, slot)
+    activate C_Entry
+    C_Entry -&gt;&gt; QBDI: 初始化 VM，分配独立虚拟栈
+    C_Entry -&gt;&gt; QBDI: 装载初始寄存器镜像，开启逐指令 Hook
+    QBDI --&gt;&gt; C_Entry: 追踪抵达终点，输出分析日志并销毁 VM
+    C_Entry --&gt;&gt; Tramp: 返回 origin 续跑地址
+    deactivate C_Entry
+    Tramp -&gt;&gt; Tramp: ldr 还原 q0-q31, FPCR, FPSR
+    Tramp -&gt;&gt; Tramp: msr nzcv, x9 (优先还原标志位，借 x9 当暂存)
+    Tramp -&gt;&gt; Tramp: 还原 x0-x16, x18-x28, fp, lr
+    Tramp -&gt;&gt; Tramp: 将 origin 地址装入 x17
+    Tramp -&gt;&gt; Target: br x17 (原生执行 Dobby 搬迁指令并归队)
+    deactivate Tramp
+</code></pre>
+<h3 id="3-血泪踩坑nzcv-标志位污染与死循环陷阱">3. 血泪踩坑：NZCV 标志位污染与死循环陷阱</h3>
+<p>在研读这段汇编实现时，注释里记录的一个极具代表性的硬件级 Bug 引起了我的强烈共鸣：</p>
+<blockquote>
+<p>NZCV 条件标志位（Negative, Zero, Carry, Overflow）在进入 C 语言调度层 <code>trace_ctx_entry</code> 后，内部一旦发生简单的字符串解析、<code>memcmp</code> 内存比对或算术运算，CPU 的 NZCV 会被 C 代码不可逆地全面改写。如果被 Hook 的点恰好位于一段紧凑循环的条件判断之前，紧随其后的 <code>b.eq</code> 或 <code>cbz</code> 就会基于被 C 代码污染的标志位做出灾难性的分支跳转——在真机实测中，这曾直接导致目标应用卡在死循环中、同一个函数被无休止地空转执行数百万次！</p>
+</blockquote>
+<p>作者在恢复寄存器时展现了极其精巧的指令时序调度：</p>
+<ol>
+<li>必须在通用寄存器恢复<strong>之前</strong>，先通过临时借用 <code>x9</code> 将保存的标志位通过 <code>msr nzcv, x9</code> 刷回 CPU 状态寄存器；</li>
+<li>随后恢复通用寄存器，因为 <code>ldp/ldr</code> 与 <code>mov sp</code> 等内存加载指令根本不会触碰条件标志位；</li>
+<li>最后再将 <code>x9</code> 槽位中原有的用户数据原样弹出。</li>
+</ol>
+<h3 id="4-dobby-x17-跳板临时寄存器契约">4. Dobby x17 跳板临时寄存器契约</h3>
+<p>另一个极易致命的暗坑是跳转寄存器的选择。由于这是间接跳转，汇编跳板在收尾阶段必须依靠某个寄存器承载返回地址并执行 <code>br</code>。</p>
+<p>Dobby 在 ARM64 架构上明确将其 Inline Hook 的临时跳板寄存器规定为 <code>x17</code>（<code>ARM64_TMP_REG_NDX_0 == 17</code>）。这意味着 <code>x17</code> 本来就会在 Hook 入口处被覆盖，因此使用 <code>x17</code> 承载 <code>trace_ctx_entry</code> 返回的 origin 目标地址是唯一的合法选择；而 <code>x16</code> 仍然属于原程序的原始输入状态，必须在栈帧中严密恢复。代码中甚至显式加入了编译期断言：</p>
+<pre><code class="language-c">#if ARM64_TMP_REG_NDX_0 != 17
+#error &quot;Tracer trampoline requires Dobby ARM64_TMP_REG_NDX_0 to be x17&quot;
+#endif
+</code></pre>
+<p>这种对第三方底层库内部契约的严密防守，体现了高成熟度系统开发者的极高工程素养。</p>
+<hr>
+<h2 id="四-纯粹与真实的权衡只读-trace-与真实-hook">四、 纯粹与真实的权衡：只读 Trace 与真实 Hook</h2>
+<p>在深入分析引擎执行逻辑后，我发现 <code>ios-qbdi-tracer</code> 将业务切分为了泾渭分明的两种运行范式：<strong>Trace（只读虚拟化追踪）</strong> 与 <strong>Hook（真实数据持久改写）</strong>。</p>
+<h3 id="1-trace-范式基于独立虚拟栈的纯粹观测">1. Trace 范式：基于独立虚拟栈的纯粹观测</h3>
+<p>QBDI 的工作机制是将原生 ARM64 机器码动态解码、分割为基本块，并在自身的虚拟机环境下执行 JIT 生成的代码副本。</p>
+<p>在 <code>Engine/src/qbdi_trace.c</code> 的 <code>run_trace()</code> 中：</p>
+<ul>
+<li><strong>独立的 1MB 虚拟执行栈</strong>：系统通过 <code>qbdi_allocateVirtualStack</code> 分配了独立的虚拟执行栈（<code>TRACE_STACK_SIZE = 0x100000</code>）。这有效防止了插桩运行期间深度调用链击穿 iOS 目标线程的原生 Stack Guard。</li>
+<li><strong>搬迁指令无缝拼接（<code>ORIGIN_SPAN = 0x40</code>）</strong>：Dobby 在装载 Inline Hook 时，会把目标函数开头的几条原始指令搬迁到自己的 Origin Trampoline 中。为了让 Trace 不漏掉这开头的几条关键指令，QBDI 会显式调用 <code>qbdi_addInstrumentedRange</code> 将 Dobby 的 Origin 内存范围纳入插桩管辖，实现无缝衔接。</li>
+<li><strong>纯粹的观测隔离</strong>：整个 Trace 过程中，即使配置了高级寄存器修改，所有变动也仅局限在 QBDI 内部的虚拟 <code>GPRState</code> 镜像中。当追踪抵达目标 <code>end</code> 地址后，QBDI 引擎销毁，将控制权交还给汇编跳板；汇编跳板使用最初捕获的寄存器镜像完好还原现场，并跳至 <code>origin</code> 真实执行。目标 App 的原生状态没有受到任何不可逆的破坏。</li>
+</ul>
+<h3 id="2-hook-范式非对称写入语义与-copy-on-write-提权">2. Hook 范式：非对称写入语义与 Copy-on-Write 提权</h3>
+<p>与 Trace 的只读观测不同，主界面的 Hook 功能是为“真实且持久地篡改数据”而生。为了防止逆向人员在手机端填错表达式导致进程崩溃，作者在 <code>Engine/src/hook.c</code> 中精心构建了“非对称写入语义”（Asymmetric Target Semantics）：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">写入语法类型</th>
+<th style="text-align:left">裸寄存器（如 <code>x0</code>）</th>
+<th style="text-align:left">括号包裹解引用（如 <code>[x0]</code>、<code>[[x0+8]+0x10]</code>）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>数值修改 (Number)</strong></td>
+<td style="text-align:left">直接改写寄存器槽（32 位自动清高位，64 位全写）</td>
+<td style="text-align:left">向表达式求值出的<strong>内存地址</strong>写入对应长度数值</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>字节序列 (Bytes)</strong></td>
+<td style="text-align:left">❌ 校验拦截（裸寄存器无法承载字节数组）</td>
+<td style="text-align:left">向内存地址逐字节写入 Hex 序列</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>字符串 (String)</strong></td>
+<td style="text-align:left">将 <code>x0</code> 视为 <code>char*</code> 指针，直接改写指向的内存</td>
+<td style="text-align:left">向表达式计算出的内存写入 UTF-8 字符串（带尾零）</td>
+</tr>
+</tbody>
+</table>
+<p>针对 iOS 逆向中最常遇到的“只读代码段或常量数据段（<code>__TEXT</code>、<code>__cstring</code>）写保护”问题，Hook 引擎内置了一套全自动的 Mach 内存提权与自愈机制：</p>
+<pre><code class="language-c">// 检查内存保护属性，若不可写则通过 vm_protect 动态提权
+bool need_prot = (info.protection &amp; VM_PROT_WRITE) == 0;
+if (need_prot) {
+    uint64_t pg = (uint64_t)vm_page_size ? (uint64_t)vm_page_size : 0x4000;
+    uint64_t start = addr &amp; ~(pg - 1);
+    uint64_t end = (addr + (uint64_t)n + pg - 1) &amp; ~(pg - 1);
+    // 关键参数：VM_PROT_COPY 实现私有写时复制，绝不污染全局其它进程共享镜像
+    kr = vm_protect(task, (vm_address_t)start, (vm_size_t)(end - start), 
+                    FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+}
+</code></pre>
+<p>此外，系统还设置了连续 20 次失败的自动熔断机制（Circuit Breaker）：若由于野指针导致连续 20 次解引用失败，该 Hook 自动切断停用，防止错误配置在热循环中持续拖垮主线程。</p>
+<hr>
+<h2 id="五-指针穿透递归下降表达式与-mach-安全解引用">五、 指针穿透：递归下降表达式与 Mach 安全解引用</h2>
+<p>在实际逆向追踪中，核心数据结构往往深藏在多层对象指针嵌套之后（例如 <code>[x0 + 0x18]</code> 指向数据包上下文，<code>[[x0 + 0x18] + 0x30]</code> 才是真实 Payload 首地址）。</p>
+<p><code>ios-qbdi-tracer</code> 没有引入庞大的 JavaScript 运行时或 Lua 解释器，而是在 <code>Engine/src/watch_expr.c</code> 中手写了一套极简高效的递归下降词法/语法编译器，支持类似 <code>[[x0+8]+0x10]-4</code> 的取址表达式。</p>
+<pre><code class="language-mermaid">flowchart LR
+    A[&quot;配置加载期：输入字符串&lt;br&gt;[[x0+8]+0x10]-4&quot;] --&gt; B[&quot;递归下降语法解析器 (Parser)&quot;]
+    B --&gt; C[&quot;生成紧凑后缀字节码 (Bytecode)&lt;br&gt;x0, 8, ADD, DEREF, 16, ADD, DEREF, 4, SUB&quot;]
+    C --&gt; D[&quot;运行时堆栈执行器 (Stack Evaluator)&quot;]
+    D --&gt; E[&quot;调用 vm_read_overwrite 安全探针&quot;]
+    E --&gt; F[&quot;输出最终物理内存地址 / 安全中断&quot;]
+</code></pre>
+<p>整个表达式引擎有两大极其硬核的工程特性：</p>
+<ol>
+<li><strong>加载期编译，运行期零内存分配</strong>：在读取 JSON 时，表达式被一次性编译为紧凑的逆波兰式（后缀操作码数组：<code>WOP_REG</code>、<code>WOP_IMM</code>、<code>WOP_ADD</code>、<code>WOP_SUB</code>、<code>WOP_DEREF</code>）。在每秒执行几十万次的高频 Hook 热路径中，求值过程完全基于栈上的静态数组进行弹栈和压栈运算，没有一次 <code>malloc</code> 堆分配！</li>
+<li><strong>Mach 内核安全探针兜底</strong>：当遇到 <code>WOP_DEREF</code> 需要解引用指针时，代码坚决弃用了裸指针转换 <code>*(uint64_t *)addr</code>，而是封装了内核调用 <code>vm_read_overwrite(mach_task_self(), ...)</code>。当目标地址发生悬垂或指向未映射的内存空洞时，系统优雅捕获内核返回值并退出求值，<strong>绝不会触发 SIGSEGV 造成 App 闪退</strong>。</li>
+</ol>
+<hr>
+<h2 id="六-越狱兼容与工程化交付设计">六、 越狱兼容与工程化交付设计</h2>
+<p>在越狱工具快速演进的今天，由于 iOS 15+ 之后系统根目录强制使用 SSV（Signed System Volume）挂载锁定，整个社区被分裂成了 <strong>Rootful</strong>（传统越狱，根目录可写）与 <strong>Rootless</strong>（现代越狱，一切写入转向 <code>/var/jb</code>）两大阵营。</p>
+<p><code>ios-qbdi-tracer</code> 针对这种痛点，设计了极为周全的一体化构建交付体系：</p>
+<blockquote>
+<p>[!TIP]<br>
+<strong>Rootful 与 Rootless 的快速辨析</strong></p>
+<ul>
+<li><strong>Rootful</strong>：代表工具为 unc0ver / checkra1n / Taurine，文件落在系统绝对路径，dpkg 架构标识为 <code>iphoneos-arm</code>；</li>
+<li><strong>Rootless</strong>：代表工具为 Dopamine / palera1n，系统通过 <code>/var/jb</code> 进行符号链接重定向，dpkg 架构标识为 <code>iphoneos-arm64</code>。</li>
+</ul>
+<p>在机器终端通过 <code>arch</code> 命令返回的一律是硬件 CPU 架构 <code>arm64</code>，绝对不能用它区分越狱类型；最准确的判断方式是检测设备根目录下是否存在 <code>/var/jb</code>。</p>
+</blockquote>
+<p>项目的 <code>scripts/build_debs.sh</code> 会自动调用 Theos 生成两份独立的 <code>.deb</code> 产物，完美消除了逆向人员在不同越狱环境下的部署摩擦。</p>
+<hr>
+<h2 id="七-总结与第一视角思考">七、 总结与第一视角思考</h2>
+<p>通读并实操 <code>ios-qbdi-tracer</code> 的全部源码，带给我最强烈的震撼并不是它集成了多么炫酷的第三方库，而是其在极其苛刻的移动端运行环境下，<strong>对底层软硬件细节边界的绝对掌控力</strong>。</p>
+<p>在很多人眼里，移动端逆向似乎就是写写 Frida 脚本、调调现成工具；但在真实的硬核对抗中，当成熟工具由于底层兼容性全线崩溃时，唯有能够下潜到寄存器级别、理解每一条汇编指令对 CPU 状态机影响的工程师，才能构建出真正具备破局能力的利刃：</p>
+<ul>
+<li>它为了保证原程序循环判断不被破坏，耐心地在汇编跳板里调度标志位还原顺序；</li>
+<li>它为了避免在热路径拖慢宿主，坚决把 <code>find_module</code> 等遍历镜像的重活从主干剥离；</li>
+<li>它为了在没有调试器接入的情况下观察数据，硬是在纯 C 语言环境下手搓了防崩溃的栈式后缀表达式引擎。</li>
+</ul>
+<p>这种直面底层技术痛点、以纯粹工程智慧解决复杂现实问题的系统设计，正是逆向工程这门艺术最迷人的魅力所在。</p>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>原文链接</strong>：<a href="https://github.com/your-git/ios-qbdi-tracer">ios-qbdi-tracer: 专属于 iOS 的 trace 工具 - your-git</a></li>
+<li><strong>QBDI 官方仓库</strong>：<a href="https://github.com/QBDI/QBDI">QuarkslaB Dynamic Binary Instrumentation - QBDI</a></li>
+<li><strong>Dobby 官方仓库</strong>：<a href="https://github.com/jmpews/Dobby">Dobby: A lightweight, multi-platform, multi-architecture exploit hook framework - jmpews</a></li>
+<li><strong>Theos 开发套件</strong>：<a href="https://github.com/theos/theos">Theos: A cross-platform suite of tools for building and deploying iOS software</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-%E7%A0%B4%E5%B1%80%E7%82%B9%E4%B8%BA%E4%BB%80%E4%B9%88-ios-%E4%B8%8A%E7%9A%84%E6%8C%87%E4%BB%A4%E8%BF%BD%E8%B8%AA%E5%A6%82%E6%AD%A4%E8%89%B0%E9%9A%BE">一、 破局点：为什么 iOS 上的指令追踪如此艰难？</a></li>
+<li><a href="#%E4%BA%8C-%E6%9E%B6%E6%9E%84%E5%85%A8%E6%99%AF%E5%8F%8C%E8%BF%9B%E7%A8%8B%E5%88%86%E7%A6%BB%E4%B8%8E%E6%97%A0%E9%94%81%E6%96%87%E4%BB%B6%E9%80%9A%E4%BF%A1">二、 架构全景：双进程分离与无锁文件通信</a>
+<ul>
+<li><a href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%9D%9A%E5%86%B3%E4%B8%8D%E7%94%A8%E8%BF%9B%E7%A8%8B%E9%97%B4%E9%80%9A%E4%BF%A1ipc">1. 为什么坚决不用进程间通信（IPC）？</a></li>
+<li><a href="#2-%E4%BA%9A%E6%AF%AB%E7%A7%92%E7%BA%A7%E7%A9%BA%E8%BD%AC%E5%BC%80%E9%94%80%E7%9A%84%E8%AE%BE%E8%AE%A1%E5%8F%96%E8%88%8D">2. 亚毫秒级空转开销的设计取舍</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-%E6%A0%B8%E5%BF%83%E7%AA%81%E7%A0%B40x320-%E5%AD%97%E8%8A%82-arm64-%E8%A3%B8%E6%B1%87%E7%BC%96%E8%B7%B3%E6%9D%BF">三、 核心突破：0x320 字节 ARM64 裸汇编跳板</a>
+<ul>
+<li><a href="#1-%E4%B8%AD%E9%80%94%E6%88%AA%E8%83%A1%E7%9A%84%E5%AE%BF%E5%91%BDabi-%E5%A5%91%E7%BA%A6%E7%9A%84%E5%BD%BB%E5%BA%95%E5%A4%B1%E6%95%88">1. 中途截胡的宿命：ABI 契约的彻底失效</a></li>
+<li><a href="#2-0x320-%E6%A0%88%E5%B8%A7%E7%A9%BA%E9%97%B4%E5%85%A8%E6%99%AF">2. 0x320 栈帧空间全景</a></li>
+<li><a href="#3-%E8%A1%80%E6%B3%AA%E8%B8%A9%E5%9D%91nzcv-%E6%A0%87%E5%BF%97%E4%BD%8D%E6%B1%A1%E6%9F%93%E4%B8%8E%E6%AD%BB%E5%BE%AA%E7%8E%AF%E9%99%B7%E9%98%B1">3. 血泪踩坑：NZCV 标志位污染与死循环陷阱</a></li>
+<li><a href="#4-dobby-x17-%E8%B7%B3%E6%9D%BF%E4%B8%B4%E6%97%B6%E5%AF%84%E5%AD%98%E5%99%A8%E5%A5%91%E7%BA%A6">4. Dobby x17 跳板临时寄存器契约</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E7%BA%AF%E7%B2%B9%E4%B8%8E%E7%9C%9F%E5%AE%9E%E7%9A%84%E6%9D%83%E8%A1%A1%E5%8F%AA%E8%AF%BB-trace-%E4%B8%8E%E7%9C%9F%E5%AE%9E-hook">四、 纯粹与真实的权衡：只读 Trace 与真实 Hook</a>
+<ul>
+<li><a href="#1-trace-%E8%8C%83%E5%BC%8F%E5%9F%BA%E4%BA%8E%E7%8B%AC%E7%AB%8B%E8%99%9A%E6%8B%9F%E6%A0%88%E7%9A%84%E7%BA%AF%E7%B2%B9%E8%A7%82%E6%B5%8B">1. Trace 范式：基于独立虚拟栈的纯粹观测</a></li>
+<li><a href="#2-hook-%E8%8C%83%E5%BC%8F%E9%9D%9E%E5%AF%B9%E7%A7%B0%E5%86%99%E5%85%A5%E8%AF%AD%E4%B9%89%E4%B8%8E-copy-on-write-%E6%8F%90%E6%9D%83">2. Hook 范式：非对称写入语义与 Copy-on-Write 提权</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%94-%E6%8C%87%E9%92%88%E7%A9%BF%E9%80%8F%E9%80%92%E5%BD%92%E4%B8%8B%E9%99%8D%E8%A1%A8%E8%BE%BE%E5%BC%8F%E4%B8%8E-mach-%E5%AE%89%E5%85%A8%E8%A7%A3%E5%BC%95%E7%94%A8">五、 指针穿透：递归下降表达式与 Mach 安全解引用</a></li>
+<li><a href="#%E5%85%AD-%E8%B6%8A%E7%8B%B1%E5%85%BC%E5%AE%B9%E4%B8%8E%E5%B7%A5%E7%A8%8B%E5%8C%96%E4%BA%A4%E4%BB%98%E8%AE%BE%E8%AE%A1">六、 越狱兼容与工程化交付设计</a></li>
+<li><a href="#%E4%B8%83-%E6%80%BB%E7%BB%93%E4%B8%8E%E7%AC%AC%E4%B8%80%E8%A7%86%E8%A7%92%E6%80%9D%E8%80%83">七、 总结与第一视角思考</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/tiktok-meme-ai-keyword-site-monetization-playbook/">
+              <h3 class="post-title">
+                72 小时流水 5480 美元：站在学习者视角复盘 AI 爆梗新词站的变现闭环与可复制要素
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+    </script>
+  </body>
+</html>

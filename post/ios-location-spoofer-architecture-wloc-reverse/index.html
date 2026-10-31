@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>不用越狱如何改写系统级 GPS？剖析 iOS-Location-Spoofer-Web 的 WLOC 逆向与纯 JS 编解码架构 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1793449651176">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="不用越狱如何改写系统级 GPS？剖析 iOS-Location-Spoofer-Web 的 WLOC 逆向与纯 JS 编解码架构 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/ios-location-spoofer-architecture-wloc-reverse/">
+    <meta name="description" content="在 iOS 生态中进行基于地理位置（LBS）的开发与测试，向来是一件让移动端工程师和逆向研究员颇为头疼的事。无论是验证复杂的多边形地理围栏（Geofencing）、调试出海应用在不同国家/地区的本地化逻辑，还是对依赖 CoreLocatio..." />
+    <meta name="keywords" content="网络协议,Shadowrocket,逆向工程,iOS,Cloudflare" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="不用越狱如何改写系统级 GPS？剖析 iOS-Location-Spoofer-Web 的 WLOC 逆向与纯 JS 编解码架构">
+    <meta property="og:description" content="在 iOS 生态中进行基于地理位置（LBS）的开发与测试，向来是一件让移动端工程师和逆向研究员颇为头疼的事。无论是验证复杂的多边形地理围栏（Geofencing）、调试出海应用在不同国家/地区的本地化逻辑，还是对依赖 CoreLocatio...">
+    <meta property="og:url" content="https://lijianfei.com/post/ios-location-spoofer-architecture-wloc-reverse/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/ios-location-spoofer-architecture-wloc-reverse.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-10-28T12:30:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="网络协议">
+    
+    <meta property="article:tag" content="Shadowrocket">
+    
+    <meta property="article:tag" content="逆向工程">
+    
+    <meta property="article:tag" content="iOS">
+    
+    <meta property="article:tag" content="Cloudflare">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="不用越狱如何改写系统级 GPS？剖析 iOS-Location-Spoofer-Web 的 WLOC 逆向与纯 JS 编解码架构">
+    <meta name="twitter:description" content="在 iOS 生态中进行基于地理位置（LBS）的开发与测试，向来是一件让移动端工程师和逆向研究员颇为头疼的事。无论是验证复杂的多边形地理围栏（Geofencing）、调试出海应用在不同国家/地区的本地化逻辑，还是对依赖 CoreLocatio...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/ios-location-spoofer-architecture-wloc-reverse.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "不用越狱如何改写系统级 GPS？剖析 iOS-Location-Spoofer-Web 的 WLOC 逆向与纯 JS 编解码架构",
+      "description": "在 iOS 生态中进行基于地理位置（LBS）的开发与测试，向来是一件让移动端工程师和逆向研究员颇为头疼的事。无论是验证复杂的多边形地理围栏（Geofencing）、调试出海应用在不同国家/地区的本地化逻辑，还是对依赖 CoreLocatio...",
+      "image": "https://lijianfei.com/post-images/ios-location-spoofer-architecture-wloc-reverse.png",
+      "datePublished": "2026-10-28T12:30:00.000Z",
+      "dateModified": "2026-10-28T12:30:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/ios-location-spoofer-architecture-wloc-reverse/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "网络协议",
+          "item": "https://lijianfei.com/tag/wang-luo-xie-yi/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "不用越狱如何改写系统级 GPS？剖析 iOS-Location-Spoofer-Web 的 WLOC 逆向与纯 JS 编解码架构",
+          "item": "https://lijianfei.com/post/ios-location-spoofer-architecture-wloc-reverse/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1793449651176" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              不用越狱如何改写系统级 GPS？剖析 iOS-Location-Spoofer-Web 的 WLOC 逆向与纯 JS 编解码架构
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-10-28
+              </span>
+              <span>
+                26 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/wang-luo-xie-yi/" class="post-tag">
+                  # 网络协议
+                </a>
+              
+                <a href="https://lijianfei.com/tag/shadowrocket/" class="post-tag">
+                  # Shadowrocket
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ni-xiang-gong-cheng/" class="post-tag">
+                  # 逆向工程
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ios/" class="post-tag">
+                  # iOS
+                </a>
+              
+                <a href="https://lijianfei.com/tag/cloudflare/" class="post-tag">
+                  # Cloudflare
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/ios-location-spoofer-architecture-wloc-reverse.png" alt="不用越狱如何改写系统级 GPS？剖析 iOS-Location-Spoofer-Web 的 WLOC 逆向与纯 JS 编解码架构" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在 iOS 生态中进行基于地理位置（LBS）的开发与测试，向来是一件让移动端工程师和逆向研究员颇为头疼的事。无论是验证复杂的多边形地理围栏（Geofencing）、调试出海应用在不同国家/地区的本地化逻辑，还是对依赖 CoreLocation 框架的 App 进行边界条件测试，苹果严密的系统沙箱都构筑了极高的防御壁垒：Xcode 的 LocationSimulation（<code>.gpx</code> 模拟）需要通过数据线连接 Mac，在 iOS 17+ 引入 Developer Mode 与基于 QUIC 的 RemoteXPC/CoreDevice 协议后，这套 USB 联调通道变得更加繁琐脆弱；越狱插件（如 Relocate 或 LocationFaker）虽然强大，但在配备 A12+ 仿生芯片且运行现代 iOS 版本的日常主力机上早已脱离实际；而常规的 VPN 或节点代理仅能修改 IP 出口归属地，面对直接调用系统 GPS 硬件与 Wi-Fi 基站定位的 App 毫无效果。</p>
+<p>最近，我深入研究了一个在技术思路上极具启发性的开源项目 —— <strong>iOS-Location-Spoofer-Web</strong>。它摒弃了依赖电脑数据线联调或越狱注入动态库的传统思路，直接将手术刀切入了苹果私有的定位辅助协议（Apple Location Services，简称 WLOC）；通过在 Shadowrocket（小火箭）的 MITM 中间人代理层挂载纯 JavaScript 实现的流式 Protobuf 与 ARPC 封包编解码引擎，并结合一套基于 Cloudflare Pages Serverless 架构的 Liquid Glass（液态玻璃）前端控制面板，实现了一键在手机端修改系统全局 GPS 定位。在本文中，我将以第一视角深入拆解其底层定位劫持原理、纯 JS 64 位 Varint 运算、WLOC 最小改写策略以及 Serverless 边缘协同实践。</p>
+<!-- more -->
+<hr>
+<h2 id="一-ios-系统定位是如何工作的wloc-的阿喀琉斯之踵">一、 iOS 系统定位是如何工作的？WLOC 的阿喀琉斯之踵</h2>
+<p>要想在不越狱、不插线的前提下让整台 iPhone “相信”自己正身处世界上的任意一个角落，首先必须搞清楚 iOS 底层的定位决策机制。</p>
+<p>在很多人的直觉中，手机定位完全依赖于机身内置的 GPS/北斗/GLONASS 卫星接收芯片。但在真实的城市峡谷、高楼室内或地下车库中，卫星信号衰减极度严重，不仅搜索冷启动时间长达数十秒甚至数分钟，功耗也极为惊人。为了实现“打开地图秒定位”，苹果在系统底层设计了一套高度精密的<strong>辅助定位体系（Assisted GPS / Wi-Fi Positioning System）</strong>，其核心中枢就是运行在 root 权限下的守护进程 —— <code>locationd</code>。</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Device [&quot;iPhone 终端 (iOS 系统沙箱)&quot;]
+        Sensors[&quot;硬件射频扫描&lt;br/&gt;(周边 Wi-Fi BSSID / 基站 Cell ID / 信号 RSSI)&quot;] --&gt; LocationD[&quot;系统定位守护进程 (locationd)&quot;]
+        LocationD --&gt;|&quot;HTTPS 加密请求 (/clls/wloc)&quot;| Network[本地网络栈]
+        LocationD --&gt;|&quot;分发最终坐标&quot;| Apps[&quot;上层宿主应用&lt;br/&gt;(微信 / 高德 / 滴滴 / Safari)&quot;]
+    end
+
+    subgraph AppleCloud [&quot;Apple 定位云端服务&quot;]
+        WLOC_Server[&quot;WLOC 服务器集群&lt;br/&gt;(gs-loc.apple.com / 高德 bluedot)&quot;]
+        GeoDB[(&quot;全球 Wi-Fi MAC 与基站空间坐标库&quot;)]
+        WLOC_Server &lt;--&gt; GeoDB
+    end
+
+    Network --&gt;|&quot;1. 提交周边射频特征&quot;| WLOC_Server
+    WLOC_Server --&gt;|&quot;2. 下发所有发射源物理经纬度&quot;| Network
+    Network --&gt;|&quot;3. 逆地理加权解算&quot;| LocationD
+</code></pre>
+<h3 id="1-wi-fi-与基站联合定位的通信链路">1. Wi-Fi 与基站联合定位的通信链路</h3>
+<p>当某个应用通过 <code>CLLocationManager</code> 请求精度较高的位置时，<code>locationd</code> 会执行以下流水线：</p>
+<ol>
+<li><strong>本地环境快照采样</strong>：调用无线网卡与蜂窝基带，快速嗅探收集当前设备周边广播的所有 Wi-Fi 路由器的 MAC 地址（BSSID）、信号强度（RSSI），以及当前连接和监测到的基站标识（包括 MCC 移动国家代码、MNC 移动网络代码、LAC 位置区码和 Cell ID）；</li>
+<li><strong>发起 WLOC 协议查询</strong>：将收集到的 Wi-Fi 和基站列表打包为二进制数据，通过 HTTPS POST 请求发送给苹果的云端定位服务器。在海外或通用网络下，请求的目标域名通常是 <code>gs-loc.apple.com</code> 或 <code>gsp-ssl.ls.apple.com</code>；而在中国大陆地区的行货设备上，为遵循合规要求，请求会被分流至高德提供的端点（如 <code>bluedot.is.autonavi.com</code> 或 <code>gs-loc-cn.apple.com</code>），接口路径统一为 <code>/clls/wloc</code>；</li>
+<li><strong>空间参考系下发与三角加权</strong>：苹果的 WLOC 服务器检索全球数十亿个热点与基站的物理坐标数据库后，将这些 Wi-Fi 和基站对应的真实经度、纬度、海拔及置信半径（Horizontal Accuracy）打包在响应报文中返回给手机；</li>
+<li><strong>终端自主加权解算</strong>：<code>locationd</code> 结合自身扫描到的各信号源 RSSI 衰减模型，运行加权质心（Weighted Centroid）或多边测量滤波算法，在数毫秒内解算出当前设备的精准位置，并广播给请求定位的所有 App。</li>
+</ol>
+<h3 id="2-定位劫持的破局点">2. 定位劫持的破局点</h3>
+<p>这套设计蕴藏着一个绝妙的技术切入点：<strong><code>locationd</code> 并不在本地存储全球基站数据库，它极度依赖云端返回的参考系数据</strong>。</p>
+<p>如果我们在网络传输链路中进行中间人解密（MITM），拦截云端向 <code>locationd</code> 返回的 <code>/clls/wloc</code> 响应报文，将其中包含的每一个周边 Wi-Fi 热点和蜂窝基站的坐标，全部改写为我们期望的目标位置（例如将所有附近的路由器坐标强制修改为巴黎埃菲尔铁塔）：</p>
+<ul>
+<li><code>locationd</code> 在收到这份被篡改的响应后，基于经典物理测量逻辑，会判定当前设备周边的所有基站和 Wi-Fi 实际上全部聚集在巴黎；</li>
+<li>无论本地的算法怎么进行加权或多边解算，最终输出的设备坐标都将无一例外地收敛到目标经纬度上；</li>
+<li>更关键的是，这个计算结果由系统原生 <code>locationd</code> 确认并签发，所有调用苹果官方 <code>CoreLocation</code> API 的第三方 App（微信、高德、钉钉、美团、Tinder 等）都会透明接收到这个被改写的系统级 GPS 坐标！</li>
+</ul>
+<hr>
+<h2 id="二-协议逆向解剖-apple-wloc-封包的二进制骨架">二、 协议逆向：解剖 Apple WLOC 封包的二进制骨架</h2>
+<p>虽然理论逻辑清晰，但在实际落地中，苹果的 <code>/clls/wloc</code> 响应报文绝不是一个普普通通的 JSON 文本，而是一套经历了多次演化、嵌套深厚且高度紧凑的私有二进制结构。</p>
+<p>在深入研读 <code>iOS-Location-Spoofer-Web</code> 的核心驱动脚本 <code>location-spoofer.js</code> 时，我梳理出了其完整的二进制封包骨架：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Envelope [&quot;第一层：外层传输容器 (Envelope Framing)&quot;]
+        direction TB
+        E1[&quot;格式 A: 结构化 ARPC 容器 (Big-Endian Header + Pascal Strings)&quot;]
+        E2[&quot;格式 B: Synthetic 固定前缀 (0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00)&quot;]
+        E3[&quot;格式 C: Marker 签名特征 (0x00, 0x00, 0x00, 0x01, 0x00, 0x00)&quot;]
+        E4[&quot;格式 D: Bare 裸流 / 滑窗特征扫描兜底 (0~256 字节偏移量探测)&quot;]
+    end
+
+    subgraph ProtobufPayload [&quot;第二层：核心 Protobuf 负载 (WLOC Root Payload)&quot;]
+        direction TB
+        F2[&quot;Tag 2: Wi-Fi 实体集合 (Repeated Length-delimited)&quot;]
+        F22[&quot;Tag 22 / 24: 基站实体集合 (Repeated Length-delimited)&quot;]
+        FOther[&quot;Tag 3, 4, 33...: 服务端时间戳与环境元数据 (必须 100% 原样透传)&quot;]
+    end
+
+    subgraph LocationRecord [&quot;第三层：空间位置子消息 (Location Submessage)&quot;]
+        direction TB
+        L1[&quot;Field 1 (Varint): 纬度 = Math.round(lat * 1e8)&quot;]
+        L2[&quot;Field 2 (Varint): 经度 = Math.round(lon * 1e8)&quot;]
+        L3[&quot;Field 3 (Varint): 水平精度 (Horizontal Accuracy，默认 39m)&quot;]
+        L4[&quot;Field 4 / 5: 海拔与垂直精度&quot;]
+    end
+
+    Envelope --&gt; ProtobufPayload
+    F2 --&gt;|&quot;Submessage Field 2&quot;| LocationRecord
+    F22 --&gt;|&quot;Submessage Field 5&quot;| LocationRecord
+</code></pre>
+<h3 id="1-四类外层封包容器的识别">1. 四类外层封包容器的识别</h3>
+<p>苹果定位服务响应在外层会采用不同的封箱协议包裹内部的 Protobuf 数据流：</p>
+<ol>
+<li><strong>结构化 ARPC（Apple RPC）封包</strong>：苹果早期及部分特定系统组件采用的 RPC 格式，包含大端序（Big-Endian）的 16 位协议版本、以 Pascal 字符串形式存储的 Locale 区域、AppIdentifier 与 OS 版本号，以及 32 位的 Function ID 和 32 位有效载荷长度；</li>
+<li><strong>Synthetic 封包</strong>：以特定的 8 字节序列 <code>0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00</code> 开头，紧随其后的是 2 字节（UInt16）的大端序负载长度；</li>
+<li><strong>Marker 特征封包</strong>：报文中包含 <code>0x00, 0x00, 0x00, 0x01, 0x00, 0x00</code> 特征签名与 2 字节载荷长度；</li>
+<li><strong>Bare Protobuf 裸流</strong>：不包含任何私有头，直接以 Protobuf 的 Tag 字节打头。</li>
+</ol>
+<h3 id="2-protobuf-内层结构与经纬度定点化编码">2. Protobuf 内层结构与经纬度定点化编码</h3>
+<p>一旦将外层容器剥离，展现在面前的便是一串合法的 Google Protocol Buffers 二进制流。在 WLOC 根消息中：</p>
+<ul>
+<li><strong>Tag 2（Wire Type 2，Length-delimited）</strong>：代表周围扫描到的 Wi-Fi 列表。在每一个 Wi-Fi 消息内部，字段编号 2（Field 2）是一个内嵌的 <code>Location</code> 子消息；</li>
+<li><strong>Tag 22 与 Tag 24（Wire Type 2）</strong>：分别对应蜂窝网络中的 LTE/5G 与 GSM/CDMA 基站列表。在基站消息内部，字段编号 5（Field 5）是内嵌的 <code>Location</code> 子消息。</li>
+</ul>
+<p>而在最终的 <code>Location</code> 子消息内，经纬度的存储方式极其精妙 —— 它没有使用体积较大的 64 位双精度浮点数（Fixed64），而是采用了<strong>乘上 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>1</mn><msup><mn>0</mn><mn>8</mn></msup></mrow><annotation encoding="application/x-tex">10^8</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8141079999999999em;vertical-align:0em;"></span><span class="mord">1</span><span class="mord"><span class="mord">0</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">8</span></span></span></span></span></span></span></span></span></span></span> 的有符号 64 位定点整数（Signed Varint）</strong>：</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mtext>EncodedValue</mtext><mo>=</mo><mi mathvariant="normal">round</mi><mo>⁡</mo><mo>(</mo><mtext>Degrees</mtext><mo>×</mo><mn>100</mn><mtext> </mtext><mn>000</mn><mtext> </mtext><mn>000</mn><mo>)</mo></mrow><annotation encoding="application/x-tex">\text{EncodedValue} = \operatorname{round}(\text{Degrees} \times 100\,000\,000)
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.69444em;vertical-align:0em;"></span><span class="mord text"><span class="mord">EncodedValue</span></span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mop"><span class="mord mathrm">r</span><span class="mord mathrm">o</span><span class="mord mathrm">u</span><span class="mord mathrm">n</span><span class="mord mathrm">d</span></span><span class="mopen">(</span><span class="mord text"><span class="mord">Degrees</span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mord">0</span><span class="mord">0</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span><span class="mclose">)</span></span></span></span></span></p>
+<p>例如，北京天安门的纬度 <code>39.90872°</code> 经过放大后变为整数 <code>3990872000</code>，再转换为 Protobuf 的 Varint 变长字节流进行存储。这既能以极其微小的体积保留高达 8 位小数（分米级）的空间精度，又显著降低了序列化开销。</p>
+<hr>
+<h2 id="三-突破边界location-spooferjs-的四大工程创新">三、 突破边界：location-spoofer.js 的四大工程创新</h2>
+<p>在很多早期尝试通过代理改写 WLOC 的脚本中，经常会出现“在某些 iOS 版本上代理频繁崩溃”、“改写后地图出现跳跃闪烁”或“系统直接报错无定位”的问题。<code>iOS-Location-Spoofer-Web</code> 针对这些棘手痛点，在客户端改写模块中做出了极具深度的工程重构。</p>
+<h3 id="1-纯-js-64-位-varint-引擎斩断-bigint-依赖枷锁">1. 纯 JS 64 位 Varint 引擎：斩断 BigInt 依赖枷锁</h3>
+<p>在标准的 JavaScript 环境中，处理像 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mn>3990872000</mn></mrow><annotation encoding="application/x-tex">3990872000</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">3</span><span class="mord">9</span><span class="mord">9</span><span class="mord">0</span><span class="mord">8</span><span class="mord">7</span><span class="mord">2</span><span class="mord">0</span><span class="mord">0</span><span class="mord">0</span></span></span></span> 这样的大整数及其移位操作时，最自然的方案是使用 ES2020 引入的 <code>BigInt</code>。</p>
+<p>然而，在 iOS 平台的各代系统演进中，Shadowrocket 内部挂载的 JavaScriptCore 引擎在不同 iOS 大版本（尤其是 iOS 12 ~ iOS 14 老设备或特殊系统分支）下对 <code>BigInt</code> 的语法解析和内置方法支持极不均匀，极易因为语法不兼容导致脚本在加载阶段静默报错中断。</p>
+<p>作者在 <code>location-spoofer.js</code> 中构建了一套纯 JavaScript 的 64 位无符号与有符号 Varint 编解码器（<code>Varint64</code>）。它将一个 64 位长整数巧妙地拆解为两个 32 位的无符号字：<code>low</code>（低 32 位）和 <code>high</code>（高 32 位），完全依靠位运算（<code>&gt;&gt;&gt; 0</code>、<code>&gt;&gt;&gt; 7</code>、<code>&lt;&lt; 25</code>）和纯双精度算术（<code>UINT32_MOD = 4294967296</code>）完成补码转换与流式展开：</p>
+<pre><code class="language-javascript">// 零 BigInt 依赖的纯 JS 64 位有符号 Varint 拆解
+fromSigned: function (val) {
+  var num = Math.trunc(Number(val));
+  if (!Number.isFinite(num) || Math.abs(num) &gt; Varint64.MAX_SAFE) {
+    throw new Error(&quot;Invalid signed int64 value: &quot; + val);
+  }
+  if (num &gt;= 0) {
+    return Varint64.fromUnsigned(num);
+  }
+  // 负数求二进制补码运算 (Two's Complement)
+  var pos = Varint64.fromUnsigned(-num);
+  var low = (~pos.low + 1) &gt;&gt;&gt; 0;
+  var carry = low === 0 ? 1 : 0;
+  var high = (~pos.high + carry) &gt;&gt;&gt; 0;
+  return { low: low, high: high };
+}
+</code></pre>
+<p>这段实现使得脚本无论是在古老的 iPhone 6s（iOS 12）上，还是在最新的 iPhone 16 Pro（iOS 18+）上，都能以 100% 原生的确定性毫秒级运行。</p>
+<h3 id="2-wloc-最小改写策略minimal-rewrite消除指纹防封">2. WLOC 最小改写策略（Minimal Rewrite）：消除指纹防封</h3>
+<p>早期许多脚本采用“全量重建模式（Synthetic Rebuilding）”—— 在捕获到 WLOC 请求后，丢弃服务器下发的所有未知字段，强行手动拼接一个只有经纬度的极简响应包回传给系统。</p>
+<p>这种粗暴的做法在 iOS 16 及以后的系统中引发了灾难性的后果：苹果在 WLOC 根消息中悄然加入了校验字段、服务端时间戳令牌（Field 3、Field 4、Field 33 等）以及特定的基站配对特征。一旦将这些未知字段丢弃，<code>locationd</code> 会立刻检测到协议指纹破损，判定云端下发的数据遭遇重放攻击或数据损坏，从而直接触发回滚，转而强行读取纯硬件弱 GPS，导致改写彻底失效。</p>
+<p>本项目坚决贯彻了“<strong>WLOC 最小改写</strong>（Minimal Rewrite）”策略：</p>
+<ul>
+<li>全流程采用流式遍历，把原响应中的字段按 Tag 拆分成独立的切片；</li>
+<li>只有在命中了 Wi-Fi（Field 2）或基站（Field 22/24）内部的 <code>Location</code> 子消息，且该消息内真实存在经纬度 Varint 时，才将 Field 1（纬度）、Field 2（经度）和 Field 3（水平精度）换成目标字节；</li>
+<li>原始响应中的所有未知根级字段、设备上下文标识与安全特征令牌，<strong>一律 100% 原样保留并直通透传</strong>！</li>
+</ul>
+<pre><code class="language-javascript">function patchLocationRecord(locationBytes, config) {
+  if (!locationBytes || locationBytes.length === 0) return locationBytes;
+  var fields = ProtobufEngine.readFields(locationBytes);
+  var hasLat = false, hasLon = false;
+
+  for (var i = 0; i &lt; fields.length; i += 1) {
+    if (fields[i].fieldNumber === 1 &amp;&amp; fields[i].wireType === 0) hasLat = true;
+    if (fields[i].fieldNumber === 2 &amp;&amp; fields[i].wireType === 0) hasLon = true;
+  }
+  // 若无经纬度结构，原样放行，杜绝破坏非空间响应
+  if (!hasLat || !hasLon) return locationBytes;
+
+  var parts = [];
+  for (i = 0; i &lt; fields.length; i += 1) {
+    var f = fields[i];
+    if (f.fieldNumber === 1 &amp;&amp; f.wireType === 0) {
+      parts.push(ProtobufEngine.makeVarintField(1, coordToInt(config.latitude)));
+    } else if (f.fieldNumber === 2 &amp;&amp; f.wireType === 0) {
+      parts.push(ProtobufEngine.makeVarintField(2, coordToInt(config.longitude)));
+    } else if (f.fieldNumber === 3 &amp;&amp; f.wireType === 0) {
+      parts.push(ProtobufEngine.makeVarintField(3, config.horizontalAccuracy));
+    } else {
+      // 关键：海拔、置信度以及其他未知空间属性完整透传
+      parts.push(f.raw);
+    }
+  }
+  return ByteUtils.concat(parts);
+}
+</code></pre>
+<h3 id="3-滑窗特征扫描兜底sliding-window-fallback">3. 滑窗特征扫描兜底（Sliding Window Fallback）</h3>
+<p>苹果在不同的 iOS 测试版（Beta）或不同地区分发机制中，有时会动态调整前缀长度或插入数个字节的追踪标记。一旦外层的严格容器解析（ARPC / Synthetic / Marker）全部未命中，传统脚本就会束手无策。</p>
+<p>本项目内置了 <code>scanPatchRawBuffer</code> 滑窗探测机制：</p>
+<ul>
+<li>在报文的前 <code>0 ~ 256</code> 字节区间内以步长滑动，主动探测候选字节是否符合 Protobuf Tag 的结构特征（<code>looksLikeWlocPayload</code>）；</li>
+<li>一旦在某个偏移量处成功反序列化并完成 Wi-Fi/基站实体的命中，立刻封装成标准的 Synthetic 响应输出。这层自适应兜底使得整个劫持系统具备了跨越版本未知的强健韧性。</li>
+</ul>
+<h3 id="4-故障安全放行fail-open机制">4. 故障安全放行（Fail-Open）机制</h3>
+<p>在网络安全工程中，代理脚本最忌讳在异常时“卡死断网”。脚本明确遵循 <strong>Fail-Open（故障开放）</strong> 原则：</p>
+<ul>
+<li>无论网络超时、Protobuf 解析格式畸变还是服务端报错，只要捕获到无法处理的异常，代码一律以 <code>$done({})</code> 快速退场，将原始报文无损放行给系统；</li>
+<li>这一机制确保了即使遭遇极端特殊响应，用户的 iPhone 也绝不会遭遇无故断网或系统定位服务僵死的惨剧。</li>
+</ul>
+<hr>
+<h2 id="四-协同闭环从-serverless-架构到全栈地图交互">四、 协同闭环：从 Serverless 架构到全栈地图交互</h2>
+<p>仅有一个代理改写脚本是不够的。如果每次改个坐标都要打开电脑去改脚本里的经纬度参数，体验依然十分割裂。<code>iOS-Location-Spoofer-Web</code> 的另一大亮点，在于其构建了一套近乎零成本的<strong>单用户 Serverless 远程控制体系</strong>。</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    actor User as 用户 (iPhone / Safari PWA)
+    participant CF_Web as Cloudflare Pages (Web 面板)
+    participant CF_KV as Cloudflare Workers KV
+    participant SR as Shadowrocket (客户端代理)
+    participant LocD as iOS locationd (系统定位)
+
+    User-&gt;&gt;CF_Web: 1. 拖动地图准星选点，点击「锁定」
+    CF_Web-&gt;&gt;CF_KV: 2. POST /set (写入目标坐标到 SPOOFER_DATA)
+    Note over CF_KV: 存储 latitude, longitude, accuracy 等
+    User-&gt;&gt;LocD: 3. 隐私设置内重启定位服务 (刷新 locationd 缓存)
+    LocD-&gt;&gt;SR: 4. 向 Apple 发送 /clls/wloc 定位请求
+    SR-&gt;&gt;CF_KV: 5. 拦截响应触发 JS，GET /loc.json (拉取目标坐标)
+    CF_KV--&gt;&gt;SR: 返回目标经纬度
+    Note over SR: location-spoofer.js 最小改写 Protobuf
+    SR--&gt;&gt;LocD: 6. 返回篡改后的 WLOC 二进制响应
+    LocD--&gt;&gt;User: 7. 系统 GPS 坐标即刻生效！
+</code></pre>
+<h3 id="1-极简-serverless-边缘中枢">1. 极简 Serverless 边缘中枢</h3>
+<p>项目的后端完全基于 <strong>Cloudflare Pages + Functions + Workers KV</strong> 构建：</p>
+<ul>
+<li><strong>存储层（KV Namespace）</strong>：创建单个名为 <code>SPOOFER_DATA</code> 的键值对存储，存放当前的定位坐标（<code>loc</code>）与用户收藏夹数据（<code>favorites</code>）；</li>
+<li><strong>动态模块生成（<code>ios-location-spoofer.sgmodule.js</code>）</strong>：这是整个项目最亮眼的设计之一。用户在手机浏览器中打开部署好的 Pages 面板后，该函数会自动根据当前访问的 Host 域名和用户的 Token 参数，动态渲染并输出一份 Shadowrocket 专属的 <code>.sgmodule</code> 模块配置文件。用户只需在面板的设置中点击一键复制，粘贴进小火箭即可全自动完成规则绑定与订阅，<strong>彻底摆脱了手动编辑配置文件的痛苦</strong>；</li>
+<li><strong>配置同步 API（<code>loc.json.js</code> &amp; <code>set.js</code>）</strong>：提供低延迟的读写接口。Shadowrocket 拦截到 <code>/clls/wloc</code> 响应时，通过内置的 <code>$httpClient.get</code> 异步轮询 <code>loc.json</code>，实现毫秒级的跨端坐标动态下发。</li>
+</ul>
+<h3 id="2-消除-500-米偏差火星坐标系gcj-02与-wgs-84-无缝转换">2. 消除 500 米偏差：火星坐标系（GCJ-02）与 WGS-84 无缝转换</h3>
+<p>在国内进行地图应用开发，绕不开国家测绘局制定的火星坐标系（GCJ-02 加密偏移）。很多开发者在自制定位工具时常常发现：自己在高德地图上选了一个点，改写生效后地图上的小蓝点却莫名其妙偏离了 300 到 500 米。</p>
+<p>这是因为：</p>
+<ul>
+<li>国内高德底图的瓦片数据采用的是经过非线性偏移的 <strong>GCJ-02</strong> 坐标；</li>
+<li>而苹果的底层 <code>locationd</code> 以及国际 GPS 卫星信号统一使用标准的 <strong>WGS-84</strong> 椭球体坐标！</li>
+</ul>
+<p>前端面板（<code>index.html</code>）在底层完整集成了双向纠偏算法库（<code>GCJ</code>）：</p>
+<pre><code class="language-javascript">// 当用户在地图上移动准星时：
+function onMapMove() {
+  var c = map.getCenter();
+  // 若使用 CartoDB 或 Esri 卫星图，直接读取 WGS-84；若使用高德底图，执行 g2w 逆向解偏
+  var w = (currentLayer === 'osm' || currentLayer === 'esri') ? [c.lat, c.lng] : GCJ.g2w(c.lat, c.lng);
+  WGS = { lat: w[0], lng: w[1] };
+  updateBubble();
+  scheduleElevation();
+}
+</code></pre>
+<p>通过在前端视口渲染与物理保存之间设立一层透明的 <code>GCJ.g2w</code>（火星转大地）与 <code>GCJ.w2g</code>（大地转火星）隔离层，并设定 <code>0.000015°</code>（约 1.7 米）的浮点容差对齐，确保了无论在国际卫星底图还是国内高德街道图上，准星所指的位置与手机系统最终生效的位置达到像素级的绝对重合。</p>
+<h3 id="3-open-meteo-海拔自动测绘">3. Open-Meteo 海拔自动测绘</h3>
+<p>很多反作弊策略或高阶 LBS 应用（例如涉及无人机禁飞区、高差围栏等）会监测设备的 Altitude（海拔高度）。如果改写了经纬度却把海拔长期固定在 0 米，极易引起应用层的风控怀疑。</p>
+<p>面板巧妙地引入了 <code>Open-Meteo</code> 的公开地形测绘接口（<code>api.open-meteo.com/v1/elevation</code>）：</p>
+<ul>
+<li>只要用户在地图上滑动准星停顿超过 800ms（防抖触发）；</li>
+<li>前端自动向测绘 API 查询当前经纬度所在的地表真实海拔；</li>
+<li>自动将海拔值回填进高级参数面板中随坐标一同提交，使伪造出的三维地理信息无懈可击。</li>
+</ul>
+<hr>
+<h2 id="五-实操部署与踩坑全记录">五、 实操部署与踩坑全记录</h2>
+<p>为了验证该方案在真实环境下的可用度，我按照其官方架构将其完整部署并进行了深度实测。</p>
+<h3 id="1-部署架构清单">1. 部署架构清单</h3>
+<p>整个搭建过程可以在 5 分钟内零成本完成：</p>
+<ol>
+<li><strong>GitHub Fork 仓库</strong>：将代码 Fork 至个人 GitHub；</li>
+<li><strong>Cloudflare Pages 绑定</strong>：创建 Pages 项目，框架预设选择 <code>None</code>，构建命令填 <code>exit 0</code>，构建输出目录填 <code>public</code>；</li>
+<li><strong>注入环境变量</strong>：
+<ul>
+<li><code>TOKEN</code>：私有访问密码（用于面板鉴权防盗刷）；</li>
+<li><code>AMAP_KEY</code>（可选）：高德 Web 服务 Key，用于在国内快速搜索地名；</li>
+</ul>
+</li>
+<li><strong>绑定 KV</strong>：在 Pages 设置中将变量名 <code>SPOOFER_DATA</code> 绑定到之前新建的同名 Workers KV。</li>
+</ol>
+<h3 id="2-手机端联调四步法">2. 手机端联调四步法</h3>
+<p>在手机端的配置也极其优雅：</p>
+<ol>
+<li><strong>安装 PWA 面板</strong>：在 iPhone 的 Safari 中打开专属域名，输入 Token 进入，点击 Safari 底部的「分享」→「添加到主屏幕」。得益于对 <code>apple-mobile-web-app-capable</code> 和 <code>black-translucent</code> 状态栏的针对性适配，面板会全屏沉浸运行，外观与原生 App 毫无二致；</li>
+<li><strong>小火箭安装模块</strong>：点击面板右上角「设置」复制模块链接，在 Shadowrocket「配置」→「模块」中点击添加并开启；</li>
+<li><strong>信任根证书（关键步骤）</strong>：
+<ul>
+<li>在 Shadowrocket「HTTPS 解密」中开启中间人攻击（MitM）并生成 CA 证书；</li>
+<li>在 iPhone「设置」→「通用」→「VPN 与设备管理」中安装描述文件；</li>
+<li><strong>千万别漏了这一步</strong>：前往「设置」→「通用」→「关于本机」→「证书信任设置」，将刚安装的 Shadowrocket 根证书勾选为<strong>完全信任</strong>；</li>
+</ul>
+</li>
+<li><strong>验证生效与缓存刷新</strong>：
+<ul>
+<li>在 Web 面板上选定目标地点（例如杭州西湖），点击「锁定」；</li>
+<li>前往 iPhone <strong>「设置」→「隐私与安全」→「定位服务」，关闭总开关后等待约 10 秒钟，再重新开启</strong>（这一步至关重要，目的是强行清空 <code>locationd</code> 内部驻留的内存缓存）；</li>
+<li>打开高德地图、微信或 Apple 原生地图，此时当前位置瞬间瞬移到了西湖断桥之上！</li>
+</ul>
+</li>
+</ol>
+<blockquote>
+<p>[!TIP]<br>
+<strong>日常快速切换小窍门</strong>：在日常使用中换点时，无需重启 Shadowrocket，只需在面板上点击新位置并锁定，然后通过快捷指令或控制中心关闭/重开一下 Wi-Fi 与定位，系统位置便会自动完成重新解算。</p>
+</blockquote>
+<hr>
+<h2 id="六-架构边界与安全对抗反思">六、 架构边界与安全对抗反思</h2>
+<p>在为 <code>iOS-Location-Spoofer-Web</code> 巧妙的架构设计击节赞赏的同时，我们同样需要清醒地认识到系统级网络中间人方案的技术边界。</p>
+<pre><code class="language-mermaid">xychart-beta
+    title &quot;iOS 常见定位模拟方案能力矩阵量化对比 (满分 10 分)&quot;
+    x-axis [&quot;免电脑线缆&quot;, &quot;免越狱&quot;, &quot;多App通用&quot;, &quot;反作弊穿透&quot;, &quot;新版本兼容&quot;]
+    y-axis &quot;评分&quot; 0 --&gt; 10
+    bar [10, 10, 9, 7, 8]
+</code></pre>
+<h3 id="1-优势与局限性边界">1. 优势与局限性边界</h3>
+<p>将该方案与市面上的主流手段对比，其优势极其显著：</p>
+<ul>
+<li><strong>免线缆、免越狱、单人自建</strong>：摆脱了 Mac 和数据线的物理束缚，随时随地在手机端滑动选点；</li>
+<li><strong>系统级底层广播</strong>：由于篡改发生于 <code>locationd</code> 守护进程层，因此能够跨越几乎所有常规调用 <code>CoreLocation</code> 的 App。</li>
+</ul>
+<p>但它也有其固有的<strong>技术阿喀琉斯之踵</strong>：</p>
+<ol>
+<li><strong>强卫星信号露天场景</strong>：如果在完全开阔的操场或高速公路上，iPhone 能够稳定接收到 6 颗以上纯硬件 GNSS 卫星的直接射频信号时，<code>locationd</code> 会提高卫星解算的权重，此时系统定位可能会在真实卫星位置与 WLOC 篡改位置之间产生轻微跳动；</li>
+<li><strong>iOS 27+ 的安全暗礁（TLS Pinning）</strong>：正如项目作者在兼容性矩阵中所披露的，从 iOS 27 beta 6 开始，苹果在定位系统的核心组件中逐步启用了更为严苛的<strong>强证书固定</strong>（Certificate Pinning）机制，系统定位守护进程会忽略用户手动安装的第三方根证书。这意味着纯用户态的 MITM 方案正在逼近苹果防御壁垒的极限。</li>
+</ol>
+<h3 id="2-软件工程的道德准则">2. 软件工程的道德准则</h3>
+<p>最后，不得不提的是该开源项目的开源许可协议。作者在代码各处显著标注了 <strong>CC BY-NC-SA 4.0</strong> 协议，并发表了严厉的防倒卖声明。</p>
+<p>在国内二手交易平台与某些封闭灰产圈子中，经常有人将此类优秀的开源网络中间人脚本重新打包，冠以“独家防封打卡神器”的名头向普通用户收取数十乃至数百元的“代搭建费”。技术本身是中立且优雅的，它诞生于开发者对网络协议的好奇心与对自动化测试的追求；任何利用开源成果进行信息差牟利和欺诈的行为，不仅是对开源精神的肆意践踏，更给使用者带来了巨大的安全隐患。</p>
+<hr>
+<h2 id="结语">结语</h2>
+<p>从深入解析 Apple WLOC 的私有二进制封包，到用纯 JavaScript 巧妙实现 64 位 Varint 与流式 Protobuf 引擎；从火星坐标系与海拔测绘的前端无缝纠偏，到利用 Cloudflare Pages 构筑起毫秒级同步的 Serverless 边缘中枢 —— <code>iOS-Location-Spoofer-Web</code> 为我们展示了一场精彩绝伦的<strong>移动端协议逆向与前端工程物理学相融合的实战典范</strong>。</p>
+<p>对于每一位热衷于网络协议逆向、iOS 内部机制探索或现代 Web/Serverless 架构的开发者而言，这都是一份不可多得的、兼具理论深度与极高可玩性的高保真代码样本。</p>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>iOS-Location-Spoofer-Web 官方开源仓库</strong>：<a href="https://github.com/akudamatata/iOS-Location-Spoofer-Web">akudamatata/iOS-Location-Spoofer-Web</a></li>
+<li><strong>Creative Commons 知识共享许可协议</strong>：<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0 官方说明</a></li>
+<li><strong>Apple CoreLocation 官方开发者文档</strong>：<a href="https://developer.apple.com/documentation/corelocation">Apple Developer Documentation - Core Location</a></li>
+<li><strong>Open-Meteo 免费开源海拔地形 API</strong>：<a href="https://open-meteo.com/en/docs/elevation-api">open-meteo.com/en/docs/elevation-api</a></li>
+<li><strong>Leaflet 现代交互式地图库</strong>：<a href="https://leafletjs.com/">leafletjs.com</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-ios-%E7%B3%BB%E7%BB%9F%E5%AE%9A%E4%BD%8D%E6%98%AF%E5%A6%82%E4%BD%95%E5%B7%A5%E4%BD%9C%E7%9A%84wloc-%E7%9A%84%E9%98%BF%E5%96%80%E7%90%89%E6%96%AF%E4%B9%8B%E8%B8%B5">一、 iOS 系统定位是如何工作的？WLOC 的阿喀琉斯之踵</a>
+<ul>
+<li><a href="#1-wi-fi-%E4%B8%8E%E5%9F%BA%E7%AB%99%E8%81%94%E5%90%88%E5%AE%9A%E4%BD%8D%E7%9A%84%E9%80%9A%E4%BF%A1%E9%93%BE%E8%B7%AF">1. Wi-Fi 与基站联合定位的通信链路</a></li>
+<li><a href="#2-%E5%AE%9A%E4%BD%8D%E5%8A%AB%E6%8C%81%E7%9A%84%E7%A0%B4%E5%B1%80%E7%82%B9">2. 定位劫持的破局点</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%8C-%E5%8D%8F%E8%AE%AE%E9%80%86%E5%90%91%E8%A7%A3%E5%89%96-apple-wloc-%E5%B0%81%E5%8C%85%E7%9A%84%E4%BA%8C%E8%BF%9B%E5%88%B6%E9%AA%A8%E6%9E%B6">二、 协议逆向：解剖 Apple WLOC 封包的二进制骨架</a>
+<ul>
+<li><a href="#1-%E5%9B%9B%E7%B1%BB%E5%A4%96%E5%B1%82%E5%B0%81%E5%8C%85%E5%AE%B9%E5%99%A8%E7%9A%84%E8%AF%86%E5%88%AB">1. 四类外层封包容器的识别</a></li>
+<li><a href="#2-protobuf-%E5%86%85%E5%B1%82%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BB%8F%E7%BA%AC%E5%BA%A6%E5%AE%9A%E7%82%B9%E5%8C%96%E7%BC%96%E7%A0%81">2. Protobuf 内层结构与经纬度定点化编码</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-%E7%AA%81%E7%A0%B4%E8%BE%B9%E7%95%8Clocation-spooferjs-%E7%9A%84%E5%9B%9B%E5%A4%A7%E5%B7%A5%E7%A8%8B%E5%88%9B%E6%96%B0">三、 突破边界：location-spoofer.js 的四大工程创新</a>
+<ul>
+<li><a href="#1-%E7%BA%AF-js-64-%E4%BD%8D-varint-%E5%BC%95%E6%93%8E%E6%96%A9%E6%96%AD-bigint-%E4%BE%9D%E8%B5%96%E6%9E%B7%E9%94%81">1. 纯 JS 64 位 Varint 引擎：斩断 BigInt 依赖枷锁</a></li>
+<li><a href="#2-wloc-%E6%9C%80%E5%B0%8F%E6%94%B9%E5%86%99%E7%AD%96%E7%95%A5minimal-rewrite%E6%B6%88%E9%99%A4%E6%8C%87%E7%BA%B9%E9%98%B2%E5%B0%81">2. WLOC 最小改写策略（Minimal Rewrite）：消除指纹防封</a></li>
+<li><a href="#3-%E6%BB%91%E7%AA%97%E7%89%B9%E5%BE%81%E6%89%AB%E6%8F%8F%E5%85%9C%E5%BA%95sliding-window-fallback">3. 滑窗特征扫描兜底（Sliding Window Fallback）</a></li>
+<li><a href="#4-%E6%95%85%E9%9A%9C%E5%AE%89%E5%85%A8%E6%94%BE%E8%A1%8Cfail-open%E6%9C%BA%E5%88%B6">4. 故障安全放行（Fail-Open）机制</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E5%8D%8F%E5%90%8C%E9%97%AD%E7%8E%AF%E4%BB%8E-serverless-%E6%9E%B6%E6%9E%84%E5%88%B0%E5%85%A8%E6%A0%88%E5%9C%B0%E5%9B%BE%E4%BA%A4%E4%BA%92">四、 协同闭环：从 Serverless 架构到全栈地图交互</a>
+<ul>
+<li><a href="#1-%E6%9E%81%E7%AE%80-serverless-%E8%BE%B9%E7%BC%98%E4%B8%AD%E6%9E%A2">1. 极简 Serverless 边缘中枢</a></li>
+<li><a href="#2-%E6%B6%88%E9%99%A4-500-%E7%B1%B3%E5%81%8F%E5%B7%AE%E7%81%AB%E6%98%9F%E5%9D%90%E6%A0%87%E7%B3%BBgcj-02%E4%B8%8E-wgs-84-%E6%97%A0%E7%BC%9D%E8%BD%AC%E6%8D%A2">2. 消除 500 米偏差：火星坐标系（GCJ-02）与 WGS-84 无缝转换</a></li>
+<li><a href="#3-open-meteo-%E6%B5%B7%E6%8B%94%E8%87%AA%E5%8A%A8%E6%B5%8B%E7%BB%98">3. Open-Meteo 海拔自动测绘</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%94-%E5%AE%9E%E6%93%8D%E9%83%A8%E7%BD%B2%E4%B8%8E%E8%B8%A9%E5%9D%91%E5%85%A8%E8%AE%B0%E5%BD%95">五、 实操部署与踩坑全记录</a>
+<ul>
+<li><a href="#1-%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84%E6%B8%85%E5%8D%95">1. 部署架构清单</a></li>
+<li><a href="#2-%E6%89%8B%E6%9C%BA%E7%AB%AF%E8%81%94%E8%B0%83%E5%9B%9B%E6%AD%A5%E6%B3%95">2. 手机端联调四步法</a></li>
+</ul>
+</li>
+<li><a href="#%E5%85%AD-%E6%9E%B6%E6%9E%84%E8%BE%B9%E7%95%8C%E4%B8%8E%E5%AE%89%E5%85%A8%E5%AF%B9%E6%8A%97%E5%8F%8D%E6%80%9D">六、 架构边界与安全对抗反思</a>
+<ul>
+<li><a href="#1-%E4%BC%98%E5%8A%BF%E4%B8%8E%E5%B1%80%E9%99%90%E6%80%A7%E8%BE%B9%E7%95%8C">1. 优势与局限性边界</a></li>
+<li><a href="#2-%E8%BD%AF%E4%BB%B6%E5%B7%A5%E7%A8%8B%E7%9A%84%E9%81%93%E5%BE%B7%E5%87%86%E5%88%99">2. 软件工程的道德准则</a></li>
+</ul>
+</li>
+<li><a href="#%E7%BB%93%E8%AF%AD">结语</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/longbridge-nsh-rust-native-ui-framework/">
+              <h3 class="post-title">
+                从金融级高频到跨端原生：长桥开源 NSH 如何用 Rust 重构全平台 UI 与动态沙箱
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+    </script>
+  </body>
+</html>

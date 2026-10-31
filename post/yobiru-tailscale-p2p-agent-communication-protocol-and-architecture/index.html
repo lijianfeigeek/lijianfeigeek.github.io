@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>让跨端 Agent 在私有内网直接对话：基于 Tailscale 的 Yobiru 点对点协议、拉取式附件握手机制与 Codex 常驻桥接实录 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1793449651176">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="让跨端 Agent 在私有内网直接对话：基于 Tailscale 的 Yobiru 点对点协议、拉取式附件握手机制与 Codex 常驻桥接实录 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/yobiru-tailscale-p2p-agent-communication-protocol-and-architecture/">
+    <meta name="description" content="当我在日常研发中同时启用多个个人 AI Agent 时，最消耗精力的往往不是提示词调优，而是充当不同机器之间的“人形剪贴板”——云端工作站上的 Grok Bot 负责实时抓取 X 社区的故障反馈并整理出 signals.json，家里的 M..." />
+    <meta name="keywords" content="点对点通信,开源拆解,安全沙箱,Tailscale,系统架构,Codex,AI Agent" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="让跨端 Agent 在私有内网直接对话：基于 Tailscale 的 Yobiru 点对点协议、拉取式附件握手机制与 Codex 常驻桥接实录">
+    <meta property="og:description" content="当我在日常研发中同时启用多个个人 AI Agent 时，最消耗精力的往往不是提示词调优，而是充当不同机器之间的“人形剪贴板”——云端工作站上的 Grok Bot 负责实时抓取 X 社区的故障反馈并整理出 signals.json，家里的 M...">
+    <meta property="og:url" content="https://lijianfei.com/post/yobiru-tailscale-p2p-agent-communication-protocol-and-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/yobiru-tailscale-p2p-agent-communication-protocol-and-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-10-16T02:30:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="点对点通信">
+    
+    <meta property="article:tag" content="开源拆解">
+    
+    <meta property="article:tag" content="安全沙箱">
+    
+    <meta property="article:tag" content="Tailscale">
+    
+    <meta property="article:tag" content="系统架构">
+    
+    <meta property="article:tag" content="Codex">
+    
+    <meta property="article:tag" content="AI Agent">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="让跨端 Agent 在私有内网直接对话：基于 Tailscale 的 Yobiru 点对点协议、拉取式附件握手机制与 Codex 常驻桥接实录">
+    <meta name="twitter:description" content="当我在日常研发中同时启用多个个人 AI Agent 时，最消耗精力的往往不是提示词调优，而是充当不同机器之间的“人形剪贴板”——云端工作站上的 Grok Bot 负责实时抓取 X 社区的故障反馈并整理出 signals.json，家里的 M...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/yobiru-tailscale-p2p-agent-communication-protocol-and-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "让跨端 Agent 在私有内网直接对话：基于 Tailscale 的 Yobiru 点对点协议、拉取式附件握手机制与 Codex 常驻桥接实录",
+      "description": "当我在日常研发中同时启用多个个人 AI Agent 时，最消耗精力的往往不是提示词调优，而是充当不同机器之间的“人形剪贴板”——云端工作站上的 Grok Bot 负责实时抓取 X 社区的故障反馈并整理出 signals.json，家里的 M...",
+      "image": "https://lijianfei.com/post-images/yobiru-tailscale-p2p-agent-communication-protocol-and-architecture.png",
+      "datePublished": "2026-10-16T02:30:00.000Z",
+      "dateModified": "2026-10-16T02:30:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/yobiru-tailscale-p2p-agent-communication-protocol-and-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "点对点通信",
+          "item": "https://lijianfei.com/tag/dian-dui-dian-tong-xin/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "让跨端 Agent 在私有内网直接对话：基于 Tailscale 的 Yobiru 点对点协议、拉取式附件握手机制与 Codex 常驻桥接实录",
+          "item": "https://lijianfei.com/post/yobiru-tailscale-p2p-agent-communication-protocol-and-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1793449651176" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              让跨端 Agent 在私有内网直接对话：基于 Tailscale 的 Yobiru 点对点协议、拉取式附件握手机制与 Codex 常驻桥接实录
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-10-16
+              </span>
+              <span>
+                41 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/dian-dui-dian-tong-xin/" class="post-tag">
+                  # 点对点通信
+                </a>
+              
+                <a href="https://lijianfei.com/tag/kai-yuan-chai-jie/" class="post-tag">
+                  # 开源拆解
+                </a>
+              
+                <a href="https://lijianfei.com/tag/an-quan-sha-xiang/" class="post-tag">
+                  # 安全沙箱
+                </a>
+              
+                <a href="https://lijianfei.com/tag/tailscale/" class="post-tag">
+                  # Tailscale
+                </a>
+              
+                <a href="https://lijianfei.com/tag/xi-tong-jia-gou/" class="post-tag">
+                  # 系统架构
+                </a>
+              
+                <a href="https://lijianfei.com/tag/codex/" class="post-tag">
+                  # Codex
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ai-agent/" class="post-tag">
+                  # AI Agent
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/yobiru-tailscale-p2p-agent-communication-protocol-and-architecture.png" alt="让跨端 Agent 在私有内网直接对话：基于 Tailscale 的 Yobiru 点对点协议、拉取式附件握手机制与 Codex 常驻桥接实录" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>当我在日常研发中同时启用多个个人 AI Agent 时，最消耗精力的往往不是提示词调优，而是充当不同机器之间的“人形剪贴板”——云端工作站上的 Grok Bot 负责实时抓取 X 社区的故障反馈并整理出 <code>signals.json</code>，家里的 MacBook Pro 运行着 Codex 桌面端负责维护本地工程上下文，而远端 Linux 高性能服务器上还跑着一个 <code>codex app-server</code> 负责跑重型回归测试。过去要让这三个分布在不同物理环境里的 Agent 协同排查一个 Bug，我必须在三个窗口之间反复复制 JSON、手动上传日志、盯着终端等待回执。如果引入第三方中心化云中继服务或直接打通免密远程 Shell，又会瞬间击穿私有代码库与本地凭证的安全边界。</p>
+<p>近期在 GitHub 上引起广泛关注的开源项目 <strong>Yobiru</strong>（ヨビル，<code>chekusu/yobiru</code>），给出了一套极为克制且硬核的系统工程解法：它完全抛弃了中心服务器、专属账号体系与重型 MCP 服务端，仅凭 <strong>3,700 余行零第三方依赖的 Python 3.8+ 标准库代码</strong>，在用户自有的 <strong>Tailscale</strong> 加密虚拟组网（Tailnet）之上构建了点对点的 <code>tailmsg</code> v1 通信层。我将整个 <code>yobiru</code> 0.5.1 源码树拉取到本机进行了完整的架构逆向与单元套件实测，从 <code>tailscale whois</code> 四步零信任鉴权、32 字节不可猜测 Token 的拉取式附件协议、<code>request-lifecycle-v1</code> 双 SQLite 账本状态机，一直到 Linux 下手写 RFC 6455 <code>AF_UNIX</code> WebSocket 守护线程与 <code>workspace-write</code> 最小沙箱权限围栏，在此做一次深度的工程复盘。</p>
+<!-- more -->
+<hr>
+<h2 id="一-为什么跨端-agent-协同不需要中心云yobiru-拓扑与核心组件全景">一、为什么跨端 Agent 协同不需要中心云？（Yobiru 拓扑与核心组件全景）</h2>
+<p>在审视 Yobiru 的源码之前，我先梳理它解决的核心架构矛盾：<strong>为什么现有的多 Agent 框架（如基于云端消息队列或公网 Webhook 的编排器）难以直接用于个人跨端开发环境？</strong></p>
+<ol>
+<li><strong>网络穿透与身份伪造困境</strong>：个人开发者的 MacBook 处于家庭 NAT 后方，Linux 编译机位于私有 VPC，而 Grok Bot 运行在隔离的云端容器内。如果暴露公网端口，必须自行维护 TLS 证书与鉴权 Token；若把 Token 写进 Agent 上下文，极易因提示词注入（Prompt Injection）导致密钥外泄。</li>
+<li><strong>文件传输的存储与合规负担</strong>：Agent 之间传递 <code>brief.md</code>、构建日志或数兆字节的抓包产物时，若经过第三方对象存储中转，不仅增加额外的云端托管风险，还会面临附件残留与权限失控。</li>
+<li><strong>“消息送达”与“任务执行”的语义混淆</strong>：普通聊天机器人收到 HTTP <code>200</code> 就默认对方已处理，但在异步 Agent 协作中，网络落盘、唤醒适配器触发、模型开始推理、子任务因为缺少沙箱权限被阻塞（<code>blocked</code>），是四个完全独立的生命周期阶段。</li>
+</ol>
+<figure data-type="image" tabindex="1"><img src="https://lijianfei.com/post-images/yobiru-multi-agent-tailscale-demo.png" alt="Yobiru 跨端 Agent（Grok Bot、DOTS 与 Codex）基于 Tailscale 协同的概念交互图" loading="lazy"></figure>
+<p>Yobiru 的核心哲学是“<strong>网络身份归 Tailscale，文件存储归本机，执行授权归宿主</strong>”。它利用每台设备已登录的 Tailscale 节点身份（<code>100.64.0.0/10</code> 或 <code>fd7a:115c:a1e0::/48</code>），在每台机器的 <code>tcp:7766</code> 端口启动一个极简的 <code>tailmsg.py serve</code> 接收端。我将整套跨端通信、生命周期记账与本地唤醒桥接的完整拓扑绘制如下：</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph SenderNode [&quot;发件端节点 (如 Grok Bot 云工作站 / 家用 Mac)&quot;]
+        S_Agent[&quot;发件 Agent 会话&lt;br/&gt;调用 yobiru-send 技能&quot;] --&gt; S_CLI[&quot;yobiru CLI / tailmsg.py&lt;br/&gt;读取 tailscale status 实时解析目标 IP&quot;]
+        S_CLI --&gt; S_Outbox[&quot;本机暂存区 ~/.tailmsg/outbox/&amp;lt;token&amp;gt;/&lt;br/&gt;生成 32 字节随机 Token 与 24h 过期 meta.json&quot;]
+        S_CLI --&gt; S_Ledger[&quot;发件端账本 requests/ledger.sqlite3&lt;br/&gt;预写 outgoing 请求与截止时间 deadline&quot;]
+    end
+
+    subgraph Tailnet [&quot;Tailscale 加密点对点网格 (WireGuard / 100.64.0.0/10)&quot;]
+        S_CLI ==&gt;|&quot;1. POST /msg (JSON 信封 &lt;= 256KiB)&quot;| R_HTTP
+        R_Fetch[&quot;收件端 tailmsg fetch&quot;] ==&gt;|&quot;4. GET /f/&amp;lt;token&amp;gt;/&amp;lt;name&amp;gt; (流式拉取 + SHA-256 校验)&quot;| S_Outbox
+        R_OutboxQ[&quot;响应重投队列 response_outbox&quot;] -.-&gt;|&quot;5. 异步回传 request-receipt / request-result&quot;| S_Ledger
+    end
+
+    subgraph ReceiverNode [&quot;收件端节点 (如 Linux 开发机 tcp:7766)&quot;]
+        R_HTTP[&quot;ThreadingHTTPServer (tailmsg.py serve)&lt;br/&gt;校验源 IP -&gt; tailscale whois -&gt; 访问策略 -&gt; 防冒名&quot;] --&gt; R_InLedger[&quot;收件端账本 requests/ledger.sqlite3&lt;br/&gt;BEGIN IMMEDIATE 落盘并入队 received 回执&quot;]
+        R_InLedger --&gt; R_Inbox[&quot;原子落盘 ~/.tailmsg/inbox/&amp;lt;id&amp;gt;.json&lt;br/&gt;经过 5 级单向漏斗计算有效唤醒级别 effective wake&quot;]
+        R_Inbox --&gt;|&quot;2. effective == now&quot;| R_Bridge[&quot;codex_bridge.py / 唤醒适配器&lt;br/&gt;检查 excluded_kinds 与 allow_replies 门控&quot;]
+        R_Bridge --&gt; R_SQLite[&quot;桥接去重队列 bridge.sqlite3&lt;br/&gt;按 now 优先与收件时间戳排序&quot;]
+        R_SQLite --&gt;|&quot;3. codex queue --thread UUID&quot;| R_Codex[&quot;固定入口 Codex 会话 (由 codex_resident.py 保活)&lt;br/&gt;读取本地 inbox、执行或派生任务、写回最终状态&quot;]
+        R_Codex --&gt; R_Fetch
+        R_Codex --&gt; R_OutboxQ
+    end
+
+    style SenderNode fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff
+    style Tailnet fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff
+    style ReceiverNode fill:#312e81,stroke:#8b5cf6,stroke-width:2px,color:#fff
+</code></pre>
+<h3 id="核心源码模块与测试完备度分布">核心源码模块与测试完备度分布</h3>
+<p>在检视代码仓库时，最令我赞叹的是其<strong>工程自律性</strong>：核心生产代码共 3,992 行，完全基于 Python 标准库（<code>http.server</code>、<code>sqlite3</code>、<code>socket</code>、<code>selectors</code>、<code>fcntl</code>、<code>hashlib</code>、<code>urllib</code>）编写，不需要 <code>pip install</code> 任何外部包；而配套的自动化回归测试代码竟然高达 5,500 余行（包含 228 个插件与协议测试 + 146 个桥接与常驻守护测试，总计 <strong>374 个测试用例</strong>）！</p>
+<pre><code class="language-mermaid">xychart-beta
+    title &quot;Yobiru 0.5.1 核心模块与自动化测试套件代码行数分布 (单位: 行)&quot;
+    x-axis [&quot;核心协议层&quot;, &quot;常驻桥接层&quot;, &quot;平台安装器&quot;, &quot;构建打包器&quot;, &quot;客户端队列&quot;, &quot;常驻套接字&quot;, &quot;插件测试集&quot;, &quot;桥接测试集&quot;]
+    y-axis &quot;Python 源码行数 (LOC)&quot; 0 --&gt; 3200
+    bar [2029, 624, 733, 592, 349, 266, 3165, 2335]
+</code></pre>
+<p>我将仓库中各核心文件的职责边界、持久化状态载体与关键安全机制整理如下表：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">源码文件 / 模块</th>
+<th style="text-align:left">代码体量</th>
+<th style="text-align:left">核心架构职责</th>
+<th style="text-align:left">持久化状态与关键工程机制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>tailmsg.py</code></td>
+<td style="text-align:left">2,029 行</td>
+<td style="text-align:left"><code>tailmsg</code> v1 协议守护进程、CLI、节点解析、发现接口与请求生命周期引擎</td>
+<td style="text-align:left">管理 <code>~/.tailmsg/config.json</code>、<code>inbox/</code>、<code>outbox/</code> 及 WAL 模式的 <code>requests/ledger.sqlite3</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>codex_bridge.py</code></td>
+<td style="text-align:left">624 行</td>
+<td style="text-align:left">本地唤醒适配器与持久化去重调度队列，支持按消息 <code>kind</code> 分流外部处理器</td>
+<td style="text-align:left">管理 <code>~/.tailmsg/codex-bridge/bridge.sqlite3</code>、<code>dispatch.lock</code>、<code>daemon.lock</code> 与 <code>RECEIVER_MARGIN</code> 超时围栏</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>codex_queue_client.py</code></td>
+<td style="text-align:left">349 行</td>
+<td style="text-align:left">封装官方 <code>codex queue</code> 投递通道与只读 <code>app-server --listen stdio://</code> 对账客户端</td>
+<td style="text-align:left">严格校验同用户 <code>AF_UNIX</code> 套接字权限，扫描用户消息中的 <code>[TAILMSG:&lt;id&gt;]</code> 标记实现 <code>uncertain</code> 对账</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>codex_resident.py</code></td>
+<td style="text-align:left">266 行</td>
+<td style="text-align:left">纯标准库手写 RFC 6455 <code>UnixWebSocket</code> 与 <code>ResidentDispatcher</code> 线程保活器</td>
+<td style="text-align:left">持续维持 <code>initialize</code> -&gt; <code>thread/resume</code> 订阅，5 秒更新 <code>resident.json</code> 心跳，10 秒发送 WebSocket Ping</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>install_codex_bridge*.py</code></td>
+<td style="text-align:left">733 行</td>
+<td style="text-align:left">macOS (<code>LaunchAgent</code>) 与 Linux (<code>systemd --user</code>) 桥接安装、升级与原子回滚器</td>
+<td style="text-align:left">强制锁定单一入口会话 UUID、固定 <code>codex_home</code> 账户路径，回滚时严格执行 Fail-Closed 停服校验</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>tools/build_plugin.py</code></td>
+<td style="text-align:left">592 行</td>
+<td style="text-align:left">跨宿主插件打包器（同时生成 Agent Plugins 1.0.0、Codex、Cursor 与 OpenAI 桌面清单）</td>
+<td style="text-align:left">生成逐字节可重现（Byte-for-byte Reproducible）的发布 ZIP 包与 <code>SHA256SUMS</code>，内置隐私标识符扫描</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>plugins/yobiru/skills/*</code></td>
+<td style="text-align:left">7 个技能</td>
+<td style="text-align:left">面向 Agent 的标准技能包：<code>setup</code>、<code>grok-bot</code>、<code>sessions</code>、<code>send</code>、<code>inbox</code>、<code>wake</code>、<code>upgrade</code></td>
+<td style="text-align:left">零安装钩子（No Install Hook），所有配置变更默认预览（Dry-run），必须显式带 <code>--apply</code> 才落盘</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="二-tailmsg-协议-v1-深度解剖四层零信任鉴权-拉取式附件与唤醒降级状态机">二、<code>tailmsg</code> 协议 v1 深度解剖：四层零信任鉴权、拉取式附件与唤醒降级状态机</h2>
+<p>许多轻量级点对点工具为了图省事，往往直接监听 <code>0.0.0.0</code> 并靠一个静态 Shared Secret 鉴权。一旦某个 Agent 会话被恶意网页或外部文档注入，攻击者就能轻易窃取 Secret 并向内网所有 Agent 广播恶意指令。</p>
+<p>我在精读 <code>tailmsg.py</code> 的 <code>make_handler</code> 与 <code>Ctx</code> 实现后发现，Yobiru 在传输层构建了一套极其严密的防线。</p>
+<h3 id="1-基于-tailscale-whois-localapi-的四步防冒名鉴权链路">1. 基于 <code>tailscale whois</code> LocalAPI 的四步防冒名鉴权链路</h3>
+<p>当收件端的 <code>ThreadingHTTPServer</code>（默认仅绑定本机 Tailscale IPv4 地址与 <code>7766</code> 端口）收到任何请求时，必须依次通过以下四道关卡：</p>
+<ol>
+<li><strong>Cidr 网段硬过滤（<code>is_tailnet_ip</code>）</strong>：<br>
+首先利用 <code>ipaddress.ip_network</code> 校验 TCP 连接的 <code>client_address[0]</code> 是否严格落在 Tailscale 保留的 CGNAT 网段 <code>100.64.0.0/10</code> 或 IPv6 ULA 网段 <code>fd7a:115c:a1e0::/48</code> 内（自动剥离 IPv6 作用域后缀与 IPv4-mapped 包装）。非 Tailnet 流量直接返回 <code>HTTP 403</code>。</li>
+<li><strong>Tailscale LocalAPI 实时身份反查（<code>Ctx.whois</code>）</strong>：<br>
+绝不相信 HTTP Header 或 JSON 信封里的自称身份，而是直接调用本机 <code>tailscale whois --json &lt;IP&gt;</code> 查询对端在控制平面注册的真实节点全名（<code>Node.Name</code>）、主机名（<code>Hostinfo.Hostname</code>）、设备标签（<code>Tags</code>）以及所属用户邮箱（<code>UserProfile.LoginName</code>），并在内存中设置 60 秒 TTL 缓存以兼顾吞吐性能。</li>
+<li><strong>热重载访问策略判定（<code>access_decision</code>）</strong>：<br>
+Yobiru 0.4+ 引入了双模式访问控制，且<strong>每次鉴权时实时重读 <code>config.json</code> 的策略字段，修改权限无需重启接收服务</strong>：
+<ul>
+<li><strong><code>deny</code> 规则绝对优先</strong>：支持按短主机名、完整 FQDN、<code>tag:&lt;标签名&gt;</code> 或 <code>user:&lt;邮箱&gt;</code> 匹配，一旦命中立即返回 <code>403</code>；</li>
+<li><strong><code>tailnet</code> 模式（新安装默认）</strong>：只要通过 <code>tailscale whois</code> 校验且未被 <code>deny</code> 拦截的同网节点即可通信，省去了逐台机器维护白名单的繁琐；</li>
+<li><strong><code>allowlist</code> 模式（旧配置自动保留）</strong>：升级时绝不静默扩权，若既有 <code>config.json</code> 包含 <code>allow</code> 字段，则自动维持严格白名单模式。</li>
+</ul>
+</li>
+<li><strong>信封发送方与网络身份强绑定（Anti-Spoofing）</strong>：<br>
+在 <code>do_POST</code> 第 935 行，代码强制比对 <code>env[&quot;from&quot;].lower().rstrip(&quot;.&quot;) != ident[&quot;node&quot;]</code>——如果信封里声明的 <code>from</code> 与 <code>tailscale whois</code> 查出的真实节点 FQDN 不一致，立即以 <code>403 'from' does not match tailscale identity</code> 拒收；同时落盘到 <code>inbox/&lt;id&gt;.json</code> 时，将 <code>whois</code> 认证结果独立保存在顶层 <code>received.peer</code> 字段中，供下游 Agent 审计。</li>
+</ol>
+<h3 id="2-云容器重装后的智能主机名消歧select_peer">2. 云容器重装后的智能主机名消歧（<code>select_peer</code>）</h3>
+<p>在 Grok Bot 或云端开发机场景下，最头疼的问题是<strong>容器重建（Rebuild）导致 IP 漂移与幽灵离线节点</strong>。当云端 VM 重建并重新登录 Tailscale 后，Tailscale 列表里往往会同时残留一个同名的旧离线节点（如 <code>bot-box-1</code> 离线，<code>bot-box-2</code> 在线，但两者的 <code>HostName</code> 都叫 <code>bot-box</code>）。</p>
+<p>我在 <code>tailmsg.py</code> 第 100~133 行的 <code>select_peer</code> 函数中看到了极其考究的消歧逻辑：</p>
+<ul>
+<li><strong>绝不按列表顺序盲选，也绝不暴利剥离数字后缀</strong>；</li>
+<li>当使用短名称（如 <code>bot-box/grok</code>）发信时，每次发送前实时读取 <code>tailscale status --json</code>。如果匹配到多个同名节点，代码会执行 <code>[n for n in matches if n.get(&quot;online&quot;) is True] or matches</code>——即<strong>当且仅当存在唯一在线节点时，自动优先路由到该在线节点，忽略旧的离线尸体</strong>；</li>
+<li>如果同时有两个同名节点在线，或者全部离线且有多个匹配，立即抛出 <code>ValueError(&quot;ambiguous peer...&quot;)</code> 拒绝发送，防止把敏感代码或文件误发给错误的机器；</li>
+<li>而对于回复（<code>reply</code>）、既有文件下载授权（File Grants）以及排队中的升级通知，则严格锁定原始的完整 FQDN，绝不因短名重解析而将历史会话转移给新机器。</li>
+</ul>
+<h3 id="3-信封与本体分离32-字节-token-拉取式附件与防-ssrf-设计">3. 信封与本体分离：32 字节 Token 拉取式附件与防 SSRF 设计</h3>
+<p>为什么 <code>tailmsg</code> 协议规定 <code>POST /msg</code> 的 JSON 信封上限仅为 <code>256 KiB</code>（<code>max_msg_bytes = 262144</code>），且严禁在信封内直接塞入 Base64 文件内容？</p>
+<p>因为如果允许向接收端直接 POST 数百兆的大文件，任何一个对端 Agent 都能轻易打满接收端的磁盘或阻塞 HTTP 线程池。Yobiru 采用了精妙的“<strong>发件端快照暂存 + 收件端按需校验拉取</strong>”握手机制：</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant Sender as 发件端 Agent (agent-laptop/codex)
+    participant S_Serve as 发件端 tailmsg serve (:7766)
+    participant R_Serve as 收件端 tailmsg serve (:7766)
+    participant Receiver as 收件端 Agent (research-node/grok)
+
+    Note over Sender,S_Serve: 1. 本地文件快照与授权绑定
+    Sender-&gt;&gt;S_Serve: 执行 request send --file ./brief.md
+    S_Serve-&gt;&gt;S_Serve: 生成 32 字节不可猜测 Token (secrets.token_urlsafe)&lt;br/&gt;将文件复制至 outbox/{token}/files/brief.md (防源文件后续篡改)&lt;br/&gt;写入 meta.json (绑定 to=&quot;research-node...&quot;, expires=+24h, sha256, size)
+    Sender-&gt;&gt;Sender: 在发件端 ledger.sqlite3 预注册 outgoing 请求 (state=pending)
+
+    Note over Sender,R_Serve: 2. 投递轻量信封与自动持久回执
+    Sender-&gt;&gt;R_Serve: POST /msg (含 request 元数据与 fetch URL 列表)
+    R_Serve-&gt;&gt;R_Serve: tailscale whois 鉴权 + 校验 fetch URL hostname 必须等于 env.from (防 SSRF)
+    R_Serve-&gt;&gt;R_Serve: BEGIN IMMEDIATE 写入收件端 ledger.sqlite3&lt;br/&gt;生成 received 回执入队 response_outbox，原子落盘 inbox/{id}.json
+    R_Serve--&gt;&gt;Sender: HTTP 202 Accepted (返回 ok=true 与请求 id)
+    R_Serve--&gt;&gt;Sender: 异步投递 kind=&quot;request-receipt&quot; (state=&quot;received&quot;, seq=1, wake=&quot;none&quot;)
+
+    Note over R_Serve,Receiver: 3. 唤醒、按需拉取附件与 SHA-256 校验
+    R_Serve-&gt;&gt;Receiver: 触发 wake_adapter (effective wake == &quot;now&quot;)
+    Receiver-&gt;&gt;R_Serve: request respond {id} &quot;开始审阅&quot; --state running (seq=2)
+    Receiver-&gt;&gt;S_Serve: 执行 yobiru fetch {id} 发起 GET /f/{token}/brief.md
+    S_Serve-&gt;&gt;S_Serve: whois 校验请求方必须严格等于 meta.json 中的 to，且未过期、未被 deny
+    S_Serve--&gt;&gt;Receiver: 流式返回文件字节流 (1MiB 分块)
+    Receiver-&gt;&gt;Receiver: 先写入 brief.md.part，核对精确字节数与 SHA-256 哈希无误后原子重命名
+
+    Note over Sender,Receiver: 4. 最终结果闭环与本地 Ack 解锁
+    Receiver-&gt;&gt;R_Serve: request respond {id} &quot;审阅完毕&quot; --state completed --file ./summary.md (seq=3)
+    R_Serve--&gt;&gt;Sender: 异步投递 kind=&quot;request-result&quot; (state=&quot;completed&quot;, seq=3, wake=&quot;none&quot;)
+    Receiver-&gt;&gt;R_Serve: 执行 yobiru ack {id} (校验已存在终态结果后允许标记 acked_at)
+</code></pre>
+<p>在审阅 <code>validate_env</code>（第 535~537 行）与 <code>do_GET</code>（第 880~906 行）源码时，我注意到了三个极易被忽视的安全细节：</p>
+<ul>
+<li><strong>防 SSRF（服务端请求伪造）硬约束</strong>：收件端在收到信封时，会强制解析 <code>fetch</code> 列表中每个 URL 的 <code>hostname</code>，必须满足 <code>u.scheme == &quot;http&quot;</code> 且 <code>u.hostname.lower() == env[&quot;from&quot;].lower()</code>。这意味着发件方只能提供指向自己 Tailscale 节点的下载链接，绝不可能诱导收件方去请求内网其他未授权服务或公网恶意地址；</li>
+<li><strong>收件人专属 Token 隔离</strong>：发件端在响应 <code>GET /f/&lt;token&gt;/&lt;name&gt;</code> 时，会再次通过 <code>tailscale whois</code> 核实当前下载者的节点身份是否严格等于 <code>meta.json</code> 中记录的 <code>to</code>。哪怕同网内的第三台机器截获了该 Token，去请求下载时也会直接收到 <code>HTTP 404</code>；</li>
+<li><strong><code>.part</code> 临时文件与双因子完整性校验</strong>：收件端执行 <code>fetch</code> 时，文件流先写入 <code>inbox/&lt;id&gt;/files/&lt;name&gt;.part</code>，只有当流读取完毕且<strong>实际字节大小（<code>size</code>）与 <code>SHA-256</code> 摘要同时匹配信封声明值</strong>时，才会通过 <code>os.replace</code> 转为正式文件，否则立即unlink 删除残片并报错。</li>
+</ul>
+<h3 id="4-接收端主权五级单向唤醒降级漏斗wake-downgrade-funnel">4. 接收端主权：五级单向唤醒降级漏斗（Wake Downgrade Funnel）</h3>
+<p>在多人或多 Agent 协同网络中，“发件方想要立刻叫醒你（<code>--wake now</code>）”只是一个愿望，<strong>最终叫不叫醒、什么时候叫醒，100% 由收件方自己的 <code>wake_decision</code> 函数拍板</strong>。</p>
+<p>我根据 <code>tailmsg.py</code> 第 413~450 行整理出了收件端的 <strong>五级单向降级规则</strong>（级别顺序为 <code>none &lt; batch &lt; now</code>，只会逐级向下削减，绝不向上提权）：</p>
+<ol>
+<li><strong>对端配额上限（Peer Cap）</strong>：查询 <code>wake_policy.peers</code> 中针对该发件方的第一条命中规则（缺省使用 <code>default_max: &quot;batch&quot;</code>），取 <code>min(requested, cap)</code>。注意：<strong>新安装的默认上限是 <code>batch</code></strong>，也就是说如果不显式给对端节点授予 <code>now</code> 权限，任何发来的 <code>--wake now</code> 都会被自动降级为 <code>batch</code> 静默入箱；</li>
+<li><strong>目标 Agent 专属上限（Agent Wake Max）</strong>：若消息通过 <code>host/agent</code> 点名了特定 Agent，再与 <code>agents[&lt;name&gt;].wake_max</code> 取最小值；</li>
+<li><strong>未知 Agent 保护（Unknown Agent Guard）</strong>：如果点名的 <code>@agent</code> 在本机并未注册（<code>agent_status == &quot;unknown&quot;</code>），将 <code>now</code> 强制降为 <code>batch</code>，正常返回 <code>202</code> 落盘存档但绝不调用任何唤醒器，防止打扰默认 Agent；</li>
+<li><strong>跨午夜时区静音窗口（Quiet Hours）</strong>：<code>in_quiet_hours</code> 支持配置如 <code>{&quot;start&quot;: &quot;23:00&quot;, &quot;end&quot;: &quot;08:00&quot;, &quot;tz&quot;: &quot;Asia/Tokyo&quot;}</code>（利用标准库 <code>zoneinfo.ZoneInfo</code> 转换本地分钟数，天然支持跨午夜区间判断）。一旦处于静音时段，所有 <code>now</code> 自动降为 <code>batch</code>，并在收件记录中写明 <code>&quot;reason&quot;: &quot;quiet hours&quot;</code>；</li>
+<li><strong>滑动窗口频控（Per-Sender-Per-Agent Rate Limit）</strong>：在内存字典 <code>self._now_hits</code> 中，以 <code>(ident[&quot;node&quot;], agent)</code> 二元组为键维护最近 3600 秒内的实际唤醒时间戳列表。默认每小时最多允许 <code>6</code> 次实际 <code>now</code> 唤醒，超额请求自动降级为 <code>batch</code>。因为按 <code>(发件方, 目标 Agent)</code> 独立计数，高频呼叫 <code>codex</code> 绝不会挤占同一台机器上 <code>grok</code> 的唤醒配额！</li>
+</ol>
+<hr>
+<h2 id="三-告别发出去石沉大海request-lifecycle-v1-双账本状态机与幂等回执对账">三、告别“发出去石沉大海”：<code>request-lifecycle-v1</code> 双账本状态机与幂等回执对账</h2>
+<p>在 Yobiru 0.5.0 之前，Agent 之间的通信和传统 IM 一样：发出一封请求后如果迟迟没有回音，发件方根本无法区分“<strong>对方机器断网没收到</strong>”、“<strong>收到了但还在排队</strong>”、“<strong>Agent 正在跑耗时任务</strong>”、“<strong>因为缺少沙箱权限卡住了</strong>”，还是“<strong>早就跑完了但回传响应时网络闪断</strong>”。如果贸然重发一条请求，又会导致远端 Agent 重复执行具有副作用的任务。</p>
+<p>为了解决这一分布式难题，Yobiru 在不引入中心协调器的前提下，基于本地 SQLite（<code>requests/ledger.sqlite3</code>，开启 <code>PRAGMA journal_mode=WAL</code> 与 <code>PRAGMA synchronous=FULL</code>）设计了 <strong><code>request-lifecycle-v1</code> 双账本协议扩展</strong>。</p>
+<pre><code class="language-mermaid">stateDiagram-v2
+    direction LR
+    [*] --&gt; prepared : 发件端预写 outgoing 账本
+    prepared --&gt; received : POST /msg 成功 (202)&lt;br/&gt;收件端自动生成 seq=1 回执
+    
+    received --&gt; running : Agent 校验授权通过&lt;br/&gt;request respond --state running
+    received --&gt; rejected : 点名了未知 Agent&lt;br/&gt;或被处理者主动拒绝
+    received --&gt; blocked : allow_replies=false&lt;br/&gt;或缺少宿主沙箱/执行授权
+    received --&gt; timed_out : 到达 deadline 仍未结束&lt;br/&gt;(结果未知，严禁自动重跑)
+
+    running --&gt; completed : 任务完成并附带证据/文件&lt;br/&gt;request respond --state completed
+    running --&gt; failed : 执行异常中止&lt;br/&gt;request respond --state failed
+    running --&gt; blocked : 途中遇到权限拦截&lt;br/&gt;request respond --state blocked
+    running --&gt; timed_out : 执行耗时超过 deadline&lt;br/&gt;(结果未知，严禁自动重跑)
+
+    timed_out --&gt; completed : 晚到的真实结果抵达&lt;br/&gt;更新终态并打上 late=true 标记
+    timed_out --&gt; failed : 晚到的失败结果抵达&lt;br/&gt;更新终态并打上 late=true 标记
+
+    completed --&gt; [*] : 解锁本地 yobiru ack
+    failed --&gt; [*] : 解锁本地 yobiru ack
+    rejected --&gt; [*] : 解锁本地 yobiru ack
+    blocked --&gt; [*] : 解锁本地 yobiru ack
+</code></pre>
+<p>我在剖析 <code>tailmsg.py</code> 第 541~812 行的状态机实现时，提炼出了四个极具借鉴价值的分布式工程设计：</p>
+<h3 id="1-严格区分五种状态信号杜绝假阳性完成">1. 严格区分五种状态信号，杜绝“假阳性完成”</h3>
+<p>在 Yobiru 的协议语义中，以下五个动作被严格解耦，绝不允许混为一谈：</p>
+<ul>
+<li><code>HTTP 202</code>：仅证明收件端通过了 Tailscale 身份校验并将信封写入磁盘；</li>
+<li><code>received</code>（<code>kind: &quot;request-receipt&quot;</code>）：由收件端在 <code>BEGIN IMMEDIATE</code> 事务中自动入队生成，仅证明请求已进入收件端请求账本，<strong>不代表 Agent 已读或获准执行</strong>；</li>
+<li><code>running</code>（<code>kind: &quot;request-receipt&quot;</code>）：Agent 被唤醒并核实授权后显式上报，证明工作已启动（注意：仅排入 <code>codex queue</code> 绝不能算作 <code>running</code> 或 <code>completed</code>）；</li>
+<li><code>completed</code> / <code>failed</code> / <code>rejected</code> / <code>blocked</code>（<code>kind: &quot;request-result&quot;</code>）：不可变的终态结果（Terminal Outcome）；</li>
+<li><code>ack</code>：纯粹是收件端本机的内务清理标记（写入 <code>acked_at</code>），不会向发件方发送任何网络包。<strong>而且代码在 <code>cmd_ack</code> 中立下了铁律：对于跟踪请求，如果账本中尚未持久化任何终态结果或明确的 <code>timed_out</code>，执行 <code>yobiru ack</code> 会被直接拒绝报错！</strong></li>
+</ul>
+<h3 id="2-为什么-timed_out-被定义为结果未知outcome-unknown而非失败">2. 为什么 <code>timed_out</code> 被定义为“结果未知（Outcome Unknown）”而非“失败”？</h3>
+<p>看第 700~706 行的 <code>accept_response</code> 与第 744~756 行的 <code>request_view</code>：<br>
+当请求超过 <code>timeout_seconds</code>（默认 900 秒）仍未收到终态响应时，状态变为 <code>timed_out</code>，此时 <code>outcome_known</code> 字段为 <code>False</code>。</p>
+<ul>
+<li><strong>工程深意</strong>：在异步网络中，超时既可能是远端机器死机，也可能是任务仍在后台运行或回传的响应包在途丢失。如果把 <code>timed_out</code> 当成失败并让 Agent 自动重新发一次 <code>request send</code>（生成新的请求 ID），就会导致远端重复执行两次任务！</li>
+<li><strong>迟到结果对账（Late Result Reconciliation）</strong>：<code>timed_out</code> 是唯一可以被后续真实终态响应（<code>seq</code> 更大的 <code>completed</code>/<code>failed</code>/<code>rejected</code>/<code>blocked</code>）覆盖的状态，且一旦被晚到的终态更新，视图中会自动标记 <code>&quot;late&quot;: True</code>。在重发任何请求前，发件方只需执行 <code>yobiru request status &lt;ID&gt; --refresh --json</code>，即可主动向原收件端的 <code>GET /requests/&lt;ID&gt;</code> 接口拉取最新权威账本完成对账。</li>
+</ul>
+<h3 id="3-硬链接崩溃自愈recover_request_inbox与防死循环风暴">3. 硬链接崩溃自愈（<code>recover_request_inbox</code>）与防死循环风暴</h3>
+<ul>
+<li><strong>SQLite 提交与 Inbox 文件落盘之间的崩溃窗口修复</strong>：在 <code>do_POST</code> 中，收件端先调用 <code>accept_request</code> 提交 SQLite 事务，再调用 <code>atomic_write</code> 写入 <code>inbox/&lt;id&gt;.json</code>。如果进程恰好在这两步之间被 <code>SIGKILL</code>，就会出现“账本里有记录、收件箱里没文件”的不一致。<code>recover_request_inbox</code>（第 763~780 行）在每次维护周期扫描账本，若发现对应的 <code>inbox/&lt;id&gt;.json</code> 缺失，先写出临时恢复文件，再通过 POSIX <strong><code>os.link(temporary, path)</code> 硬链接</strong>将其原子挂载回 <code>inbox/</code>（若并发进程已创建则触发 <code>FileExistsError</code> 安全跳过，绝不覆盖已有的 <code>ack</code> 状态）！</li>
+<li><strong>防回执风暴（Anti-Reply-Loop）</strong>：所有 <code>request-receipt</code> 与 <code>request-result</code> 协议包强制携带 <code>&quot;wake&quot;: &quot;none&quot;</code>，且收件端收到带 <code>&quot;response&quot;</code> 字段的信封时，直接写入 <code>response_events</code> 账本表，<strong>绝不进入普通 <code>inbox/</code> 目录，也绝不触发任何唤醒适配器</strong>，从根源上掐断了两个 Agent 互相给对方的“收到”回执无限自动回复的死循环风险。</li>
+</ul>
+<hr>
+<h2 id="四-codex-常驻桥接器codex-bridge工程揭秘零依赖-rfc-6455-客户端-uncertain-防重放与沙箱最小权限">四、Codex 常驻桥接器（<code>codex-bridge</code>）工程揭秘：零依赖 RFC 6455 客户端、<code>uncertain</code> 防重放与沙箱最小权限</h2>
+<p>对于使用 OpenAI Codex（无论是 macOS 上的 ChatGPT/Codex 桌面端，还是 Linux 服务器上的 <code>codex app-server</code>）的开发者来说，如何让收到的 Tailmsg 消息自动唤醒同一个固定的入口会话（Dispatcher Session），是整套系统最核心的工程难点。</p>
+<p>我详细拆解了 <code>codex_bridge.py</code>、<code>codex_queue_client.py</code> 与 <code>codex_resident.py</code> 三个模块，其中的三项底层设计堪称教科书级别。</p>
+<h3 id="1-为什么-linux-上的-codex-app-server-会悄悄卸载会话手写-266-行-rfc-6455-websocket-破局">1. 为什么 Linux 上的 <code>codex app-server</code> 会悄悄卸载会话？手写 266 行 RFC 6455 WebSocket 破局</h3>
+<p>在 Linux 服务器上，用户通常通过 <code>codex app-server --listen unix:///path/to/app-server.sock</code> 启动本地服务，并由桥接器调用官方 CLI <code>codex queue --thread &lt;UUID&gt; --remote unix:///...</code> 将消息排入固定入口会话。</p>
+<p>然而作者在 0.4.2 版本的实测中踩到了一个深坑：<strong>仅仅有监听中的 Unix Socket 和 <code>codex queue</code> 返回的 <code>enqueued</code> 回执是不够的！如果没有一个持续保持订阅的客户端连接着该会话，<code>codex app-server</code> 会将处于空闲状态的固定入口会话卸载（Unload / <code>notLoaded</code>），导致排入队列的消息永远停留在等待状态，模型回合根本不会启动！</strong></p>
+<p>为了解决这个痛点，同时坚守“<strong>零第三方依赖、绝不监听任何网络端口、绝不泄漏对话内容</strong>”的铁律，作者在 <code>codex_resident.py</code> 中直接用 Python 标准库 <code>socket</code> + <code>select</code> + <code>struct</code> 手写了一个 140 行的有界 <strong>RFC 6455 WebSocket 客户端（<code>UnixWebSocket</code>）</strong> 和 <strong>常驻保活器（<code>ResidentDispatcher</code>）</strong>：</p>
+<pre><code class="language-python"># 摘自 codex_resident.py：纯标准库 AF_UNIX WebSocket 握手与固定会话保活核心逻辑
+class ResidentDispatcher:
+    def _connected(self, ws):
+        # 1. 发送 JSON-RPC initialize 握手，声明 experimentalApi 能力
+        ws.send({&quot;id&quot;: 1, &quot;method&quot;: &quot;initialize&quot;, &quot;params&quot;: {
+            &quot;clientInfo&quot;: {&quot;name&quot;: &quot;yobiru_resident&quot;, &quot;version&quot;: &quot;1&quot;},
+            &quot;capabilities&quot;: {&quot;experimentalApi&quot;: True}}})
+        self._response(ws, 1)
+        ws.send({&quot;method&quot;: &quot;initialized&quot;})
+        # 2. 恢复并订阅固定入口 UUID，显式设置 excludeTurns: True 避免拉取历史聊天正文
+        ws.send({&quot;id&quot;: 2, &quot;method&quot;: &quot;thread/resume&quot;, &quot;params&quot;: {
+            &quot;threadId&quot;: self.client.thread_id, &quot;excludeTurns&quot;: True}})
+        resumed = self._response(ws, 2)
+        if not isinstance(resumed.get(&quot;thread&quot;), dict) or resumed[&quot;thread&quot;].get(&quot;id&quot;) != self.client.thread_id:
+            raise ResidentError(&quot;thread_mismatch&quot;)
+        self._status(&quot;connected&quot;)
+        heartbeat = time.monotonic()
+        ping_at = heartbeat
+        received_at = heartbeat
+        while not self.stop.is_set():
+            now = time.monotonic()
+            if now - heartbeat &gt;= 5:
+                self._status(&quot;connected&quot;)       # 每 5 秒原子更新 resident.json 心跳
+                heartbeat = now
+            if now - ping_at &gt;= 10:
+                ws.send(b&quot;yobiru&quot;, opcode=9)    # 每 10 秒发送 RFC 6455 Ping 帧
+                ping_at = now
+            if now - received_at &gt;= 30:
+                raise ResidentError(&quot;resident_timeout&quot;) # 30 秒无任何帧响应立即判定断线重连
+</code></pre>
+<p>这段实现有四个极其严谨的安全边界：</p>
+<ul>
+<li><strong>只订阅不越权</strong>：<code>thread/resume</code> 仅传入安装时绑定的 <code>threadId</code> 和 <code>excludeTurns: True</code>，绝不覆盖原有的工作目录、模型、指令或沙箱权限；</li>
+<li><strong>丢弃正文与拒绝代答审批</strong>：在 <code>_response</code> 和保活循环中，所有服务端推流下来的会话文本通知（Turn Notifications）在内存中读取后立即丢弃，绝不写盘；如果收到服务端发来的敏感操作审批请求（Approval Requests），常驻连接<strong>绝不代答</strong>，必须留给用户在自己的 Codex 客户端中人工确认；</li>
+<li><strong>指数退避重连与归零恢复</strong>：断线后按 <code>1s -&gt; 2s -&gt; 4s ... -&gt; 60s</code> 指数退避重连；一旦连续稳定连接满 60 秒，退避延迟自动重置回 <code>1s</code>；</li>
+<li><strong>新鲜度门控（<code>resident_status</code>）</strong>：外部执行 <code>yobiru codex-bridge status</code> 读取 <code>resident.json</code> 时，如果 <code>state == &quot;connected&quot;</code> 但 <code>updated_at</code> 距今超过 15 秒，会立即将其判定为 <code>&quot;stale&quot;</code>（陈旧失效），绝不用过期的静态文件欺骗用户。</li>
+</ul>
+<h3 id="2-破解-cli-半途崩溃引发的重复投递uncertain-状态与-tailmsgid-对账">2. 破解 CLI 半途崩溃引发的重复投递：<code>uncertain</code> 状态与 <code>[TAILMSG:&lt;id&gt;]</code> 对账</h3>
+<p>当 <code>codex_bridge.py</code> 调用外部子进程 <code>codex queue --thread UUID --message PROMPT</code> 时，如果子进程超时（<code>TimeoutExpired</code>）、返回非零退出码，或者因为进程被杀导致没有拿到标准输出里的 <code>Queued message &lt;queueId&gt; for thread &lt;threadId&gt;.</code> 回执，桥接器该怎么办？</p>
+<p>如果简单粗暴地当作失败并在 15 秒后重新调用一次 <code>codex queue</code>，那么当上次调用其实已经送达 <code>app-server</code> 只是回执丢失时，就会造成<strong>同一条指令在入口会话里被排入两次</strong>！</p>
+<p>来看看 <code>codex_bridge.py</code>（第 448~520 行）与 <code>codex_queue_client.py</code> 是如何实现精确状态区分的：</p>
+<pre><code class="language-mermaid">flowchart LR
+    A[&quot;pending / retry&lt;br/&gt;确定尚未发出&quot;] --&gt;|&quot;1. 调用前预检 Socket / 桌面进程失败&lt;br/&gt;(delivery_unknown = False)&quot;| B[&quot;retry 状态&lt;br/&gt;指数退避自动重投&quot;]
+    A --&gt;|&quot;2. 先持久化标记为 sending&lt;br/&gt;再启动 codex queue 子进程&quot;| C{&quot;子进程执行结果&quot;}
+    C --&gt;|&quot;拿到精确 Queued message 回执&quot;| D[&quot;enqueued 状态&lt;br/&gt;投递完成&quot;]
+    C --&gt;|&quot;超时 / 非零退出 / 进程崩溃中断&lt;br/&gt;(delivery_unknown = True)&quot;| E[&quot;uncertain 状态&lt;br/&gt;严禁自动重发！&quot;]
+    E --&gt;|&quot;3. 启动只读 app-server --listen stdio://&lt;br/&gt;执行 thread/read 扫描最近 100 轮 userMessage&quot;| F{&quot;是否找到 [TAILMSG:id]?&quot;}
+    F --&gt;|&quot;找到标记&quot;| G[&quot;delivered 状态&lt;br/&gt;确认已送达&quot;]
+    F --&gt;|&quot;未找到标记&quot;| E
+
+    style A fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff
+    style B fill:#451a03,stroke:#f59e0b,stroke-width:2px,color:#fff
+    style D fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff
+    style E fill:#3f1717,stroke:#ef4444,stroke-width:2px,color:#fff
+    style G fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff
+</code></pre>
+<ol>
+<li><strong>投递前探针 vs 投递中异常</strong>：在启动 <code>codex queue</code> 之前，客户端会先通过 <code>unix_socket_problem</code> 检查 Socket 文件是否存在、是否属于当前 UID、所在目录是否可被其他用户篡改（防止粘滞位缺失导致 Socket 劫持），并执行一次零字节 <code>connect()</code> 探针。如果在这阶段失败（如 <code>socket_stale</code> 或 macOS 桌面进程未启动），抛出 <code>CodexAppError(..., delivery_unknown=False)</code>，桥接器将其记为 <code>retry</code> 并放心自动重试；</li>
+<li><strong><code>sending</code> 先落盘，崩溃即 <code>uncertain</code></strong>：一旦准备真正执行 <code>codex queue</code>，桥接器先在 SQLite 中执行 <code>UPDATE messages SET state='sending'</code> 并 <code>commit()</code>。哪怕此时整台机器掉电或进程被强杀，下次 <code>dispatch_due</code> 启动时的第一行代码就是：<pre><code class="language-python">self.db.execute(&quot;UPDATE messages SET state='uncertain',error='interrupted_send' WHERE state='sending'&quot;)
+</code></pre>
+任何进入 <code>uncertain</code> 的记录，<strong>永远不会再次调用 <code>codex queue</code> 重发</strong>！</li>
+<li><strong>只读 <code>stdio://</code> 标记对账（<code>_reconcile</code>）</strong>：对于 <code>uncertain</code> 记录，桥接器会拉起一个短生命周期的只读 <code>codex app-server --listen stdio://</code>（显式固定 <code>CODEX_HOME</code> 环境变量，确保读取的账户与目标运行时完全一致），发送 <code>thread/read</code> 读取最近 100 个 Turn。注意 <code>_user_markers</code>（<code>codex_queue_client.py</code> 第 61~71 行）的一个极佳细节：<strong>它只扫描 <code>item.type == &quot;userMessage&quot;</code> 中的文本是否包含 <code>[TAILMSG:&lt;id&gt;]</code> 标记，绝不扫描模型输出或工具输出</strong> ——因为模型输出或工具报错里完全可能出现该 ID 字符串，那不能作为用户消息已入队的证据。一旦找到标记，状态立即收敛为 <code>delivered</code>。</li>
+</ol>
+<h3 id="3-进程组超时围栏receiver_margin与-workspace-write-沙箱最小权限边界">3. 进程组超时围栏（<code>RECEIVER_MARGIN</code>）与 <code>workspace-write</code> 沙箱最小权限边界</h3>
+<p>在 <code>codex_bridge.py</code> 中还有两处令我印象深刻的防御性设计：</p>
+<ul>
+<li><strong>外层超时减 10 秒安全垫（<code>handler_budget</code>）</strong>：<br>
+当用户配置了 <code>excluded_kinds</code> 将特定类型的消息分流给外部本地程序处理时，接收端 <code>tailmsg.py</code> 调用唤醒适配器的总超时默认是 <code>hook_timeout_s = 120</code> 秒。如果外部处理程序卡死，而桥接器也等满 120 秒，接收端就会直接把桥接器进程杀掉，导致外部处理程序变成孤儿进程残留后台。因此，<code>handler_budget()</code> 强制取 <code>min(self.handler_timeout, hook - RECEIVER_MARGIN)</code>（预留 10 秒余量），并在超时瞬间通过 <code>os.killpg(process.pid, signal.SIGKILL)</code> 将外部处理程序及其派生的整个进程组彻底清理干净，然后以退出码 <code>0</code> 返回给接收端，确保已启动过的外部程序绝不被接收端自动重放！</li>
+<li><strong>为什么严禁把 <code>~/.tailmsg</code> 整个目录加入 Codex 沙箱可写根？</strong><br>
+在 Linux 下以 <code>sandbox_mode=&quot;workspace-write&quot;</code> 运行入口会话时，很多开发者图省事会把整个 <code>~/.tailmsg</code> 挂进 <code>writable_roots</code>。作者在 <code>docs/CODEX_SANDBOX.md</code> 中一针见血地指出：如果把整个 <code>~/.tailmsg</code> 或 <code>~/.tailmsg/codex-bridge</code> 设为可写，一旦入口会话遭遇恶意消息的提示词注入，模型就能直接篡改 <code>config.json</code>（放宽 <code>access_policy</code> 白名单）、修改 <code>codex-bridge.json</code>（强行把 <code>allow_replies: false</code> 改成 <code>true</code> 外发敏感数据）甚至篡改 <code>bridge.sqlite3</code> 队列！<br>
+正确的最小权限配置只开放以下三个精确子目录（若需附带文件回复则加上 <code>outbox</code>）：<pre><code class="language-sh">codex app-server --listen unix:///home/you/.codex/yobiru.sock \
+  -c 'sandbox_mode=&quot;workspace-write&quot;' \
+  -c 'approval_policy=&quot;never&quot;' \
+  -c 'sandbox_workspace_write.writable_roots=[&quot;/home/you/.tailmsg/inbox&quot;,&quot;/home/you/.tailmsg/requests&quot;,&quot;/home/you/.tailmsg/codex-bridge/handled&quot;]' \
+  -c 'sandbox_workspace_write.network_access=false'
+</code></pre>
+甚至连为什么不能只挂载 <code>inbox/&lt;id&gt;.json</code> 单文件都解释得清清楚楚：因为 <code>yobiru ack</code> 与追踪响应需要创建同级临时文件（<code>.tmp-*</code>）并执行原子替换（<code>os.replace</code>）以及写入 SQLite WAL 日志，因此必须赋予这三个子目录级的写权限，同时让上层的 <code>config.json</code> 与代码文件保持严格只读。</li>
+</ul>
+<hr>
+<h2 id="五-本机实测与跨平台深水区排障我在-macos-darwin-python-313-跑通-yobiru-051-的真实踩坑记录">五、本机实测与跨平台深水区排障：我在 macOS (Darwin + Python 3.13) 跑通 Yobiru 0.5.1 的真实踩坑记录</h2>
+<p>在 <code>docs/VERIFICATION.md</code> 第 216 行，作者坦诚地注明了一项尚未覆盖的验证边界：<em>“0.5.0/0.5.1 的隔离发布测试套件均在 Linux (Python 3.12) 上运行，尚未在真实 macOS 或 Windows 环境上跑过完整测试与 <code>yobiru</code> 命令。”</em></p>
+<p>为了验证 Yobiru 0.5.1 在真实 <strong>macOS（Apple Silicon，<code>Darwin</code>，Homebrew Python <code>3.13.1</code>）</strong> 上的表现，我将仓库克隆至本机工作区，完整执行了构建一致性校验、<code>paths</code> / <code>onboard</code> / <code>doctor</code> 诊断，以及全部 <strong>374 个自动化单元测试</strong>。</p>
+<h3 id="1-构建校验与本机-onboard-doctor-实测输出">1. 构建校验与本机 <code>onboard</code> / <code>doctor</code> 实测输出</h3>
+<p>首先运行打包一致性与隐私卫生检查：</p>
+<pre><code class="language-sh"># 校验插件同步与隐私边界
+python3 tools/build_plugin.py check
+# 输出: check: ok
+</code></pre>
+<p>接着在隔离的 <code>--home</code> 目录下实测 <code>paths</code>、<code>onboard</code> 与 <code>doctor</code>：</p>
+<pre><code class="language-sh"># 1. 查看运行时路径与 Python 解释器解析结果
+sh plugins/yobiru/scripts/yobiru --home ./test_tailmsg paths
+{
+  &quot;plugin_root&quot;: &quot;.../yobiru/plugins/yobiru&quot;,
+  &quot;plugin_version&quot;: &quot;0.5.1&quot;,
+  &quot;python&quot;: &quot;/opt/homebrew/opt/python@3.13/bin/python3.13&quot;,
+  &quot;python_version&quot;: &quot;3.13.1&quot;,
+  &quot;home_source&quot;: &quot;--home&quot;,
+  &quot;config_exists&quot;: false
+}
+
+# 2. 执行只读引导检查
+sh plugins/yobiru/scripts/yobiru --home ./test_tailmsg onboard
+Yobiru onboarding for Darwin (read-only; nothing was changed)
+Installing the plugin ran nothing: there is no install hook. These steps make it work.
+[x] 1. Python 3.8+: 3.13.1
+[ ] 2. Install Tailscale: install the Tailscale app (Mac App Store or the standalone download), open it, approve the VPN / system extension prompt in System Settings, then sign in from the menu bar. The app's CLI is /Applications/Tailscale.app/Contents/MacOS/Tailscale
+        docs: https://tailscale.com/docs/install/mac
+        who: user (GUI approval needed)
+...
+[ ] 6. Run the receiver as a service: print the definition, install it at the place named in its header and start it
+        command: yobiru service-template launchd
+        who: agent
+</code></pre>
+<p>注意上面 <code>paths</code> 输出中的一个精妙工程细节：我的当前 Python 实际可执行文件位于 <code>/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/bin/python3.13</code>，但 Yobiru（自 0.4.4 版本起）自动通过 <code>os.path.samefile</code> 将其归一化为了稳定的 Homebrew 软链路径 <strong><code>/opt/homebrew/opt/python@3.13/bin/python3.13</code></strong>！这彻底解决了 macOS 开发者最常遇到的一个痛点：一旦日后执行 <code>brew upgrade python@3.13</code> 升级到 <code>3.13.2</code>，旧的 <code>Cellar/.../3.13.1</code> 目录被清理，普通写死 <code>sys.executable</code> 的 <code>launchd</code> plist 服务就会立刻无限崩溃重启，而 Yobiru 生成的服务模板则能跨越小版本升级持续稳定运行。</p>
+<h3 id="2-在-macos-上跑-374-个单元测试暴露出的-4-处-linuxdarwin-底层差异">2. 在 macOS 上跑 374 个单元测试暴露出的 4 处 Linux/Darwin 底层差异</h3>
+<p>当我直接在 macOS 默认环境下运行 <code>python3 -m unittest discover -s tests</code>（228 个测试）与桥接测试套件（146 个测试）时，我发现了 <strong>4 个非常典型的 Linux 与 macOS (BSD) 底层系统行为差异</strong>，这也是第一手实机测试才能挖出的干货：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">踩坑序号</th>
+<th style="text-align:left">触发的测试模块</th>
+<th style="text-align:left">macOS 实机报错现象</th>
+<th style="text-align:left">底层系统根因剖析与排障方案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>坑位 1</strong></td>
+<td style="text-align:left"><code>test_install_codex_bridge_linux.py</code> (21 个测试 Error)</td>
+<td style="text-align:left"><code>self.listener.bind(str(self.socket_path))</code> 抛出 <code>OSError: AF_UNIX path too long</code></td>
+<td style="text-align:left"><strong>BSD <code>sockaddr_un.sun_path</code> 104 字节硬上限</strong>：Linux 下默认 <code>TMPDIR</code> 是 <code>/tmp</code>（4 字节）且上限为 108 字节；而 macOS 默认 <code>TMPDIR</code> 是 <code>/var/folders/n4/.../T/</code>（长达 49 字节），加上测试生成的嵌套目录名后总长超过 104 字节。<strong>实测修复</strong>：显式指定 <code>TMPDIR=/tmp python3 -m unittest ...</code> 后，21 个 Linux 桥接安装器测试在 macOS 上 <strong>100% 全部通过</strong>！</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>坑位 2</strong></td>
+<td style="text-align:left"><code>test_service_python.py</code> &amp; <code>test_install_codex_bridge.py</code></td>
+<td style="text-align:left"><code>AssertionError: '/var/folders/...' != '/private/var/folders/...'</code></td>
+<td style="text-align:left"><strong>macOS <code>/var</code> -&gt; <code>/private/var</code> 符号链接</strong>：macOS 的 <code>/var</code> 与 <code>/tmp</code> 均是指向 <code>/private/var</code> 与 <code>/private/tmp</code> 的系统级软链。Python <code>tempfile.TemporaryDirectory()</code> 返回未解析的 <code>/var/folders/...</code>，而子进程内部通过 <code>Path.resolve()</code> 或 <code>sys.prefix</code> 拿到的则是解析后的 <code>/private/var/folders/...</code>。在编写跨平台路径断言时需统一先做 <code>.resolve()</code>。</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>坑位 3</strong></td>
+<td style="text-align:left"><code>test_cli.py</code> (<code>WakeConfigTests</code>)</td>
+<td style="text-align:left"><code>error: /bin/false is not an executable file</code></td>
+<td style="text-align:left"><strong>POSIX 基础工具路径差异</strong>：在 Debian/Ubuntu Linux 上，<code>false</code> 位于 <code>/bin/false</code>（或 <code>/usr</code> 合并软链）；而在开启了 SIP 的现代 macOS 上，<code>false</code> 仅存在于 <strong><code>/usr/bin/false</code></strong>，<code>/bin/false</code> 并不存在（而 <code>/bin/sh</code> 存在）。因为 Yobiru 的 <code>wake-config --exec</code> 会严格校验可执行文件真实存在且具备 <code>+x</code> 权限，所以在 macOS 上配置测试适配器时应使用 <code>/usr/bin/false</code> 或 <code>/usr/bin/true</code>。</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>坑位 4</strong></td>
+<td style="text-align:left"><code>test_transport_diagnostics.py</code></td>
+<td style="text-align:left">期望捕获 <code>ConnectionRefusedError</code>，实际返回 <code>TimeoutError: [Errno 60] Operation timed out</code></td>
+<td style="text-align:left"><strong>macOS 本地网络栈与防火墙行为差异</strong>：当向一个刚刚关闭监听的临时回环端口发起连接时，Linux 内核立即回复 <code>RST</code> 触发 <code>ConnectionRefusedError</code>，而在开启了本地网络过滤器的 macOS 环境下可能触发 3 秒连接超时（<code>Errno 60</code>）。不过 Yobiru 的诊断输出在两种异常下均正确打印了目标节点、<code>tailscale ping --c 3 --timeout 3s</code> 排障建议以及未知投递状态的 Message ID，核心安全语义完全符合预期。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="六-总结与个人部署建议">六、总结与个人部署建议</h2>
+<p>通过对 Yobiru 源码与协议规范的完整拆解，我认为它为当前火热的 Agent 工具生态提供了一个极其清醒的范本：<strong>并非所有 Agent 协同都需要构建复杂的云端 SaaS 平台或开放高危的远程代码执行接口</strong>。</p>
+<p>在我自己的多机开发流中落地这套架构时，总结出以下三条最佳实践供参考：</p>
+<ol>
+<li><strong>坚持使用稳定短主机名路由（<code>HOST/AGENT</code>）</strong>：日常发信统一使用 <code>dev-server/codex</code> 或 <code>bot-box/grok</code>，让 Yobiru 在每次发送时动态读取 <code>tailscale status --json</code> 并自动选中唯一在线节点；对于云端容器环境，务必将数据目录独立挂载在持久化卷（如 <code>--home /workspace/.tailmsg</code>），避免容器重建后丢失请求账本；</li>
+<li><strong>区分“通知（Notice）”与“追踪请求（Tracked Request）”</strong>：日常构建完成提醒、日报推送一律使用 <code>--kind notice</code>（无需回复，不占对方模型额度）；凡是需要对方 Agent 给结论或改代码的任务，一律使用 <code>request send --timeout-seconds 900</code>，遇到超时先跑 <code>request status ID --refresh</code> 对账，绝不盲目重发；</li>
+<li><strong>严守“消息不是批准”与沙箱最小可写根原则</strong>：在 Linux 上部署 <code>codex-bridge</code> 时，务必启用 <code>codex_resident.py</code> 保活守护进程，并严格只将 <code>inbox</code>、<code>requests</code> 与 <code>codex-bridge/handled</code> 三个子目录加入 <code>writable_roots</code>，将 <code>allow_replies</code> 的开启权牢牢掌握在自己手中。</li>
+</ol>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>GitHub 开源仓库</strong>：<a href="https://github.com/chekusu/yobiru">chekusu/yobiru — Let your agents talk: messages, data, files and wake-ups over Tailscale</a></li>
+<li><strong>项目官方网站与安装引导</strong>：<a href="https://yobiru.com/">yobiru.com — Let your agents talk to each other</a></li>
+<li><strong>社区推荐推文</strong>：<a href="https://x.com/GitHub_Daily/status/2110339890420609316">GitHub Daily (@GitHub_Daily) - Yobiru 跨设备 AI Agent 通信工具推介</a></li>
+<li><strong>协议与核心工程文档</strong>：
+<ul>
+<li><a href="https://github.com/chekusu/yobiru/blob/main/SPEC.md">tailmsg 协议 v1 完整规范 (SPEC.md)</a></li>
+<li><a href="https://github.com/chekusu/yobiru/blob/main/CODEX_LOCAL.md">Codex 本地常驻桥接架构指南 (CODEX_LOCAL.md)</a></li>
+<li><a href="https://github.com/chekusu/yobiru/blob/main/docs/CODEX_SANDBOX.md">Codex 入口会话最小沙箱权限规范 (docs/CODEX_SANDBOX.md)</a></li>
+<li><a href="https://github.com/chekusu/yobiru/blob/main/docs/GROK_BOT.md">Grok Bot 云端节点接入与恢复指南 (docs/GROK_BOT.md)</a></li>
+<li><a href="https://github.com/chekusu/yobiru/blob/main/docs/VERIFICATION.md">Yobiru 自动化测试与真机验证记录 (docs/VERIFICATION.md)</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-%E4%B8%BA%E4%BB%80%E4%B9%88%E8%B7%A8%E7%AB%AF-agent-%E5%8D%8F%E5%90%8C%E4%B8%8D%E9%9C%80%E8%A6%81%E4%B8%AD%E5%BF%83%E4%BA%91yobiru-%E6%8B%93%E6%89%91%E4%B8%8E%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E5%85%A8%E6%99%AF">一、为什么跨端 Agent 协同不需要中心云？（Yobiru 拓扑与核心组件全景）</a>
+<ul>
+<li><a href="#%E6%A0%B8%E5%BF%83%E6%BA%90%E7%A0%81%E6%A8%A1%E5%9D%97%E4%B8%8E%E6%B5%8B%E8%AF%95%E5%AE%8C%E5%A4%87%E5%BA%A6%E5%88%86%E5%B8%83">核心源码模块与测试完备度分布</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%8C-tailmsg-%E5%8D%8F%E8%AE%AE-v1-%E6%B7%B1%E5%BA%A6%E8%A7%A3%E5%89%96%E5%9B%9B%E5%B1%82%E9%9B%B6%E4%BF%A1%E4%BB%BB%E9%89%B4%E6%9D%83-%E6%8B%89%E5%8F%96%E5%BC%8F%E9%99%84%E4%BB%B6%E4%B8%8E%E5%94%A4%E9%86%92%E9%99%8D%E7%BA%A7%E7%8A%B6%E6%80%81%E6%9C%BA">二、<code>tailmsg</code> 协议 v1 深度解剖：四层零信任鉴权、拉取式附件与唤醒降级状态机</a>
+<ul>
+<li><a href="#1-%E5%9F%BA%E4%BA%8E-tailscale-whois-localapi-%E7%9A%84%E5%9B%9B%E6%AD%A5%E9%98%B2%E5%86%92%E5%90%8D%E9%89%B4%E6%9D%83%E9%93%BE%E8%B7%AF">1. 基于 <code>tailscale whois</code> LocalAPI 的四步防冒名鉴权链路</a></li>
+<li><a href="#2-%E4%BA%91%E5%AE%B9%E5%99%A8%E9%87%8D%E8%A3%85%E5%90%8E%E7%9A%84%E6%99%BA%E8%83%BD%E4%B8%BB%E6%9C%BA%E5%90%8D%E6%B6%88%E6%AD%A7select_peer">2. 云容器重装后的智能主机名消歧（<code>select_peer</code>）</a></li>
+<li><a href="#3-%E4%BF%A1%E5%B0%81%E4%B8%8E%E6%9C%AC%E4%BD%93%E5%88%86%E7%A6%BB32-%E5%AD%97%E8%8A%82-token-%E6%8B%89%E5%8F%96%E5%BC%8F%E9%99%84%E4%BB%B6%E4%B8%8E%E9%98%B2-ssrf-%E8%AE%BE%E8%AE%A1">3. 信封与本体分离：32 字节 Token 拉取式附件与防 SSRF 设计</a></li>
+<li><a href="#4-%E6%8E%A5%E6%94%B6%E7%AB%AF%E4%B8%BB%E6%9D%83%E4%BA%94%E7%BA%A7%E5%8D%95%E5%90%91%E5%94%A4%E9%86%92%E9%99%8D%E7%BA%A7%E6%BC%8F%E6%96%97wake-downgrade-funnel">4. 接收端主权：五级单向唤醒降级漏斗（Wake Downgrade Funnel）</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-%E5%91%8A%E5%88%AB%E5%8F%91%E5%87%BA%E5%8E%BB%E7%9F%B3%E6%B2%89%E5%A4%A7%E6%B5%B7request-lifecycle-v1-%E5%8F%8C%E8%B4%A6%E6%9C%AC%E7%8A%B6%E6%80%81%E6%9C%BA%E4%B8%8E%E5%B9%82%E7%AD%89%E5%9B%9E%E6%89%A7%E5%AF%B9%E8%B4%A6">三、告别“发出去石沉大海”：<code>request-lifecycle-v1</code> 双账本状态机与幂等回执对账</a>
+<ul>
+<li><a href="#1-%E4%B8%A5%E6%A0%BC%E5%8C%BA%E5%88%86%E4%BA%94%E7%A7%8D%E7%8A%B6%E6%80%81%E4%BF%A1%E5%8F%B7%E6%9D%9C%E7%BB%9D%E5%81%87%E9%98%B3%E6%80%A7%E5%AE%8C%E6%88%90">1. 严格区分五种状态信号，杜绝“假阳性完成”</a></li>
+<li><a href="#2-%E4%B8%BA%E4%BB%80%E4%B9%88-timed_out-%E8%A2%AB%E5%AE%9A%E4%B9%89%E4%B8%BA%E7%BB%93%E6%9E%9C%E6%9C%AA%E7%9F%A5outcome-unknown%E8%80%8C%E9%9D%9E%E5%A4%B1%E8%B4%A5">2. 为什么 <code>timed_out</code> 被定义为“结果未知（Outcome Unknown）”而非“失败”？</a></li>
+<li><a href="#3-%E7%A1%AC%E9%93%BE%E6%8E%A5%E5%B4%A9%E6%BA%83%E8%87%AA%E6%84%88recover_request_inbox%E4%B8%8E%E9%98%B2%E6%AD%BB%E5%BE%AA%E7%8E%AF%E9%A3%8E%E6%9A%B4">3. 硬链接崩溃自愈（<code>recover_request_inbox</code>）与防死循环风暴</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-codex-%E5%B8%B8%E9%A9%BB%E6%A1%A5%E6%8E%A5%E5%99%A8codex-bridge%E5%B7%A5%E7%A8%8B%E6%8F%AD%E7%A7%98%E9%9B%B6%E4%BE%9D%E8%B5%96-rfc-6455-%E5%AE%A2%E6%88%B7%E7%AB%AF-uncertain-%E9%98%B2%E9%87%8D%E6%94%BE%E4%B8%8E%E6%B2%99%E7%AE%B1%E6%9C%80%E5%B0%8F%E6%9D%83%E9%99%90">四、Codex 常驻桥接器（<code>codex-bridge</code>）工程揭秘：零依赖 RFC 6455 客户端、<code>uncertain</code> 防重放与沙箱最小权限</a>
+<ul>
+<li><a href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88-linux-%E4%B8%8A%E7%9A%84-codex-app-server-%E4%BC%9A%E6%82%84%E6%82%84%E5%8D%B8%E8%BD%BD%E4%BC%9A%E8%AF%9D%E6%89%8B%E5%86%99-266-%E8%A1%8C-rfc-6455-websocket-%E7%A0%B4%E5%B1%80">1. 为什么 Linux 上的 <code>codex app-server</code> 会悄悄卸载会话？手写 266 行 RFC 6455 WebSocket 破局</a></li>
+<li><a href="#2-%E7%A0%B4%E8%A7%A3-cli-%E5%8D%8A%E9%80%94%E5%B4%A9%E6%BA%83%E5%BC%95%E5%8F%91%E7%9A%84%E9%87%8D%E5%A4%8D%E6%8A%95%E9%80%92uncertain-%E7%8A%B6%E6%80%81%E4%B8%8E-tailmsgid-%E5%AF%B9%E8%B4%A6">2. 破解 CLI 半途崩溃引发的重复投递：<code>uncertain</code> 状态与 <code>[TAILMSG:&lt;id&gt;]</code> 对账</a></li>
+<li><a href="#3-%E8%BF%9B%E7%A8%8B%E7%BB%84%E8%B6%85%E6%97%B6%E5%9B%B4%E6%A0%8Freceiver_margin%E4%B8%8E-workspace-write-%E6%B2%99%E7%AE%B1%E6%9C%80%E5%B0%8F%E6%9D%83%E9%99%90%E8%BE%B9%E7%95%8C">3. 进程组超时围栏（<code>RECEIVER_MARGIN</code>）与 <code>workspace-write</code> 沙箱最小权限边界</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%94-%E6%9C%AC%E6%9C%BA%E5%AE%9E%E6%B5%8B%E4%B8%8E%E8%B7%A8%E5%B9%B3%E5%8F%B0%E6%B7%B1%E6%B0%B4%E5%8C%BA%E6%8E%92%E9%9A%9C%E6%88%91%E5%9C%A8-macos-darwin-python-313-%E8%B7%91%E9%80%9A-yobiru-051-%E7%9A%84%E7%9C%9F%E5%AE%9E%E8%B8%A9%E5%9D%91%E8%AE%B0%E5%BD%95">五、本机实测与跨平台深水区排障：我在 macOS (Darwin + Python 3.13) 跑通 Yobiru 0.5.1 的真实踩坑记录</a>
+<ul>
+<li><a href="#1-%E6%9E%84%E5%BB%BA%E6%A0%A1%E9%AA%8C%E4%B8%8E%E6%9C%AC%E6%9C%BA-onboard-doctor-%E5%AE%9E%E6%B5%8B%E8%BE%93%E5%87%BA">1. 构建校验与本机 <code>onboard</code> / <code>doctor</code> 实测输出</a></li>
+<li><a href="#2-%E5%9C%A8-macos-%E4%B8%8A%E8%B7%91-374-%E4%B8%AA%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95%E6%9A%B4%E9%9C%B2%E5%87%BA%E7%9A%84-4-%E5%A4%84-linuxdarwin-%E5%BA%95%E5%B1%82%E5%B7%AE%E5%BC%82">2. 在 macOS 上跑 374 个单元测试暴露出的 4 处 Linux/Darwin 底层差异</a></li>
+</ul>
+</li>
+<li><a href="#%E5%85%AD-%E6%80%BB%E7%BB%93%E4%B8%8E%E4%B8%AA%E4%BA%BA%E9%83%A8%E7%BD%B2%E5%BB%BA%E8%AE%AE">六、总结与个人部署建议</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/ai-3d-game-pipeline-opus-tripo-blender-unity-little-prince/">
+              <h3 class="post-title">
+                16 天把《小王子》做成 2GB 级 WebGPU 3D 游戏：Opus 5.5 + Tripo + Blender 工业级管线与工程源码实录
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+    </script>
+  </body>
+</html>
