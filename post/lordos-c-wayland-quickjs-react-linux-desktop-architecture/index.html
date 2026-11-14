@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>手搓 Wayland、砍掉 Electron 与 Flatpak：LordOS 的纯 C 内核与 QuickJS-React 桌面实验 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1794644057587">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="手搓 Wayland、砍掉 Electron 与 Flatpak：LordOS 的纯 C 内核与 QuickJS-React 桌面实验 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/lordos-c-wayland-quickjs-react-linux-desktop-architecture/">
+    <meta name="description" content="在如今的 Linux 桌面生态中，“现代感”往往意味着沉重且昂贵的技术税：基于 GNOME 或 KDE 搭建的工作区，开机即便什么都不开也会吞噬上千兆内存；基于 WebKitGTK 或 Electron 构建的界面外壳更是动辄百兆内存起步。..." />
+    <meta name="keywords" content="Wayland,QuickJS,eBPF,React,操作系统,Linux,架构设计" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="手搓 Wayland、砍掉 Electron 与 Flatpak：LordOS 的纯 C 内核与 QuickJS-React 桌面实验">
+    <meta property="og:description" content="在如今的 Linux 桌面生态中，“现代感”往往意味着沉重且昂贵的技术税：基于 GNOME 或 KDE 搭建的工作区，开机即便什么都不开也会吞噬上千兆内存；基于 WebKitGTK 或 Electron 构建的界面外壳更是动辄百兆内存起步。...">
+    <meta property="og:url" content="https://lijianfei.com/post/lordos-c-wayland-quickjs-react-linux-desktop-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/lordos-c-wayland-quickjs-react-linux-desktop-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-11-01T09:15:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="Wayland">
+    
+    <meta property="article:tag" content="QuickJS">
+    
+    <meta property="article:tag" content="eBPF">
+    
+    <meta property="article:tag" content="React">
+    
+    <meta property="article:tag" content="操作系统">
+    
+    <meta property="article:tag" content="Linux">
+    
+    <meta property="article:tag" content="架构设计">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="手搓 Wayland、砍掉 Electron 与 Flatpak：LordOS 的纯 C 内核与 QuickJS-React 桌面实验">
+    <meta name="twitter:description" content="在如今的 Linux 桌面生态中，“现代感”往往意味着沉重且昂贵的技术税：基于 GNOME 或 KDE 搭建的工作区，开机即便什么都不开也会吞噬上千兆内存；基于 WebKitGTK 或 Electron 构建的界面外壳更是动辄百兆内存起步。...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/lordos-c-wayland-quickjs-react-linux-desktop-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "手搓 Wayland、砍掉 Electron 与 Flatpak：LordOS 的纯 C 内核与 QuickJS-React 桌面实验",
+      "description": "在如今的 Linux 桌面生态中，“现代感”往往意味着沉重且昂贵的技术税：基于 GNOME 或 KDE 搭建的工作区，开机即便什么都不开也会吞噬上千兆内存；基于 WebKitGTK 或 Electron 构建的界面外壳更是动辄百兆内存起步。...",
+      "image": "https://lijianfei.com/post-images/lordos-c-wayland-quickjs-react-linux-desktop-architecture.png",
+      "datePublished": "2026-11-01T09:15:00.000Z",
+      "dateModified": "2026-11-01T09:15:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/lordos-c-wayland-quickjs-react-linux-desktop-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Wayland",
+          "item": "https://lijianfei.com/tag/wayland/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "手搓 Wayland、砍掉 Electron 与 Flatpak：LordOS 的纯 C 内核与 QuickJS-React 桌面实验",
+          "item": "https://lijianfei.com/post/lordos-c-wayland-quickjs-react-linux-desktop-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+      /* Diagram & Image Zoom Lightbox Modal */
+      .post-content img {
+        cursor: zoom-in !important;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
+      }
+      .post-content img:hover {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+      }
+      .diagram-zoom-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: rgba(15, 23, 42, 0.82);
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .diagram-zoom-overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+      .diagram-zoom-stage {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+        cursor: grab;
+      }
+      .diagram-zoom-stage.dragging {
+        cursor: grabbing;
+      }
+      .diagram-zoom-img {
+        max-width: 92vw;
+        max-height: 86vh;
+        object-fit: contain;
+        transform-origin: center center;
+        transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+        border-radius: 8px;
+        background-color: #ffffff;
+      }
+      .diagram-zoom-toolbar {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.95);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        padding: 6px 14px;
+        border-radius: 30px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.06);
+        z-index: 10;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .diagram-zoom-btn {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #1e293b;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+        font-size: 14px;
+        padding: 0;
+      }
+      .diagram-zoom-btn:hover {
+        background: #f1f5f9;
+        color: #0284c7;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-btn:active {
+        transform: scale(0.95);
+      }
+      .diagram-zoom-info {
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+        min-width: 46px;
+        text-align: center;
+      }
+      .diagram-zoom-close {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.92);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1e293b;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+        transition: all 0.15s ease;
+        z-index: 10;
+      }
+      .diagram-zoom-close:hover {
+        background: #ffffff;
+        color: #e11d48;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-hint {
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 12px;
+        font-weight: 500;
+        pointer-events: none;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1794644057587" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              手搓 Wayland、砍掉 Electron 与 Flatpak：LordOS 的纯 C 内核与 QuickJS-React 桌面实验
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-11-01
+              </span>
+              <span>
+                27 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/wayland/" class="post-tag">
+                  # Wayland
+                </a>
+              
+                <a href="https://lijianfei.com/tag/quickjs/" class="post-tag">
+                  # QuickJS
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ebpf/" class="post-tag">
+                  # eBPF
+                </a>
+              
+                <a href="https://lijianfei.com/tag/react/" class="post-tag">
+                  # React
+                </a>
+              
+                <a href="https://lijianfei.com/tag/cao-zuo-xi-tong/" class="post-tag">
+                  # 操作系统
+                </a>
+              
+                <a href="https://lijianfei.com/tag/linux/" class="post-tag">
+                  # Linux
+                </a>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-she-ji/" class="post-tag">
+                  # 架构设计
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/lordos-c-wayland-quickjs-react-linux-desktop-architecture.png" alt="手搓 Wayland、砍掉 Electron 与 Flatpak：LordOS 的纯 C 内核与 QuickJS-React 桌面实验" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在如今的 Linux 桌面生态中，“现代感”往往意味着沉重且昂贵的技术税：基于 GNOME 或 KDE 搭建的工作区，开机即便什么都不开也会吞噬上千兆内存；基于 WebKitGTK 或 Electron 构建的界面外壳更是动辄百兆内存起步。为了给肆无忌惮的应用加上沙箱，社区引入了 Flatpak、Bubblewrap 和各种容器方案，使得系统层级变得错综复杂且缝隙丛生。然而，最近一个基于 Debian 13 的独立操作系统开源项目—— <strong>LordOS</strong>，以一种几乎偏执的“极端纯粹主义”向这套臃肿的技术栈发起了彻底挑战。</p>
+<p>由 iPERFEX 开发的 LordOS，既没有采用现成的 Xorg/wlroots，也没有使用 WebKit/Chromium，更将 GTK、Qt、Flatpak、systemd 网络组件及各种抽象中间库全数拒之门外。它的整套桌面环境完全由纯 C 语言编写的 Wayland 显示服务与合成器（<code>lord-server</code>）直接驱动内核 DRM/KMS 与 evdev 裸机渲染，并在底层嵌入仅 1MB 体积的 QuickJS 引擎，借助自研 Flexbox 布局与 2D 栅格化管道，让 React 19.3.1 抛弃 DOM 直接在裸机上飞速绘制出 60 帧的桌面 UI。在这篇文章中，我将深入其底层源码与官方架构白皮书，全景拆解这个整个桌面服务仅占 36MB 内存、开机秒级响应且自带 eBPF 可视化防火墙的操作系统架构精髓与设计哲学。</p>
+<!-- more -->
+<hr>
+<h2 id="0-痛点与叛逆linux-桌面为何陷入臃肿怪圈">0. 痛点与叛逆：Linux 桌面为何陷入“臃肿怪圈”？</h2>
+<p>作为一个长期折腾 Linux 桌面与内核特性的开发者，我常常感到困惑：为什么在现代硬件性能如此过剩的时代，Linux 桌面环境的冷启动延迟和基础内存占用却在节节攀升？</p>
+<p>深入剖析现代主流 Linux 发行版，你会发现桌面系统正被以下三层“中间件重税”死死拖累：</p>
+<ol>
+<li><strong>图形栈的重层封装</strong>：传统的 X11 带着数十年的协议包袱苟延残喘；即使迁移到现代 Wayland，大多数独立合成器也是基于庞大的 wlroots 框架构建，外层再挂载 <code>libdrm</code>、<code>libinput</code> 以及复杂的 Mesa 图形驱动栈；</li>
+<li><strong>应用外壳的“浏览器化”</strong>：为了追求跨平台与现代 UI 的快速迭代，大量现代应用乃至桌面组件选择使用 Electron 或嵌入式 WebKit。一个简单的系统监控面板或密码管理器，往往需要拉起整套 Chromium 渲染管道与 V8 引擎，瞬间吃掉 100~300 MB 内存；</li>
+<li><strong>“补丁式”安全沙箱</strong>：传统的桌面环境下，任意一个以用户身份运行的程序都可以随意读取 <code>~/.ssh</code> 密钥、静默监听麦克风或捕获全局剪贴板。社区后置引入的 Flatpak 与 Bubblewrap 虽然提供了命名空间隔离，但它们与窗口合成器、桌面权限代理之间存在天然的缝隙，缺乏端到端协同的统一防御策略。</li>
+</ol>
+<p>为了打破这种割裂，LordOS 在立项之初就制定了一套极为严苛且特立独行的“极简依赖红线”（Strict Dependency Policy）。</p>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph TraditionalStack [&quot;传统现代 Linux 桌面（层层堆叠、重型依赖）&quot;]
+        AppA[&quot;用户桌面 / 原生应用&quot;]
+        Toolkit[&quot;GTK4 / Qt6 / Electron / WebKitGTK&quot;]
+        CompA[&quot;GNOME Shell / KDE KWin / wlroots 合成器&quot;]
+        LibsA[&quot;libinput + libdrm + fontconfig + HarfBuzz + FreeType&quot;]
+        SecA[&quot;Bubblewrap / Flatpak / polkit 复杂胶水层&quot;]
+        KernelA[&quot;Linux 内核&quot;]
+        
+        AppA --&gt; Toolkit --&gt; CompA --&gt; LibsA --&gt; KernelA
+        AppA -. 权限逃逸隐患 .-&gt; SecA
+    end
+
+    subgraph LordOSStack [&quot;LordOS 架构（纯 C 底座 + QuickJS-React 裸机直通）&quot;]
+        AppB[&quot;32 款原生 React 应用 + 隔离 .lpk 包&quot;]
+        UIEng[&quot;自研 UI 引擎 (C 语言 Flexbox + stb 文本排版 + QuickJS)&quot;]
+        CompB[&quot;lord-server (纯 C 显示服务 + 原生 Wayland 合成器)&quot;]
+        DirectIO[&quot;原生 ioctl 直通 (DRM/KMS 显示 + evdev 输入)&quot;]
+        SecB[&quot;原生 Landlock + seccomp-bpf + cgroup v2 + eBPF 防火墙&quot;]
+        KernelB[&quot;Linux 内核 (Debian 13 原生)&quot;]
+        
+        AppB --&gt; UIEng --&gt; CompB --&gt; DirectIO --&gt; KernelB
+        CompB === SecB === KernelB
+    end
+</code></pre>
+<p>在 LordOS 的核心代码规范中，明令禁止了以下一系列我们早已习以为常的“工业标准库”：</p>
+<ul>
+<li><strong>严禁引入</strong>：X11/Xorg、wlroots、libdrm、libinput、WebKit、Chromium，以及桌面内部的 GTK 与 Qt 库；</li>
+<li><strong>严禁引入</strong>：Flatpak、bubblewrap、firejail、libseccomp、NetworkManager、wireguard-tools、libpulse、libpipewire、libcups、avahi-client、SANE；</li>
+<li><strong>严禁引入</strong>：HarfBuzz、FreeType、fontconfig、fribidi 与 ICU。</li>
+</ul>
+<p>取而代之的，是基于纯 C 语言对 Linux 内核能力的直接解构与纯粹手搓。</p>
+<hr>
+<h2 id="1-核心架构分层从内核到声明式-ui-的极简拓扑">1. 核心架构分层：从内核到声明式 UI 的极简拓扑</h2>
+<p>整个 LordOS 操作系统依托于 Debian 13（Trixie）的基础底层构建，但其用户态核心架构却与传统发行版有着天壤之别。整体架构可以清晰地划分为四大层级：</p>
+<pre><code>LordOS 桌面主题与原生应用 ─── React 19.3.1 + JSX + 类似 CSS 的样式声明
+        │                   &lt;View style={{flexDirection: 'row', borderRadius: 12}}&gt;
+        ▼
+lord-ui (纯 C 引擎) ──────── QuickJS 虚拟机 (纯 C 实现的 ES2023 引擎)
+        │                   + 针对 react-reconciler 的自定义 Host Config
+        │                   + 纯 C 手搓的 Flexbox 布局引擎
+        │                   + 自研 2D 栅格化管道 + stb_truetype 字体光栅化
+        ▼
+lord-server (纯 C 服务) ──── 原生显示服务：直驱 DRM/KMS + evdev 输入处理
+        │                   + 窗口管理、焦点调度、全屏合成与毛玻璃特效
+        │                   + 标准 Wayland 协议服务端 (供外部 Firefox/Chromium/GTK 接入)
+        │                   + 自研二进制 Wire 协议的 X11 窗口管理器 (无缝驱动 Xwayland)
+        ▼
+Linux 内核 (Debian 13) ──── DRM/KMS、evdev、Landlock ABI 1~6、seccomp-bpf、cgroups v2、eBPF
+</code></pre>
+<p>为了确保系统的安全性与健壮性，LordOS 在进程划分上贯彻了极度的“权限最小化原则”。系统的各个关键角色被严格拆解为相互独立的专用进程：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">进程名称</th>
+<th style="text-align:left">运行权限</th>
+<th style="text-align:left">核心职责与安全边界</th>
+<th style="text-align:left">核心技术选型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>lord-sessiond</code></td>
+<td style="text-align:left"><code>root</code></td>
+<td style="text-align:left">登录管理器（Greeter 交互）、用户会话生命周期调度、WebRTC 远程桌面中继桥接</td>
+<td style="text-align:left">libc + 基础网络</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lord-netd</code></td>
+<td style="text-align:left"><code>root</code></td>
+<td style="text-align:left">属于系统层级的全局网络服务，负责 DHCP、Wi-Fi、WireGuard 与 VPN 隧道，只开放闭合的 <code>net-*</code> 指令</td>
+<td style="text-align:left">自研 netlink + wpa_supplicant</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lord-netperm</code></td>
+<td style="text-align:left"><code>root</code>（受限能力）</td>
+<td style="text-align:left">内核态每应用防火墙守护进程，装载 eBPF 拦截钩子，零数据包损耗</td>
+<td style="text-align:left">eBPF + cgroup v2 + raw bpf()</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lord-fand</code></td>
+<td style="text-align:left"><code>root</code>（零特权能力）</td>
+<td style="text-align:left">依据 CPU 温度控制散热风扇转速，原生支持树莓派 5 风扇排线与主板 PWM 芯片</td>
+<td style="text-align:left">纯 C 硬件轮询</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lord-server</code></td>
+<td style="text-align:left">普通用户 (<code>user</code>)</td>
+<td style="text-align:left">每个会话的核心枢纽：Wayland 合成器、QuickJS 运行时宿主、权限 Broker</td>
+<td style="text-align:left">纯 C，严禁执行外部 shell 命令</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lord-server --app &lt;id&gt;</code></td>
+<td style="text-align:left">普通用户（受限沙箱）</td>
+<td style="text-align:left">每一个独立运行的 <code>.lpk</code> 原生应用与独立系统应用（如密码管理器、邮件客户端等）</td>
+<td style="text-align:left">Landlock + seccomp + cgroup</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lord-doc</code> / <code>lord-media</code></td>
+<td style="text-align:left">普通用户（受限沙箱）</td>
+<td style="text-align:left">解析不可信 PDF、压缩包、字体、音视频的高危助手进程，<strong>禁止新建任何网络 Socket</strong></td>
+<td style="text-align:left">Poppler / FFmpeg + 密封共享内存</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lord-vault</code></td>
+<td style="text-align:left">普通用户（受限沙箱）</td>
+<td style="text-align:left">密码凭据管理器，常驻内存并使用 <code>mlock</code> 防止核心转储，提供 D-Bus 密钥服务</td>
+<td style="text-align:left">Monocypher (XChaCha20, Argon2id)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lord-maild</code></td>
+<td style="text-align:left">普通用户（受限沙箱）</td>
+<td style="text-align:left">处理 IMAP/SMTP/CalDAV 协议，<strong>无创建网络 Socket 权限</strong>，由合成器分配已连接描述符</td>
+<td style="text-align:left">OpenSSL + 自研 MIME/XML 解析器</td>
+</tr>
+</tbody>
+</table>
+<p>这种进程模型彻底切断了“单个模块崩塌引发全盘溃败”的传统隐患。</p>
+<hr>
+<h2 id="2-裸机运行-react无浏览器-无-dom-的-c-语言-ui-引擎">2. 裸机运行 React：无浏览器、无 DOM 的 C 语言 UI 引擎</h2>
+<p>在 LordOS 中，桌面环境（任务栏、Dock、控制中心、启动器、多桌面管理）以及自带的 32 款原生应用全部由 React 编写。很多人第一反应是：“这不就是套了个 Chromium 或者 WebKit 壳吗？”</p>
+<p>答案是：<strong>完全没有浏览器内核，甚至连虚拟 DOM（DOM 树）都不存在。</strong></p>
+<h3 id="21-quickjs-与-react-reconciler-的精准嵌合">2.1 QuickJS 与 <code>react-reconciler</code> 的精准嵌合</h3>
+<p>在 <code>runtime/index.js</code> 中，LordOS 基于 React 官方的 <code>react-reconciler</code> 包（React 19.3.1，Reconciler 版本 0.34）构建了一套原生的 Host Config。</p>
+<pre><code class="language-javascript">// runtime/index.js 源码片段：定义底层原生节点
+import Reconciler from 'react-reconciler';
+import { flatten, normalize, applyStyle } from './style.js';
+
+export const View = 'view';
+export const Text = 'text';
+export const Image = 'image';
+export const Terminal = 'terminal';
+export const Surface = 'surface';
+export const MediaView = 'media';
+</code></pre>
+<p>当组件状态发生改变时，React Reconciler 计算出最小更新集合，直接调用暴露在 JavaScript 全局上下文中的 <code>lord.setStyle</code>、<code>lord.appendChild</code> 等 C 语言原生接口。</p>
+<p>为了将通信开销降至绝对冰点，LordOS 做了精巧的<strong>属性差异短路优化</strong>：</p>
+<ul>
+<li><code>applyProps</code> 内部会缓存上次渲染的平铺样式键值对；</li>
+<li>若新样式的键顺序与基本数值完全一致，则直接跳过 C 语言绑定转换；</li>
+<li>只有发生实质变动的样式属性才会打包传递给 C 端的场景树。</li>
+</ul>
+<p>打包后的默认主题连带全套原生应用，体积仅约 1.9 MB（Gzip 压缩后仅 560 KB），内存占用更是令传统 WebView 望尘莫及。</p>
+<h3 id="22-纯-c-手搓-flexbox-布局引擎layoutc">2.2 纯 C 手搓 Flexbox 布局引擎（<code>layout.c</code>）</h3>
+<p>在脱离了浏览器 CSS 引擎后，UI 的流式排版如何解决？LordOS 的作者并没有引入 Facebook 的 Yoga 引擎，而是在 <code>server/src/ui/layout.c</code> 中直接用纯 C 实现了一套完整的 Flexbox 规范子集：</p>
+<ul>
+<li>完整支持 <code>flexDirection</code>（row / column）、<code>flexWrap</code>（wrap）、<code>flexGrow</code>、<code>flexShrink</code>、<code>justifyContent</code>、<code>alignItems</code> 以及 <code>gap</code> 间距；</li>
+<li>原生支持逻辑边距映射（<code>marginStart</code> / <code>marginEnd</code>、<code>paddingStart</code> / <code>paddingEnd</code>），并内置了镜像方向属性 <code>direction: 'rtl'</code>。当切换至阿拉伯语或希伯来语等从右向左书写的语言时，整个 Flexbox 主轴与交叉轴在 C 语言层自动完成物理坐标的镜像反转，上层业务组件零感知。</li>
+</ul>
+<h3 id="23-文本排版革命干掉-harfbuzz-与-freetype">2.3 文本排版革命：干掉 HarfBuzz 与 FreeType</h3>
+<p>在现代操作系统中，文本渲染向来是复杂的重灾区（通常依赖 HarfBuzz、FreeType、fontconfig、fribidi 组成的数十万行庞大 C++ 依赖链）。</p>
+<p>而在 <code>lord-server</code> 中，这些全部被干脆利落地剔除：</p>
+<ul>
+<li><strong>字形光栅化</strong>：直接嵌入单头文件开源神器 <code>stb_truetype.h</code>；</li>
+<li><strong>OpenType 文本塑形</strong>：自研轻量级 OpenType 引擎（<code>otf.c</code>、<code>shape.c</code>），支持 GSUB 字形替换（连字与标音）、GPOS 定位以及 CBDT 彩色 Emoji；</li>
+<li><strong>复杂双向排版</strong>：内置自研 Unicode BiDi 算法与阿拉伯语连写状态机（<code>bidi.c</code>）。其自研塑形引擎在针对 HarfBuzz 官方测试套件比对时，<strong>409 条复杂多语言基准测试句子取得了 100% 像素级一致匹配</strong>！</li>
+</ul>
+<hr>
+<h2 id="3-双轨合成器直通内核-kms-与手搓-x11-wire-协议">3. 双轨合成器：直通内核 KMS 与手搓 X11 Wire 协议</h2>
+<p>在图形与输入层面，<code>lord-server</code> 彻底绕过了中间库，展示了什么叫做真正的底层掌控力。</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    participant App as 应用程序 (React 原生 / Wayland / X11)
+    participant LS as lord-server (纯 C 合成器)
+    participant DRM as Linux 内核 DRM/KMS
+    participant EV as Linux 内核 evdev
+
+    Note over EV,LS: 用户输入事件直接捕获
+    EV-&gt;&gt;LS: /dev/input/event* 原始硬件中断
+    LS-&gt;&gt;LS: 自研手势算法处理 (惯性滚动/防手掌误触/点击)
+    LS-&gt;&gt;App: 分发 hit_test 命中节点事件 (__lordEvent)
+
+    Note over App,LS: 声明式更新与局部脏重绘
+    App-&gt;&gt;LS: React Reconciler 提交场景图变更
+    LS-&gt;&gt;LS: Flexbox 布局计算 + 2D 栅格化 (仅重绘脏区域)
+    
+    Note over LS,DRM: 硬件垂直同步与页面翻转
+    LS-&gt;&gt;DRM: 原始 DRM ioctl (DRM_IOCTL_MODE_PAGE_FLIP)
+    DRM--&gt;&gt;LS: vblank 硬件中断信号完成翻转
+</code></pre>
+<h3 id="31-零-libdrm-的-kms-页面翻转">3.1 零 <code>libdrm</code> 的 KMS 页面翻转</h3>
+<p>在 <code>server/src/kms.c</code> 中，<code>lord-server</code> 直接调用内核的 <code>/dev/dri/cardX</code> 设备节点：</p>
+<ul>
+<li>通过原生的 <code>ioctl</code> 调用枚举显示连接器（Connectors）、CRTC 控制器与图层 Planes；</li>
+<li>分配双缓冲帧缓冲（Dumb Buffers），利用 <code>DRM_IOCTL_MODE_PAGE_FLIP</code> 精确绑定显卡的垂直同步（vblank）周期；</li>
+<li>当遇到核显与独显分离的复合硬件架构时，通过自动连接器嗅探算法精准锁定拥有真实物理输出的显示芯片，避免无效绘制。</li>
+</ul>
+<h3 id="32-零-libinput-的自研触控驱动">3.2 零 <code>libinput</code> 的自研触控驱动</h3>
+<p>对于触控板与鼠标输入，<code>lord-server</code> 在 <code>server/src/tp/</code> 中直接读取 <code>/dev/input/event*</code> 的 evdev 原始数据流，用纯 C 实现了整套手势物理模型：</p>
+<ul>
+<li>指针加速度曲线算法；</li>
+<li>防手掌误触识别（Palm Rejection）；</li>
+<li>双指动力学惯性滚动（Kinetic Scrolling）；</li>
+<li>多指捏合（Pinch）与四指平移滑动手势；</li>
+<li>专为 Wayland 客户端合成并转发多点触控与平滑缩放协议。</li>
+</ul>
+<h3 id="33-极致兼容不用-libx11-的自研-x11-协议客户端">3.3 极致兼容：不用 <code>libX11</code> 的自研 X11 协议客户端</h3>
+<p>虽然 LordOS 主打 Wayland 原生生态，但为了完美兼容老旧 Linux 工具，它保留了对 X11 应用的支持。令人惊叹的是其实现方式：</p>
+<p>它没有链接 <code>libxcb</code> 或 <code>libX11</code>，而是让 <code>lord-server</code> 在检测到 X11 应用请求时按需拉起官方 Xwayland 实例，并由内部模块 <code>xwm.c</code> 与 <code>x11wire.c</code> <strong>直接以裸二进制格式在套接字上拼装与解析 X11 报文</strong>。它将远古的 X11 客户端窗口巧妙包装为统一的合成器表面（Surface），使其与原生 React 窗口一样拥有完全一致的抗锯齿圆角、流光阴影和高对比度窗口边框。</p>
+<hr>
+<h2 id="4-深度沙箱设计无容器的内核三元组防御">4. 深度沙箱设计：无容器的内核三元组防御</h2>
+<p>很多开发者习惯性地认为，Linux 桌面要想实现类似 iOS 或 macOS 的严密沙箱，必须依赖 Docker、LXC、Flatpak 或 Bubblewrap。</p>
+<p>LordOS 用纯 C 给出了完全不同的答案：<strong>直接调遣 Linux 内核的原生武器——Landlock + seccomp-bpf + cgroups v2。</strong></p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph AppProcess [&quot;lord-server --app &lt;id&gt; 隔离进程&quot;]
+        JSApp[&quot;QuickJS 运行上下文&quot;]
+        BrokerClient[&quot;Broker 客户端 (SOCK_SEQPACKET)&quot;]
+        JSApp --&gt; BrokerClient
+    end
+
+    subgraph KernelSandbox [&quot;内核三重防护牢笼&quot;]
+        LL[&quot;Landlock ABI 1~6&lt;br/&gt;(只读系统库，只写私有数据区)&quot;]
+        SC[&quot;seccomp-bpf&lt;br/&gt;(禁止 execve/ptrace/raw socket)&quot;]
+        CG[&quot;cgroup v2 资源隔离&lt;br/&gt;(内存上限 512MB / 单核 CPU)&quot;]
+    end
+
+    subgraph CompositorBroker [&quot;lord-server 主会话进程&quot;]
+        BrokerServer[&quot;Broker 权限裁决服务&quot;]
+        Powerbox[&quot;原生 Powerbox 文件选择器&quot;]
+        BrokerServer --&gt; Powerbox
+    end
+
+    BrokerClient ==&gt;|&quot;仅单一通信描述符&quot;| BrokerServer
+    AppProcess -. 受限于 .-&gt; KernelSandbox
+    Powerbox ==&gt;|&quot;仅传递目标文件的 open fd&quot;| BrokerClient
+</code></pre>
+<h3 id="41-lpk-独立应用沙箱落地sandboxc">4.1 <code>.lpk</code> 独立应用沙箱落地（<code>sandbox.c</code>）</h3>
+<p>在 LordOS 中，非内置应用与核心敏感情报应用均打包为 <code>.lpk</code> 格式，并以 <code>lord-server --app &lt;id&gt;</code> 的受限模式拉起。进程在加载任何应用代码前，必须依次激活以下三道内核约束：</p>
+<ol>
+<li><strong>Landlock 文件系统锁定</strong>：
+<ul>
+<li>依赖 Linux 5.13+ 引入的 Landlock LSM 机制；</li>
+<li>应用对系统资源目录、字体、运行库仅享有只读权限；</li>
+<li>整个文件系统中，唯一允许写入的路径仅为 <code>~/.local/share/lordos/appdata/&lt;id&gt;</code> 私有沙盒目录；</li>
+<li>严禁遍历用户的其他文档或配置文件。</li>
+</ul>
+</li>
+<li><strong>原生 seccomp-bpf 过滤</strong>：
+<ul>
+<li>通过系统级 BPF 过滤器限制系统调用；</li>
+<li>彻底封死 <code>execve</code>（严禁执行子程序）、<code>ptrace</code>（严禁进程注入与调试）、<code>mount</code>、<code>kexec</code>、<code>bpf</code>、<code>perf_event_open</code>；</li>
+<li>拦截原始网络套接字创建（<code>socket(AF_INET/AF_INET6/AF_PACKET)</code>），杜绝私自联网。</li>
+</ul>
+</li>
+<li><strong>cgroup v2 资源牢笼</strong>：
+<ul>
+<li>进程被归入根用户拥有的独立切片 <code>app-lordos-lpk-&lt;id&gt;.scope</code>；</li>
+<li>强制设定 <code>memory.high = 192MB</code>、<code>memory.max = 512MB</code> 与单核心限制，即使应用发生死循环或严重内存泄漏，也绝不可能拖垮主桌面。</li>
+</ul>
+</li>
+</ol>
+<h3 id="42-彻底抛弃-portal自研-powerbox-权限代理">4.2 彻底抛弃 Portal：自研 Powerbox 权限代理</h3>
+<p>许多 Linux 桌面通过 <code>xdg-desktop-portal</code> 提供文件选择对话框，但其协议复杂且经常发生版本脱节。</p>
+<p>LordOS 自行实现了类似传统高安全系统的 <strong>Powerbox 模型</strong>：</p>
+<ul>
+<li>沙箱内的应用<strong>无法直接读取文件路径</strong>，当需要打开文件时，应用向 <code>SOCK_SEQPACKET</code> 套接字发送文件拾取请求；</li>
+<li><code>lord-server</code> 在合成器安全上下文中弹出自研的文件选择器；</li>
+<li>用户选中文件后，合成器在底层调用 <code>open()</code> 取得文件描述符，通过 Unix Socket 的 <code>SCM_RIGHTS</code> 机制<strong>仅将该文件描述符（fd）传递给应用</strong>。</li>
+</ul>
+<p>应用自始至终无法窥见该文件所在的父级目录结构，亦无法越权访问同目录下的其他私密文件。</p>
+<h3 id="43-终极断网设计没有-socket-的邮件客户端">4.3 终极断网设计：没有 Socket 的邮件客户端</h3>
+<p>在沙箱化专用助手设计中，最令我拍案叫绝的是邮件守护进程 <code>lord-maild</code> 的网络权限设计：</p>
+<p>通常认知中，邮件客户端必须联网才能收发邮件。但 <code>lord-maild</code> 在初始化时应用了与高危解析器完全相同的极度受限沙箱，<strong>它的系统调用白名单里根本没有创建网络 Socket 的权限</strong>！</p>
+<p>那么它是如何收发邮件的？</p>
+<ul>
+<li>当需要同步邮件时，<code>lord-maild</code> 必须向 <code>lord-server</code> 发出请求；</li>
+<li><code>lord-server</code> 校验账号配置中的服务器域名与端口，并在自身具备网络权限的上下文中建立 TCP 连接并完成 TLS 握手；</li>
+<li>随后，<code>lord-server</code> 将这个<strong>已经建立好的通信连接文件描述符直接移交给 <code>lord-maild</code></strong>。</li>
+</ul>
+<p>这意味着即使邮件解析代码遭遇高危的 RCE 漏洞，攻击者也绝不可能操纵它扫描内网、反弹 Shell 或向不受信任的黑客 C2 服务器发送任何数据包！</p>
+<hr>
+<h2 id="5-看得见的防火墙基于内核-ebpf-的网络全景透视">5. 看得见的防火墙：基于内核 eBPF 的网络全景透视</h2>
+<p>在现代桌面中，普通用户几乎没有手段直观获知：“后台究竟有哪些软件在偷偷向哪些国家或服务器发送数据？”</p>
+<p>LordOS 内置的“看得见的防火墙”（A firewall you can see）打破了这种信息黑盒。</p>
+<pre><code class="language-mermaid">flowchart TD
+    AppOp[&quot;应用发起系统调用&lt;br/&gt;connect / sendmsg / bind / socket&quot;]
+    
+    subgraph eBPFEngine [&quot;内核态 lord-netperm (挂载于 cgroup)&quot;]
+        HookNet[&quot;7 个 cgroup BPF 钩子 (connect4/6, sendmsg4/6 等)&quot;]
+        HookDev[&quot;cgroup/dev 拦截未授权麦克风/摄像头/USB节点&quot;]
+        HookLSM[&quot;BPF LSM 拦截蓝牙 AF_BLUETOOTH 套接字&quot;]
+        MapLookup{&quot;BPM Map 规则匹配&lt;br/&gt;(前缀匹配与 Hash 表)&quot;}
+        
+        HookNet --&gt; MapLookup
+        HookDev --&gt; MapLookup
+        HookLSM --&gt; MapLookup
+    end
+    
+    DecisionPass[&quot;放行 (返回 1)&quot;]
+    DecisionDeny[&quot;拦截 (返回 0，应用收到 EPERM)&quot;]
+    SockDestroy[&quot;动态切断：调用 SOCK_DESTROY 强杀既有连接&quot;]
+    Monitor[&quot;前端 Monitor 应用：在离线世界地图上高亮流量路径&quot;]
+
+    AppOp --&gt; eBPFEngine
+    MapLookup -- 允许 --&gt; DecisionPass
+    MapLookup -- 拒绝 --&gt; DecisionDeny
+    DecisionDeny --&gt; SockDestroy
+    DecisionPass -. 异步无损上报 .-&gt; Monitor
+    DecisionDeny -. 实时报警 .-&gt; Monitor
+</code></pre>
+<h3 id="51-零数据包损耗的-cgroup-bpf-拦截管线">5.1 零数据包损耗的 cgroup BPF 拦截管线</h3>
+<p>在 <code>server/src/netperm/np.bpf.c</code> 中，根守护进程 <code>lord-netperm</code> 在系统启动阶段直接向全局桌面会话的 cgroup 子树装载了 7 个核心 BPF 程序：</p>
+<ul>
+<li><code>cgroup/connect4</code> 与 <code>cgroup/connect6</code>（拦截 TCP/UDP 出站连接）；</li>
+<li><code>cgroup/sendmsg4</code> 与 <code>cgroup/sendmsg6</code>（拦截无连接 UDP 数据包）；</li>
+<li><code>cgroup/bind4</code> 与 <code>cgroup/bind6</code>（拦截入站监听端口）；</li>
+<li><code>cgroup/sock_create</code>（拦截原始套接字创建）；</li>
+<li><code>cgroup/dev</code>（拦截摄像头 <code>/dev/video*</code>、原始 USB <code>/dev/bus/usb</code> 以及 ALSA 录音节点）；</li>
+<li><code>BPF_LSM_CGROUP</code> 上的 <code>socket_create</code> 钩子（直接封杀未授权的蓝牙 <code>AF_BLUETOOTH</code> 通信）。</li>
+</ul>
+<p>这项设计的绝妙之处在于：<strong>它只在应用发起建连与设备打开的瞬间（系统调用层）介入判断，完全不在后续的数据转发链路（Packet-level）上逐包执行深检</strong>！<br>
+实测数据显示，单次建连仅增加约 0.5 微秒开销，对网络带宽和吞吐量毫无任何影响。</p>
+<h3 id="52-动态主动断链active-cut-via-sock_destroy">5.2 动态主动断链（Active Cut via <code>SOCK_DESTROY</code>）</h3>
+<p>传统防火墙往往只能“阻止新连接”。如果某个恶意程序已经建立起一条长连接，修改防火墙规则后该连接通常依然存活。</p>
+<p>LordOS 借助内核提供的 <code>sock_diag</code> 子系统完美解决了这个痛点：<br>
+当用户在“监控中心”（Monitor）或设置面板中将某个应用标记为“禁止访问互联网”时，<code>lord-netperm</code> 不仅会在 BPF Map 中注入拒绝策略，还会立即向内核广播 <code>SOCK_DESTROY</code> 控制指令。<br>
+在真实测试中，<strong>被封禁应用已建立的 TCP 连接在 0.04~0.37 秒内被内核强制强杀释放，QUIC 连接在 0.08 秒内彻底断开</strong>，真正做到了“即点即断”。</p>
+<h3 id="53-离线地图与绝对零隐私外泄">5.3 离线地图与绝对零隐私外泄</h3>
+<p>系统自带的 Monitor 监控面板支持在全彩世界地图上直观查看各个进程的通信流向。</p>
+<p>为了杜绝在反查 IP 地理位置时造成的“反向隐私泄露”，LordOS 严禁向外部发起任何 Reverse DNS 请求或在线 GeoIP 查询。它直接随系统内置了约 10MB 的 DB-IP Lite 离线数据库与 Natural Earth 矢量世界地图数据，所有的地理经纬度与国家映射全部在本地内存中瞬间完成。</p>
+<hr>
+<h2 id="6-实测基准数据轻量到极致是怎样一种体验">6. 实测基准数据：轻量到极致是怎样一种体验？</h2>
+<p>为了验证这套极简纯 C 架构的实际效能，我仔细查阅了 LordOS 官方发布的所有实测基准日志（涵盖 x86_64 虚拟机与物理树莓派 5 硬件测试记录）：</p>
+<h3 id="61-内存与启动耗时实测对比">6.1 内存与启动耗时实测对比</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">评测维度</th>
+<th style="text-align:left">测试环境与测试对象</th>
+<th style="text-align:left">实测数值</th>
+<th style="text-align:left">状态与技术细节说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>整机空闲内存</strong></td>
+<td style="text-align:left">Live ISO 启动（4GB 内存虚拟机，静置 1 分钟）</td>
+<td style="text-align:left"><strong>465 MB</strong></td>
+<td style="text-align:left">包含内核、Debian 基础服务、systemd、PipeWire 与桌面环境总和</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>整机空闲内存</strong></td>
+<td style="text-align:left">硬盘完整安装版（静置空闲状态）</td>
+<td style="text-align:left"><strong>487 MB</strong></td>
+<td style="text-align:left">CPU 空闲率高达 99%</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>桌面合成器驻留</strong></td>
+<td style="text-align:left"><code>lord-server</code> 进程自身（无 3D 显卡加速，CPU 软解路径）</td>
+<td style="text-align:left"><strong>32 ~ 36 MB RSS</strong></td>
+<td style="text-align:left">包含全套桌面 Shell、Dock、状态栏与 QuickJS 运行池</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>登录管理器</strong></td>
+<td style="text-align:left">登录前 Greeter 界面进程</td>
+<td style="text-align:left"><strong>41 MB RSS</strong></td>
+<td style="text-align:left">登录完成后自动彻底退出并释放内存</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>隔离应用进程</strong></td>
+<td style="text-align:left">单个独立 <code>.lpk</code> 原生应用实例</td>
+<td style="text-align:left"><strong>13.7 MB RSS</strong></td>
+<td style="text-align:left">启动耗时中位数仅 106 ms，沙箱装载仅需 0.89 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>冷启动首帧耗时</strong></td>
+<td style="text-align:left">0.8.5 镜像 UEFI 虚拟机冷启动</td>
+<td style="text-align:left"><strong>7.4 秒</strong></td>
+<td style="text-align:left">内核引导 3.3 秒，用户态仅用 4.3 秒即可完成首帧渲染</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>窗口拖拽计算</strong></td>
+<td style="text-align:left">1280×800 分辨率 CPU 纯软解路径</td>
+<td style="text-align:left"><strong>6.7 ~ 6.9 ms / 帧</strong></td>
+<td style="text-align:left">稳定维持 60 FPS 满帧刷新</td>
+</tr>
+</tbody>
+</table>
+<h3 id="62-树莓派-5raspberry-pi-5硬件实战复盘">6.2 树莓派 5（Raspberry Pi 5）硬件实战复盘</h3>
+<p>树莓派 5 是目前 LordOS 官方提供预编译镜像并全力支持的单板计算机硬件。但在移植和优化过程中，团队遇到了极具启发性的底层挑战：</p>
+<blockquote>
+<p>[!NOTE] 官方内核的 Landlock 缺失陷阱<br>
+树莓派官方提供的内核配置默认关闭了 Landlock LSM 支持。如果没有 Landlock，高危文档沙箱的核心文件隔离测试会有 20% 的断言直接失败。为此，LordOS 官方维护并重编了自己的专用内核（<code>6.18.57-lordos</code>），强制开启了 Landlock 并激活了内存 cgroup。</p>
+</blockquote>
+<p>在性能调优层面，树莓派 5 的实测还揭示了一个有趣的现象：</p>
+<ul>
+<li><strong>全核高负载下的总线带宽争抢</strong>：在树莓派 5 四核心满载压测下，窗口拖拽帧率曾一度从 60 FPS 骤降至 24 FPS。经排查，瓶颈并非 GPU 渲染能力不足，而是 CPU 密集读写内存霸占了总线带宽（Memory Contention）。</li>
+<li><strong>优化对策</strong>：LordOS 在 0.8.6 版本中将桌面合成器的 cgroup 权重提升为普通应用的 10 倍，并赋予合成器主线程最低级别的实时调度优先级（SCHED_RR），同时开启“仅重绘发生实质像素变动的局部图层”，最终将全核满载下的拖拽延迟大幅改善，帧率成功回升。</li>
+</ul>
+<hr>
+<h2 id="7-深度思辨极简纯粹主义的得与失">7. 深度思辨：极简纯粹主义的得与失</h2>
+<p>LordOS 的架构实验在开源社区激起了极大的震撼。它用令人难以置信的精巧代码，证明了 Linux 桌面完全可以在摆脱百兆级重型框架的前提下，实现极具现代美感和丝滑流畅的交互体验。</p>
+<p>但作为客观的技术观察者，我也必须指出这种“极端纯粹主义”在现阶段面临的现实局限：</p>
+<blockquote>
+<p>[!WARNING] 现阶段的局限性与工程边界</p>
+<ol>
+<li><strong>独立显卡实机验证尚显薄弱</strong>：目前的基准测试主要集中在虚拟机与树莓派 5 平台，针对复杂多变的 AMD 与 Nvidia 独显专用闭源驱动的适配仍有待长跑验证；</li>
+<li><strong>无障碍（Accessibility）生态缺失</strong>：由于完全摒弃了 AT-SPI、Orca 等庞大的 Linux 无障碍服务体系，目前系统仅提供了基础的高可读字体与减弱动态效果，屏幕阅读器与系统级高对比度模式尚处于路线图规划阶段；</li>
+<li><strong>安全启动生态准入壁垒</strong>：目前安装 LordOS 需要关闭主板的 UEFI Secure Boot，官方尚未完成与微软签名垫片（Shim）的商业级信任链对接；</li>
+<li><strong>应用生态构建难度</strong>：虽然兼容外部 Wayland 应用，但若想充分发挥其轻量沙箱与原生外观的威力，必须将应用重写为基于 <code>@lordos/sdk</code> 的 <code>.lpk</code> 包，生态繁荣道阻且长。</li>
+</ol>
+</blockquote>
+<hr>
+<h2 id="8-总结重新思考操作系统与前端技术的边界">8. 总结：重新思考操作系统与前端技术的边界</h2>
+<p>在软件工程领域，“抽象”往往是一把双刃剑。我们为了开发效率，一层层地往系统上叠床架屋：从 C++ 到复杂中间库，从中间库到 Node.js，再从 Node.js 到包含数百万行代码的 Chromium 渲染沙盒。不知不觉中，我们的计算机硬件性能提升了上百倍，却被臃肿的运行时层层吃尽。</p>
+<p>LordOS 的出现，就像是一记清脆的警钟：<br>
+<strong>它向我们证明了，React 的组件化与声明式 UI 哲学本身并没有错；错的是我们习惯性地把整个重型 Web 浏览器连根拔起搬进桌面。</strong></p>
+<p>当 React 遇到了纯 C 语言编写的轻量 QuickJS 引擎，当界面渲染直接面对 Linux 内核的 DRM/KMS 与 evdev 裸机接口，当安全隔离回归到纯粹的 Landlock、seccomp 与 eBPF——我们不仅找回了 20 年前轻灵敏捷的桌面操作质感，更构建起了一座坚不可摧、清澈透明的现代安全堡垒。这种敢于推倒重来的工程魄力与纯粹匠心，正是当今开源世界最弥足珍贵的精神力量。</p>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>LordOS 官方 GitHub 仓库</strong>：<a href="https://github.com/lordbasex/LordOS">GitHub - lordbasex/LordOS: The free, fast and secure Linux desktop</a></li>
+<li><strong>LordOS 官方主页</strong>：<a href="https://lordos.org">lordos.org: The free, fast and secure Linux desktop</a></li>
+<li><strong>LordOS 技术白皮书</strong>：<a href="https://lordos.org/paper/">LordOS Technical Paper (Architecture, Design, Security and Benchmark)</a></li>
+<li><strong>QuickJS 官方规范</strong>：<a href="https://bellard.org/quickjs/">Fabrice Bellard &amp; Charlie Gordon - QuickJS Javascript Engine</a></li>
+<li><strong>Linux Landlock 官方文档</strong>：<a href="https://docs.kernel.org/security/landlock.html">The Linux Kernel documentation - Landlock LSM</a></li>
+<li><strong>Linux eBPF 官方规范</strong>：<a href="https://ebpf.io/">eBPF Documentation - What is eBPF?</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#0-%E7%97%9B%E7%82%B9%E4%B8%8E%E5%8F%9B%E9%80%86linux-%E6%A1%8C%E9%9D%A2%E4%B8%BA%E4%BD%95%E9%99%B7%E5%85%A5%E8%87%83%E8%82%BF%E6%80%AA%E5%9C%88">0. 痛点与叛逆：Linux 桌面为何陷入“臃肿怪圈”？</a></li>
+<li><a href="#1-%E6%A0%B8%E5%BF%83%E6%9E%B6%E6%9E%84%E5%88%86%E5%B1%82%E4%BB%8E%E5%86%85%E6%A0%B8%E5%88%B0%E5%A3%B0%E6%98%8E%E5%BC%8F-ui-%E7%9A%84%E6%9E%81%E7%AE%80%E6%8B%93%E6%89%91">1. 核心架构分层：从内核到声明式 UI 的极简拓扑</a></li>
+<li><a href="#2-%E8%A3%B8%E6%9C%BA%E8%BF%90%E8%A1%8C-react%E6%97%A0%E6%B5%8F%E8%A7%88%E5%99%A8-%E6%97%A0-dom-%E7%9A%84-c-%E8%AF%AD%E8%A8%80-ui-%E5%BC%95%E6%93%8E">2. 裸机运行 React：无浏览器、无 DOM 的 C 语言 UI 引擎</a>
+<ul>
+<li><a href="#21-quickjs-%E4%B8%8E-react-reconciler-%E7%9A%84%E7%B2%BE%E5%87%86%E5%B5%8C%E5%90%88">2.1 QuickJS 与 <code>react-reconciler</code> 的精准嵌合</a></li>
+<li><a href="#22-%E7%BA%AF-c-%E6%89%8B%E6%90%93-flexbox-%E5%B8%83%E5%B1%80%E5%BC%95%E6%93%8Elayoutc">2.2 纯 C 手搓 Flexbox 布局引擎（<code>layout.c</code>）</a></li>
+<li><a href="#23-%E6%96%87%E6%9C%AC%E6%8E%92%E7%89%88%E9%9D%A9%E5%91%BD%E5%B9%B2%E6%8E%89-harfbuzz-%E4%B8%8E-freetype">2.3 文本排版革命：干掉 HarfBuzz 与 FreeType</a></li>
+</ul>
+</li>
+<li><a href="#3-%E5%8F%8C%E8%BD%A8%E5%90%88%E6%88%90%E5%99%A8%E7%9B%B4%E9%80%9A%E5%86%85%E6%A0%B8-kms-%E4%B8%8E%E6%89%8B%E6%90%93-x11-wire-%E5%8D%8F%E8%AE%AE">3. 双轨合成器：直通内核 KMS 与手搓 X11 Wire 协议</a>
+<ul>
+<li><a href="#31-%E9%9B%B6-libdrm-%E7%9A%84-kms-%E9%A1%B5%E9%9D%A2%E7%BF%BB%E8%BD%AC">3.1 零 <code>libdrm</code> 的 KMS 页面翻转</a></li>
+<li><a href="#32-%E9%9B%B6-libinput-%E7%9A%84%E8%87%AA%E7%A0%94%E8%A7%A6%E6%8E%A7%E9%A9%B1%E5%8A%A8">3.2 零 <code>libinput</code> 的自研触控驱动</a></li>
+<li><a href="#33-%E6%9E%81%E8%87%B4%E5%85%BC%E5%AE%B9%E4%B8%8D%E7%94%A8-libx11-%E7%9A%84%E8%87%AA%E7%A0%94-x11-%E5%8D%8F%E8%AE%AE%E5%AE%A2%E6%88%B7%E7%AB%AF">3.3 极致兼容：不用 <code>libX11</code> 的自研 X11 协议客户端</a></li>
+</ul>
+</li>
+<li><a href="#4-%E6%B7%B1%E5%BA%A6%E6%B2%99%E7%AE%B1%E8%AE%BE%E8%AE%A1%E6%97%A0%E5%AE%B9%E5%99%A8%E7%9A%84%E5%86%85%E6%A0%B8%E4%B8%89%E5%85%83%E7%BB%84%E9%98%B2%E5%BE%A1">4. 深度沙箱设计：无容器的内核三元组防御</a>
+<ul>
+<li><a href="#41-lpk-%E7%8B%AC%E7%AB%8B%E5%BA%94%E7%94%A8%E6%B2%99%E7%AE%B1%E8%90%BD%E5%9C%B0sandboxc">4.1 <code>.lpk</code> 独立应用沙箱落地（<code>sandbox.c</code>）</a></li>
+<li><a href="#42-%E5%BD%BB%E5%BA%95%E6%8A%9B%E5%BC%83-portal%E8%87%AA%E7%A0%94-powerbox-%E6%9D%83%E9%99%90%E4%BB%A3%E7%90%86">4.2 彻底抛弃 Portal：自研 Powerbox 权限代理</a></li>
+<li><a href="#43-%E7%BB%88%E6%9E%81%E6%96%AD%E7%BD%91%E8%AE%BE%E8%AE%A1%E6%B2%A1%E6%9C%89-socket-%E7%9A%84%E9%82%AE%E4%BB%B6%E5%AE%A2%E6%88%B7%E7%AB%AF">4.3 终极断网设计：没有 Socket 的邮件客户端</a></li>
+</ul>
+</li>
+<li><a href="#5-%E7%9C%8B%E5%BE%97%E8%A7%81%E7%9A%84%E9%98%B2%E7%81%AB%E5%A2%99%E5%9F%BA%E4%BA%8E%E5%86%85%E6%A0%B8-ebpf-%E7%9A%84%E7%BD%91%E7%BB%9C%E5%85%A8%E6%99%AF%E9%80%8F%E8%A7%86">5. 看得见的防火墙：基于内核 eBPF 的网络全景透视</a>
+<ul>
+<li><a href="#51-%E9%9B%B6%E6%95%B0%E6%8D%AE%E5%8C%85%E6%8D%9F%E8%80%97%E7%9A%84-cgroup-bpf-%E6%8B%A6%E6%88%AA%E7%AE%A1%E7%BA%BF">5.1 零数据包损耗的 cgroup BPF 拦截管线</a></li>
+<li><a href="#52-%E5%8A%A8%E6%80%81%E4%B8%BB%E5%8A%A8%E6%96%AD%E9%93%BEactive-cut-via-sock_destroy">5.2 动态主动断链（Active Cut via <code>SOCK_DESTROY</code>）</a></li>
+<li><a href="#53-%E7%A6%BB%E7%BA%BF%E5%9C%B0%E5%9B%BE%E4%B8%8E%E7%BB%9D%E5%AF%B9%E9%9B%B6%E9%9A%90%E7%A7%81%E5%A4%96%E6%B3%84">5.3 离线地图与绝对零隐私外泄</a></li>
+</ul>
+</li>
+<li><a href="#6-%E5%AE%9E%E6%B5%8B%E5%9F%BA%E5%87%86%E6%95%B0%E6%8D%AE%E8%BD%BB%E9%87%8F%E5%88%B0%E6%9E%81%E8%87%B4%E6%98%AF%E6%80%8E%E6%A0%B7%E4%B8%80%E7%A7%8D%E4%BD%93%E9%AA%8C">6. 实测基准数据：轻量到极致是怎样一种体验？</a>
+<ul>
+<li><a href="#61-%E5%86%85%E5%AD%98%E4%B8%8E%E5%90%AF%E5%8A%A8%E8%80%97%E6%97%B6%E5%AE%9E%E6%B5%8B%E5%AF%B9%E6%AF%94">6.1 内存与启动耗时实测对比</a></li>
+<li><a href="#62-%E6%A0%91%E8%8E%93%E6%B4%BE-5raspberry-pi-5%E7%A1%AC%E4%BB%B6%E5%AE%9E%E6%88%98%E5%A4%8D%E7%9B%98">6.2 树莓派 5（Raspberry Pi 5）硬件实战复盘</a></li>
+</ul>
+</li>
+<li><a href="#7-%E6%B7%B1%E5%BA%A6%E6%80%9D%E8%BE%A8%E6%9E%81%E7%AE%80%E7%BA%AF%E7%B2%B9%E4%B8%BB%E4%B9%89%E7%9A%84%E5%BE%97%E4%B8%8E%E5%A4%B1">7. 深度思辨：极简纯粹主义的得与失</a></li>
+<li><a href="#8-%E6%80%BB%E7%BB%93%E9%87%8D%E6%96%B0%E6%80%9D%E8%80%83%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E5%89%8D%E7%AB%AF%E6%8A%80%E6%9C%AF%E7%9A%84%E8%BE%B9%E7%95%8C">8. 总结：重新思考操作系统与前端技术的边界</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/poomsmart-ios-logos-tweak-agent-skill-analysis/">
+              <h3 class="post-title">
+                当越狱老兵给 AI 编码助手立规矩：拆解 PoomSmart 的 ios-logos-tweak 架构与防翻车准则
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+
+      // 架构图与插图原生灯箱放大模式 (Diagram Zoom Lightbox)
+      function initDiagramZoom() {
+        const postImages = document.querySelectorAll(".post-content img");
+        if (postImages.length === 0) return;
+
+        // 构建灯箱 DOM 结构
+        const overlay = document.createElement("div");
+        overlay.className = "diagram-zoom-overlay";
+        overlay.innerHTML = `
+          <div class="diagram-zoom-hint">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>滚轮缩放 · 拖拽平移 · 双击切换 · ESC退出</span>
+          </div>
+          <button class="diagram-zoom-close" title="关闭 (ESC)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+          <div class="diagram-zoom-stage">
+            <img class="diagram-zoom-img" src="" alt="Zoomed diagram" draggable="false" />
+          </div>
+          <div class="diagram-zoom-toolbar">
+            <button class="diagram-zoom-btn btn-zoom-out" title="缩小 (-)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <span class="diagram-zoom-info">100%</span>
+            <button class="diagram-zoom-btn btn-zoom-in" title="放大 (+)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-reset" title="重置适应 (0)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-open-raw" title="在新标签页查看高清原图">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </button>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const stage = overlay.querySelector(".diagram-zoom-stage");
+        const zoomImg = overlay.querySelector(".diagram-zoom-img");
+        const scaleInfo = overlay.querySelector(".diagram-zoom-info");
+        const closeBtn = overlay.querySelector(".diagram-zoom-close");
+        const zoomInBtn = overlay.querySelector(".btn-zoom-in");
+        const zoomOutBtn = overlay.querySelector(".btn-zoom-out");
+        const resetBtn = overlay.querySelector(".btn-reset");
+        const rawBtn = overlay.querySelector(".btn-open-raw");
+
+        let currentScale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let origTx = 0;
+        let origTy = 0;
+        let currentRawSrc = "";
+
+        function updateTransform() {
+          zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
+          scaleInfo.textContent = Math.round(currentScale * 100) + "%";
+          if (currentScale > 1) {
+            stage.classList.add("can-drag");
+          } else {
+            stage.classList.remove("can-drag");
+          }
+        }
+
+        function openModal(src, alt) {
+          currentRawSrc = src;
+          zoomImg.src = src;
+          zoomImg.alt = alt || "Diagram";
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+          overlay.classList.add("active");
+          document.body.style.overflow = "hidden";
+        }
+
+        function closeModal() {
+          overlay.classList.remove("active");
+          document.body.style.overflow = "";
+          setTimeout(() => {
+            zoomImg.src = "";
+          }, 250);
+        }
+
+        // 为正文图片绑定点击事件
+        postImages.forEach(img => {
+          img.setAttribute("title", "点击放大查看高清全景图");
+          img.addEventListener("click", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal(img.currentSrc || img.src, img.alt);
+          });
+        });
+
+        // 按钮事件
+        closeBtn.addEventListener("click", closeModal);
+        zoomInBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.min(currentScale * 1.25, 5);
+          updateTransform();
+        });
+        zoomOutBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.max(currentScale * 0.8, 0.4);
+          updateTransform();
+        });
+        resetBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+        });
+        rawBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          if (currentRawSrc) window.open(currentRawSrc, "_blank");
+        });
+
+        // 鼠标滚轮缩放
+        stage.addEventListener("wheel", e => {
+          e.preventDefault();
+          const factor = e.deltaY < 0 ? 1.15 : 0.85;
+          currentScale = Math.min(Math.max(currentScale * factor, 0.4), 5);
+          updateTransform();
+        }, { passive: false });
+
+        // 双击在 1x 与 2x 间切换
+        stage.addEventListener("dblclick", e => {
+          e.preventDefault();
+          if (currentScale > 1.2) {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+          } else {
+            currentScale = 2;
+          }
+          updateTransform();
+        });
+
+        // 拖拽平移
+        stage.addEventListener("mousedown", e => {
+          if (e.target === closeBtn || e.target.closest(".diagram-zoom-toolbar")) return;
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          origTx = translateX;
+          origTy = translateY;
+          stage.classList.add("dragging");
+        });
+
+        window.addEventListener("mousemove", e => {
+          if (!isDragging) return;
+          translateX = origTx + (e.clientX - startX);
+          translateY = origTy + (e.clientY - startY);
+          updateTransform();
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (isDragging) {
+            isDragging = false;
+            stage.classList.remove("dragging");
+          }
+        });
+
+        // 点击背景遮罩关闭（非拖拽位移触发）
+        stage.addEventListener("click", e => {
+          if (e.target === stage && Math.abs(translateX - origTx) < 5 && Math.abs(translateY - origTy) < 5) {
+            closeModal();
+          }
+        });
+
+        // 键盘快捷键监听
+        window.addEventListener("keydown", e => {
+          if (!overlay.classList.contains("active")) return;
+          if (e.key === "Escape") {
+            closeModal();
+          } else if (e.key === "+" || e.key === "=") {
+            currentScale = Math.min(currentScale * 1.25, 5);
+            updateTransform();
+          } else if (e.key === "-" || e.key === "_") {
+            currentScale = Math.max(currentScale * 0.8, 0.4);
+            updateTransform();
+          } else if (e.key === "0") {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+            updateTransform();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initDiagramZoom);
+      } else {
+        initDiagramZoom();
+      }
+    </script>
+  </body>
+</html>
