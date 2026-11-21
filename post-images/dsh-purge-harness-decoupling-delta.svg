@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" role="img" aria-labelledby="delta-title delta-desc" data-diagram="architecture-delta" style="background:#f8fafc; font-family:'Geist','Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;">
+  <title id="delta-title">dsh-purge 对 DeepSeek Harness 运行时的架构解耦前后对比</title>
+  <desc id="delta-desc">对比官方 DeepSeek Harness 默认耦合流水线与安装 dsh-purge v1.1.71 补丁后的分层解耦架构及关键变更清单。</desc>
+  <defs>
+    <marker id="arr-muted" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1 L8,5 L0,9 Z" fill="#64748b"/>
+    </marker>
+    <marker id="arr-accent" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1 L8,5 L0,9 Z" fill="#bf4520"/>
+    </marker>
+    <marker id="arr-link" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,1 L8,5 L0,9 Z" fill="#0284c7"/>
+    </marker>
+  </defs>
+
+  <!-- Title Header -->
+  <g transform="translate(24, 20)">
+    <text x="0" y="20" font-size="18" font-weight="700" fill="#0f172a">Architecture Delta · DeepSeek Harness 宿主策略与模型能力解耦</text>
+    <text x="0" y="40" font-size="11" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#475569">BEFORE: @deepseek-ai/* 0.2.x (Coupled)  ──▶  AFTER: dsh-purge v1.1.71 (82 Patches + Decoupled Pipeline)</text>
+  </g>
+
+  <!-- BEFORE SNAPSHOT -->
+  <g data-snapshot="before" data-grid="312 416 4" transform="translate(24, 80)">
+    <rect x="0" y="0" width="312" height="416" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <rect x="0" y="0" width="312" height="36" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="16" y="23" font-size="12" font-weight="700" fill="#334155">BEFORE · 官方 DSH 默认流水线</text>
+
+    <!-- Connectors (drawn before nodes) -->
+    <path d="M 156 108 L 156 128" fill="none" stroke="#64748b" stroke-width="1.2" marker-end="url(#arr-muted)"/>
+    <path d="M 156 196 L 156 216" fill="none" stroke="#64748b" stroke-width="1.2" marker-end="url(#arr-muted)"/>
+    <path d="M 156 284 L 156 304" fill="none" stroke="#bf4520" stroke-width="1.2" marker-end="url(#arr-accent)"/>
+
+    <!-- Node 1: Fixed Persona -->
+    <g transform="translate(20, 52)">
+      <rect x="0" y="0" width="272" height="56" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+      <text x="12" y="20" font-size="12" font-weight="600" fill="#0f172a">固定宿主身份 &amp; Workspace 基线</text>
+      <text x="12" y="38" font-size="10" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#64748b">persona-prefix + {{cwd}} 强制覆盖头部</text>
+    </g>
+
+    <!-- Node 2: Rigid Interpolation -->
+    <g transform="translate(20, 132)">
+      <rect x="0" y="0" width="272" height="64" rx="6" fill="#fff1f2" stroke="#e11d48" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="208" y="8" width="52" height="16" rx="3" fill="#ffe4e6"/>
+      <text x="216" y="19" font-size="9" font-weight="700" fill="#be123c">REMOVED</text>
+      <text x="12" y="22" font-size="12" font-weight="600" fill="#9f1239">严格插值校验与 Mnemon 注入</text>
+      <text x="12" y="40" font-size="10" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#881337">非白名单 {{ 触发 malformed 丢包</text>
+      <text x="12" y="54" font-size="9.5" fill="#9f1239">前置提示词段抢占系统上下文首行</text>
+    </g>
+
+    <!-- Node 3: Hooks Deny & Sandbox -->
+    <g transform="translate(20, 220)">
+      <rect x="0" y="0" width="272" height="64" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+      <text x="12" y="22" font-size="12" font-weight="600" fill="#0f172a">Hooks Deny / 审批门 / 串行沙箱</text>
+      <text x="12" y="40" font-size="10" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#64748b">pre-step reject · Stop steer · ask fail</text>
+      <text x="12" y="54" font-size="9.5" fill="#64748b">工具拒绝或超时中断，宿主拦截混淆模型</text>
+    </g>
+
+    <!-- Node 4: False Refusal -->
+    <g transform="translate(20, 308)">
+      <rect x="0" y="0" width="272" height="64" rx="6" fill="#fff7ed" stroke="#bf4520" stroke-width="1.2"/>
+      <text x="12" y="22" font-size="12" font-weight="700" fill="#bf4520">假阳性拒答 / 会话分支污染</text>
+      <text x="12" y="40" font-size="10" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#9a3412">无法区分「宿主拒绝」vs「模型拒绝」</text>
+      <text x="12" y="54" font-size="9.5" fill="#9a3412">回退只能 Fork 新会话，割裂上下文</text>
+    </g>
+  </g>
+
+  <!-- CHANGES LEDGER (CENTER) -->
+  <g transform="translate(352, 80)">
+    <rect x="0" y="0" width="296" height="416" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <rect x="0" y="0" width="296" height="36" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="16" y="23" font-size="12" font-weight="700" fill="#0f172a">CHANGES LEDGER · 82 项热补丁与重写</text>
+
+    <g transform="translate(16, 52)">
+      <rect x="0" y="0" width="56" height="18" rx="3" fill="#ffedd5"/>
+      <text x="6" y="13" font-size="9.5" font-family="'Geist Mono',ui-monospace,Menlo,monospace" font-weight="700" fill="#bf4520">CHANGED</text>
+      <text x="64" y="13" font-size="11.5" font-weight="600" fill="#0f172a">提示词优先级与基线仲裁</text>
+      <text x="0" y="32" font-size="10" fill="#475569">ORDER=-100000 置顶；strict/fallback 剥离基线</text>
+    </g>
+
+    <g transform="translate(16, 108)">
+      <rect x="0" y="0" width="56" height="18" rx="3" fill="#ffe4e6"/>
+      <text x="6" y="13" font-size="9.5" font-family="'Geist Mono',ui-monospace,Menlo,monospace" font-weight="700" fill="#be123c">REMOVED</text>
+      <text x="64" y="13" font-size="11.5" font-weight="600" fill="#0f172a">插值崩溃与 Mnemon 抢位</text>
+      <text x="0" y="32" font-size="10" fill="#475569">escapeDshInterpolation 拆分非白名单 {{</text>
+    </g>
+
+    <g transform="translate(16, 164)">
+      <rect x="0" y="0" width="56" height="18" rx="3" fill="#e0f2fe"/>
+      <text x="6" y="13" font-size="9.5" font-family="'Geist Mono',ui-monospace,Menlo,monospace" font-weight="700" fill="#0369a1">REWIRED</text>
+      <text x="64" y="13" font-size="11.5" font-weight="600" fill="#0f172a">Hooks Deny 哨兵可逆旁路</text>
+      <text x="0" y="32" font-size="10" fill="#475569">补丁 #30/#31/#64/#65 注入可一键写回官方态</text>
+    </g>
+
+    <g transform="translate(16, 220)">
+      <rect x="0" y="0" width="56" height="18" rx="3" fill="#dcfce7"/>
+      <text x="10" y="13" font-size="9.5" font-family="'Geist Mono',ui-monospace,Menlo,monospace" font-weight="700" fill="#15803d">ADDED</text>
+      <text x="64" y="13" font-size="11.5" font-weight="600" fill="#0f172a">dshpg-capabilities 前缀隔离</text>
+      <text x="0" y="32" font-size="10" fill="#475569">避开宿主 startsWith("dsh-purge") 前置重排</text>
+    </g>
+
+    <g transform="translate(16, 276)">
+      <rect x="0" y="0" width="56" height="18" rx="3" fill="#dcfce7"/>
+      <text x="10" y="13" font-size="9.5" font-family="'Geist Mono',ui-monospace,Menlo,monospace" font-weight="700" fill="#15803d">ADDED</text>
+      <text x="64" y="13" font-size="11.5" font-weight="600" fill="#0f172a">RFC1918 私网 &amp; 演练台门禁</text>
+      <text x="0" y="32" font-size="10" fill="#475569">net-scope.js + drill-grant.js 守住合规红线</text>
+    </g>
+
+    <g transform="translate(16, 332)">
+      <rect x="0" y="0" width="56" height="18" rx="3" fill="#ffedd5"/>
+      <text x="6" y="13" font-size="9.5" font-family="'Geist Mono',ui-monospace,Menlo,monospace" font-weight="700" fill="#bf4520">CHANGED</text>
+      <text x="64" y="13" font-size="11.5" font-weight="600" fill="#0f172a">60s 超时还原 &amp; 原位回退</text>
+      <text x="0" y="32" font-size="10" fill="#475569">补丁 #21 恢复 60s；rewind.js 原位撤回重发</text>
+    </g>
+  </g>
+
+  <!-- AFTER SNAPSHOT -->
+  <g data-snapshot="after" data-grid="312 416 4" transform="translate(664, 80)">
+    <rect x="0" y="0" width="312" height="416" rx="8" fill="#ffffff" stroke="#0284c7" stroke-width="1.2"/>
+    <rect x="0" y="0" width="312" height="36" rx="8" fill="#f0f9ff" stroke="#bae6fd" stroke-width="1"/>
+    <text x="16" y="23" font-size="12" font-weight="700" fill="#0369a1">AFTER · dsh-purge v1.1.71 解耦运行时</text>
+
+    <!-- Connectors -->
+    <path d="M 156 108 L 156 128" fill="none" stroke="#0284c7" stroke-width="1.2" marker-end="url(#arr-link)"/>
+    <path d="M 156 196 L 156 216" fill="none" stroke="#0284c7" stroke-width="1.2" marker-end="url(#arr-link)"/>
+    <path d="M 156 284 L 156 304" fill="none" stroke="#bf4520" stroke-width="1.2" marker-end="url(#arr-accent)"/>
+
+    <!-- Node 1: HungPromptGlobal -->
+    <g transform="translate(20, 52)">
+      <rect x="0" y="0" width="272" height="56" rx="6" fill="#fff7ed" stroke="#bf4520" stroke-width="1.2"/>
+      <text x="12" y="20" font-size="12" font-weight="700" fill="#0f172a">四重热兜底提示词锚定</text>
+      <text x="12" y="38" font-size="10" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#bf4520">__dshPurgeHungPrompt + ChatML 闭合</text>
+    </g>
+
+    <!-- Node 2: Capability + Neutralized Host -->
+    <g transform="translate(20, 132)">
+      <rect x="0" y="0" width="272" height="64" rx="6" fill="#f8fafc" stroke="#0f172a" stroke-width="1"/>
+      <rect x="214" y="8" width="46" height="16" rx="3" fill="#dcfce7"/>
+      <text x="221" y="19" font-size="9" font-weight="700" fill="#15803d">ADDED</text>
+      <text x="12" y="22" font-size="12" font-weight="600" fill="#0f172a">能力选用协议与中立工具层</text>
+      <text x="12" y="40" font-size="10" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#475569">dshpg-capabilities + 25 项提示词中性化</text>
+      <text x="12" y="54" font-size="9.5" fill="#64748b">Skill / MCP 先读后用，保留官方工具全集</text>
+    </g>
+
+    <!-- Node 3: Net Scope & Hooks Switch -->
+    <g transform="translate(20, 220)">
+      <rect x="0" y="0" width="272" height="64" rx="6" fill="#f8fafc" stroke="#0284c7" stroke-width="1"/>
+      <text x="12" y="22" font-size="12" font-weight="600" fill="#0f172a">合规网关 + 可逆 Hooks 开关</text>
+      <text x="12" y="40" font-size="10" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#0369a1">net-scope.js · hooks-deny.js · #51 full</text>
+      <text x="12" y="54" font-size="9.5" fill="#475569">私网与精确允许名单外立即本地静态熔断</text>
+    </g>
+
+    <!-- Node 4: Pure Model Eval + Redteam -->
+    <g transform="translate(20, 308)">
+      <rect x="0" y="0" width="272" height="64" rx="6" fill="#f0fdf4" stroke="#15803d" stroke-width="1.2"/>
+      <text x="12" y="22" font-size="12" font-weight="700" fill="#166534">纯净模型评测 &amp; 内置红队演练台</text>
+      <text x="12" y="40" font-size="10" font-family="'Geist Mono',ui-monospace,Menlo,monospace" fill="#15803d">56 redteam_* tools · SQLite FTS5</text>
+      <text x="12" y="54" font-size="9.5" fill="#166534">原位回退、可逆还原 .dshpurge.bak</text>
+    </g>
+  </g>
+
+  <!-- Legend Strip -->
+  <g transform="translate(24, 512)">
+    <rect x="0" y="0" width="952" height="32" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <rect x="16" y="8" width="14" height="14" rx="3" fill="#fff7ed" stroke="#bf4520" stroke-width="1"/>
+    <text x="36" y="19" font-size="10.5" fill="#334155">Focal 关键解耦节点（最大 2 处）</text>
+    <rect x="240" y="8" width="14" height="14" rx="3" fill="#dcfce7" stroke="#15803d" stroke-width="1"/>
+    <text x="260" y="19" font-size="10.5" fill="#334155">ADDED 新增隔离与防御机制</text>
+    <rect x="460" y="8" width="14" height="14" rx="3" fill="#fff1f2" stroke="#e11d48" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="480" y="19" font-size="10.5" fill="#334155">REMOVED 被剥离的崩溃/抢位点</text>
+    <rect x="704" y="8" width="14" height="14" rx="3" fill="#f0f9ff" stroke="#0284c7" stroke-width="1"/>
+    <text x="724" y="19" font-size="10.5" fill="#334155">REWIRED 可逆旁路与隔离通道</text>
+  </g>
+</svg>

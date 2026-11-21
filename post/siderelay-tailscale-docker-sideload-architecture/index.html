@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>把签名服务器搬进 Docker 与 Tailscale：深潜 SideRelay 的 27 枚引擎补丁、双向伴侣与跨网续签架构 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1795269498234">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="把签名服务器搬进 Docker 与 Tailscale：深潜 SideRelay 的 27 枚引擎补丁、双向伴侣与跨网续签架构 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/siderelay-tailscale-docker-sideload-architecture/">
+    <meta name="description" content="过去几年，iOS 与 Apple TV 的无越狱侧载工具基本被锁死在两套叙事里：要么在桌面端常驻一个仅限局域网的签名守护进程（如 AltServer），要么在 iPhone 本地搭一条环回 VPN 隧道勉强自签（如 SideStore）。最..." />
+    <meta name="keywords" content="Apple TV,架构剖析,Tailscale,Docker,开源项目,Rust,iOS" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="把签名服务器搬进 Docker 与 Tailscale：深潜 SideRelay 的 27 枚引擎补丁、双向伴侣与跨网续签架构">
+    <meta property="og:description" content="过去几年，iOS 与 Apple TV 的无越狱侧载工具基本被锁死在两套叙事里：要么在桌面端常驻一个仅限局域网的签名守护进程（如 AltServer），要么在 iPhone 本地搭一条环回 VPN 隧道勉强自签（如 SideStore）。最...">
+    <meta property="og:url" content="https://lijianfei.com/post/siderelay-tailscale-docker-sideload-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/siderelay-tailscale-docker-sideload-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-11-19T02:15:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="Apple TV">
+    
+    <meta property="article:tag" content="架构剖析">
+    
+    <meta property="article:tag" content="Tailscale">
+    
+    <meta property="article:tag" content="Docker">
+    
+    <meta property="article:tag" content="开源项目">
+    
+    <meta property="article:tag" content="Rust">
+    
+    <meta property="article:tag" content="iOS">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="把签名服务器搬进 Docker 与 Tailscale：深潜 SideRelay 的 27 枚引擎补丁、双向伴侣与跨网续签架构">
+    <meta name="twitter:description" content="过去几年，iOS 与 Apple TV 的无越狱侧载工具基本被锁死在两套叙事里：要么在桌面端常驻一个仅限局域网的签名守护进程（如 AltServer），要么在 iPhone 本地搭一条环回 VPN 隧道勉强自签（如 SideStore）。最...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/siderelay-tailscale-docker-sideload-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "把签名服务器搬进 Docker 与 Tailscale：深潜 SideRelay 的 27 枚引擎补丁、双向伴侣与跨网续签架构",
+      "description": "过去几年，iOS 与 Apple TV 的无越狱侧载工具基本被锁死在两套叙事里：要么在桌面端常驻一个仅限局域网的签名守护进程（如 AltServer），要么在 iPhone 本地搭一条环回 VPN 隧道勉强自签（如 SideStore）。最...",
+      "image": "https://lijianfei.com/post-images/siderelay-tailscale-docker-sideload-architecture.png",
+      "datePublished": "2026-11-19T02:15:00.000Z",
+      "dateModified": "2026-11-19T02:15:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/siderelay-tailscale-docker-sideload-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Apple TV",
+          "item": "https://lijianfei.com/tag/apple-tv/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "把签名服务器搬进 Docker 与 Tailscale：深潜 SideRelay 的 27 枚引擎补丁、双向伴侣与跨网续签架构",
+          "item": "https://lijianfei.com/post/siderelay-tailscale-docker-sideload-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+      /* Diagram & Image Zoom Lightbox Modal */
+      .post-content img {
+        cursor: zoom-in !important;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
+      }
+      .post-content img:hover {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+      }
+      .diagram-zoom-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: rgba(15, 23, 42, 0.82);
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .diagram-zoom-overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+      .diagram-zoom-stage {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+        cursor: grab;
+      }
+      .diagram-zoom-stage.dragging {
+        cursor: grabbing;
+      }
+      .diagram-zoom-img {
+        max-width: 92vw;
+        max-height: 86vh;
+        object-fit: contain;
+        transform-origin: center center;
+        transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+        border-radius: 8px;
+        background-color: #ffffff;
+      }
+      .diagram-zoom-toolbar {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.95);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        padding: 6px 14px;
+        border-radius: 30px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.06);
+        z-index: 10;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .diagram-zoom-btn {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #1e293b;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+        font-size: 14px;
+        padding: 0;
+      }
+      .diagram-zoom-btn:hover {
+        background: #f1f5f9;
+        color: #0284c7;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-btn:active {
+        transform: scale(0.95);
+      }
+      .diagram-zoom-info {
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+        min-width: 46px;
+        text-align: center;
+      }
+      .diagram-zoom-close {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.92);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1e293b;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+        transition: all 0.15s ease;
+        z-index: 10;
+      }
+      .diagram-zoom-close:hover {
+        background: #ffffff;
+        color: #e11d48;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-hint {
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 12px;
+        font-weight: 500;
+        pointer-events: none;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1795269498234" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              把签名服务器搬进 Docker 与 Tailscale：深潜 SideRelay 的 27 枚引擎补丁、双向伴侣与跨网续签架构
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-11-19
+              </span>
+              <span>
+                22 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/apple-tv/" class="post-tag">
+                  # Apple TV
+                </a>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-pou-xi/" class="post-tag">
+                  # 架构剖析
+                </a>
+              
+                <a href="https://lijianfei.com/tag/tailscale/" class="post-tag">
+                  # Tailscale
+                </a>
+              
+                <a href="https://lijianfei.com/tag/docker/" class="post-tag">
+                  # Docker
+                </a>
+              
+                <a href="https://lijianfei.com/tag/kai-yuan-xiang-mu/" class="post-tag">
+                  # 开源项目
+                </a>
+              
+                <a href="https://lijianfei.com/tag/rust/" class="post-tag">
+                  # Rust
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ios/" class="post-tag">
+                  # iOS
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/siderelay-tailscale-docker-sideload-architecture.png" alt="把签名服务器搬进 Docker 与 Tailscale：深潜 SideRelay 的 27 枚引擎补丁、双向伴侣与跨网续签架构" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>过去几年，iOS 与 Apple TV 的无越狱侧载工具基本被锁死在两套叙事里：要么在桌面端常驻一个仅限局域网的签名守护进程（如 AltServer），要么在 iPhone 本地搭一条环回 VPN 隧道勉强自签（如 SideStore）。最近我在 GitHub 上发现 <strong>arkemys-consulting</strong> 开源的 <strong><a href="https://github.com/arkemys-consulting/SideRelay">SideRelay</a></strong>（当前分析版本为 <code>v1.28.10</code> / Build <code>68</code>），它直接给出了第三条工程路径——把完整的苹果签名引擎塞进 <strong>Linux Docker 容器</strong> 与 <strong>macOS 原生外壳</strong>，再通过 <strong>Tailscale 网格隧道</strong>、<strong>双端伴侣容器</strong>（LiveContainer / TVContainer）与 <strong>OrbStack 宿主机中继</strong>，把“离家后的 7 天自动续签”做成了一套生产级分布式基础设施。</p>
+<p>当我把整份仓库拉到本地逐模块通读后，真正让我惊讶的并不是它支持多少平台，而是其背后极其克制的架构拼装术：<strong>全库仅自研核心控制面与界面层约 26,850 行代码（Swift + Python + Rust + JS），却通过 <code>27</code> 枚精准的 Git 补丁（<code>20</code> 枚作用于 <code>jas</code>、<code>7</code> 枚作用于 <code>isideload</code>）将上游 Rust 签名引擎改造成了支持 5 分钟可达性嗅探、AES-256-GCM 凭证库隔离、Apple TV Top Shelf App Group 自动配对以及零越狱双向伴侣接力的全栈系统</strong>。这篇文章我将以源码审计的第一视角，彻底拆解 SideRelay 的每一处工程细节。</p>
+<!-- more -->
+<blockquote>
+<p>[!NOTE] 源码审计基线与版本范围说明<br>
+本文所有文件路径、端口定义、加密参数与逻辑拆解，均基于我在 2026 年 11 月 19 日对 <code>https://github.com/arkemys-consulting/SideRelay</code>（最新提交 <code>2332bde</code>，版本 <code>1.28.10</code> / <code>Build 68</code>，GPL-3.0 协议）的本地完整仓库静态审计。</p>
+</blockquote>
+<hr>
+<h2 id="一-为什么不从零重写签名引擎27-枚补丁-双态门户的工程账">一、为什么不从零重写签名引擎？“27 枚补丁 + 双态门户”的工程账</h2>
+<p>很多人一看到支持 macOS、Linux Docker（<code>amd64</code> / <code>arm64</code>）、iPhone 和 Apple TV 的全平台侧载工具，第一反应是“这得写多少套底层协议栈”。但翻开 SideRelay 的目录树后，我发现作者算了一笔非常清醒的工程账：<strong>苹果私有签名与设备通信协议（Anisette、Developer Session、Misagent、CoreDevice、Remote Pairing）全部由 Rust 社区成熟组件承接，SideRelay 只在最关键的接缝处做外科手术式补丁增强</strong>。</p>
+<p>打开 <code>moteur/construire.sh</code>，这套构建流水线的分层边界一目了然：</p>
+<ol>
+<li><strong>锁定上游双基座</strong>：拉取固定提交哈希的 <code>jkcoxson/jas</code>（<code>cf709e4a5fb298a20cb595e0d5f1f263e4c82bef</code>）与 <code>nab138/isideload</code>（<code>065e852b2092f1386c88195ea3a6506f6b917742</code>）。</li>
+<li><strong>注入 27 枚核心补丁</strong>：依次打入 <code>20</code> 个 <code>jas-*.patch</code>（负责 Wi-Fi 可达性轮询、HMAC 鉴权、Docker 凭证加密、tvOS 支持、App ID 清理与配额复用、IPA Inbox 监控、2FA 短信验证）和 <code>7</code> 个 <code>isideload-*.patch</code>（负责既有证书复用、证书周期修复、tvOS 签名与 Top Shelf 共享容器校验）。</li>
+<li><strong>Leptos SSR 同构引擎编译</strong>：在 Docker 模式下通过 <code>cargo leptos build --release</code>（基于 Rust <code>1.95-slim-bookworm</code> 与 <code>cargo-leptos v0.3.11</code>）编译出 SSR 服务端二进制 <code>moteur/jas</code> 以及前端 WASM 资源（<code>jas.wasm</code>、<code>jas.js</code>、<code>jas.css</code>），常驻监听 <code>127.0.0.1:18784</code>。</li>
+</ol>
+<p>在这个核心引擎之上，SideRelay 并未把业务 UI 硬编码进 Leptos Rust 模板里，而是采用了一种极其巧妙的“<strong>DOM 注水后动态接管</strong>”架构：无论是 macOS 端的 Swift 原生外壳（<code>Interface/Runtime.swift</code>），还是 Linux 端的 Python 反向代理门户（<code>Interface/PortailDocker.py</code>），都在引擎原生的 SSR 页面完成 <code>mod.hydrate()</code> 之后，异步动态加载 <code>9</code> 个共享前端 ES 模块（<code>Web.js</code>、<code>Guide.js</code>、<code>IPA.js</code>、<code>Jumelage.js</code>、<code>Comptes.js</code>、<code>LotsIPA.js</code>、<code>Store.js</code>、<code>Bibliotheque.js</code>、<code>Outils.js</code>），将同一套交互界面无缝复用到桌面 WebKit 与浏览器门户中。</p>
+<div style="overflow-x: auto; margin: 24px auto;">
+  <img src="/post-images/siderelay-hybrid-control-plane.svg" alt="SideRelay 混合控制平面与跨网签名拓扑" style="width: 100%; height: auto; display: block; border-radius: 8px;" />
+</div>
+<blockquote>
+<p>[!IMPORTANT] 本地控制面与引擎之间的 HMAC 边界隔离<br>
+在阅读 <code>Interface/EngineAccess.py</code>、<code>Interface/Runtime.swift</code> 与 <code>moteur/jas-engine-access.patch</code> 时，我注意到一个容易被忽略的安全细节：即便 <code>moteur/jas</code> 仅仅绑定在 <code>127.0.0.1:18784</code>，SideRelay 依然不允许本地任意进程直接调用引擎 API。Swift 端与 Python 端都会以 <code>0600</code> 权限密钥文件中的 64 位十六进制密钥作为 HMAC-SHA256 秘钥，对固定消息 <code>&quot;SideRelay local engine v1&quot;</code> 计算签名，并放入 <code>X-SideRelay-Engine</code> 请求头；Rust 引擎侧则引入 <code>subtle</code> 库进行常量时间比对，彻底堵死同机非授权进程的越权调用。</p>
+</blockquote>
+<hr>
+<h2 id="二-5-分钟可达性嗅探与-7-天自愈飞轮为什么异地续签必须靠-wi-fi-tailscale">二、5 分钟可达性嗅探与 7 天自愈飞轮：为什么异地续签必须靠 Wi-Fi + Tailscale？</h2>
+<p>传统侧载工具“自动续签经常失灵”的真正元凶，其实在于<strong>调度策略与网络前提的错配</strong>：如果定时任务每 12 小时才轮询一次，恰好当时手机不在家或处于锁屏休眠，一次失败退避就会白白浪费半天窗口；而如果直接高频盲目向 Apple 服务器发起续签请求，又会在设备离线时刷爆日志并触发风控。</p>
+<p>我在 <code>moteur/jas-renouvellement.patch</code>、<code>moteur/jas-renouvellement-wifi.patch</code> 与 <code>signature-ios</code> 中，看到了 SideRelay 对调度器做的精细拆分：</p>
+<h3 id="1-双频调度与-pairing_unreachable-故障去重折算">1. 双频调度与 <code>PAIRING_UNREACHABLE</code> 故障去重折算</h3>
+<p>在 <code>signature-ios</code> 生成的 <code>jas.toml</code> 运行配置中，SideRelay 将原本单一的周期拆为两条独立时间线：</p>
+<ul>
+<li><strong>可达性嗅探周期</strong>：<code>reachability_interval_minutes = 5</code>（每 5 分钟探测一次）；</li>
+<li><strong>常规错误退避周期</strong>：<code>interval_hours = 2</code>（遇到 Apple 接口报错等非网络可达性问题时，冷却 2 小时重试）；</li>
+<li><strong>续签窗口期</strong>：<code>refresh_window_days = 3</code>（提前 3 天触发续签）。</li>
+</ul>
+<p>关键在于 <code>moteur/jas-renouvellement-wifi.patch</code> 修改了数据库查询 <code>apps_needing_refresh</code> 与记录函数 <code>record_unreachable_refresh</code>：当调度器在预检阶段（<code>pairing-preflight</code>）发现设备无法连上 Apple Remote Pairing 端口时，它会写入一条带 <code>[pairing-unreachable]</code> 前缀的失败记录，但<strong>在同一 <code>retry_secs</code> 窗口内自动去重合并历史任务记录（避免数据库膨胀）</strong>，同时<strong>绝不阻塞下一次 5 分钟轮询的再探测</strong>！一旦用户带着 iPhone 回到可用 Wi-Fi 环境，最快 5 分钟内就能立即捕获在线状态并无缝切入续签。</p>
+<div style="overflow-x: auto; margin: 24px auto;">
+  <img src="/post-images/siderelay-auto-refresh-loop.svg" alt="SideRelay 7 天签名自愈飞轮与 5 分钟可达性嗅探" style="width: 100%; height: auto; display: block; border-radius: 8px;" />
+</div>
+<h3 id="2-rppairing-协议预检与纯蜂窝网络盲区实证">2. RPPairing 协议预检与“纯蜂窝网络”盲区实证</h3>
+<p>SideRelay 是如何在不唤醒完整 <code>idevice</code> 隧道的情况下验证 iPhone 是否可达的？<code>signature-ios</code> 中的 <code>diagnostic()</code> 函数给出了最直观的协议层实现：直接向目标设备在 Tailscale 分配的 <code>100.64.0.0/10</code> IPv4 地址的 <strong>TCP <code>49152</code> 端口</strong>发送苹果 <code>RPPairing</code> 握手报文（<code>b&quot;RPPairing&quot; + 2 字节大端长度 + {&quot;originatedBy&quot;:&quot;host&quot;,&quot;sequenceNumber&quot;:0,&quot;message&quot;:{&quot;plain&quot;:{&quot;_0&quot;:{&quot;request&quot;:{&quot;_0&quot;:{&quot;handshake&quot;:{&quot;_0&quot;:{&quot;hostOptions&quot;:{&quot;attemptPairVerify&quot;:true},&quot;wireProtocolVersion&quot;:19}}}}}}}}</code>），并校验回包结构与本地出站网卡是否确实经过 Tailscale 虚拟接口。</p>
+<blockquote>
+<p>[!WARNING] 为什么纯蜂窝数据 + Tailscale 无法触发远程续签？<br>
+很多读者会误以为“只要 iPhone 开着 5G 和 Tailscale，Docker 就能随时给手机续签”。但 SideRelay 官方文档与实测明确指出了苹果底层的限制：<strong>iOS 仅在连接至 Wi-Fi 网络时才会在 <code>49152</code> 端口暴露 Apple Remote Pairing 服务</strong>；在纯蜂窝移动网络下，即便 Tailscale 网格直通，该系统级配对守护进程也不会响应远程握手。因此异地续签的真实条件是：<strong>宿主机与 iPhone 同处一个 Tailnet，且 iPhone 处于任一外部 Wi-Fi（如公司、酒店、咖啡馆 Wi-Fi）下</strong>。</p>
+</blockquote>
+<h3 id="3-5-天最小有效期强门禁与旧版描述文件防御">3. 5 天最小有效期强门禁与旧版描述文件防御</h3>
+<p>在 <code>moteur/jas-renouvellement.patch</code> 中，我还发现了一个非常务实的防坑逻辑：无论是在首次安装签名的 <code>validate_signed_profile</code>，还是在无线续签 <code>refresh_provisioning_profile</code> 拿到 Apple 返回的新描述文件之后，Rust 引擎都会调用 <code>apple-codesign-quick</code> 解析 <code>embedded.mobileprovision</code> 中的 <code>ExpirationDate</code>，并强制断言：</p>
+<pre><code class="language-rust">// 要求剩余有效期必须 &gt;= 5 天，否则直接拒收并报错
+remaining &gt;= std::time::Duration::from_secs(5 * 24 * 60 * 60)
+</code></pre>
+<p>这直接防止了 Apple 开发者接口偶尔返回缓存旧描述文件、导致“表面显示续签成功，实际两天后依然闪退”的幽灵故障；同时引擎把精确的 <code>profile_expires_at</code> 时间戳落盘到 SQLite 的 <code>apps</code> 表中，替代了上游粗暴的 <code>installed_at + 7天</code> 估算逻辑。</p>
+<hr>
+<h2 id="三-零越狱双向伴侣接力livecontaineriphone与-tvcontainerapple-tv">三、零越狱双向伴侣接力：LiveContainer（iPhone）与 TVContainer（Apple TV）</h2>
+<p>免费个人开发者账号（Personal Team）最大的枷锁在于“最多 3 个激活应用 + 7 天有效期”。SideRelay 并没有停留在传统的逐个应用侧载上，而是直接在 <code>Compagnon/</code> 目录下内置了对 <strong>LiveContainer</strong>（iPhone/iPad 应用容器，AGPL-3.0）与 <strong>TVContainer</strong>（Apple TV 移植版，AGPL-3.0）的深度集成——而且做到了<strong>免手动导出证书、5 分钟限时二维码直传、以及 Safari 主屏幕快捷方式一键直达</strong>。</p>
+<p>下面这张跨职能泳道图完整还原了这套双向伴侣接力链路：</p>
+<div style="overflow-x: auto; margin: 24px auto;">
+  <img src="/post-images/siderelay-tailscale-companion-swimlane.svg" alt="SideRelay 伴侣应用证书配对与 Guest IPA 双向接力泳道" style="width: 100%; height: auto; display: block; border-radius: 8px;" />
+</div>
+<h3 id="1-免手工配置通过-devicectl-沙盒缓存安全注入-p12-凭证">1. 免手工配置：通过 <code>devicectl</code> 沙盒缓存安全注入 <code>.p12</code> 凭证</h3>
+<p>用过 LiveContainer 的玩家都知道，以前要把宿主机生成的签名证书导入容器非常繁琐。SideRelay 在 <code>Interface/LiveContainerSigning.py</code> 与 <code>Compagnon/SideRelayView.swift</code> 里设计了一套极度克制的 <code>paired-v1</code> 自动配对协议：</p>
+<ol>
+<li>宿主机首先校验设备已配对且伴侣宿主证书尚未过期，随后向引擎请求 <code>export_livecontainer_cert</code> 导出当前可复用的 <code>.p12</code> 证书、随机密码与序列号（<code>MaxCertsBehavior::Error</code>，绝不粗暴吊销已有证书）。</li>
+<li>构造一个有效期仅 <code>120</code> 秒的 JSON 载荷（<code>SideRelaySigning.json</code>），通过苹果官方工具 <code>xcrun devicectl device copy to --domain-type appDataContainer</code> 直接写入伴侣 App 沙盒内的 <code>Library/Caches/</code> 目录。</li>
+<li>通过 <code>devicectl device process launch</code> 携带深层链接 <code>livecontainer://siderelay-setup</code>（或 <code>tvcontainer://siderelay-setup</code>）唤醒伴侣端。</li>
+<li>伴侣端 <code>SideRelaySigning.finalizeSetup()</code> 读取后，严格比对 <code>Info.plist</code> 中的 <code>SideRelayConnection.revision</code>、<code>TeamIdentifier</code> 与 <code>SecCertificateCopySerialNumberData</code> 序列号，确认无误才写入 App Group，并在缓存目录写回 <code>SideRelaySigningReady.json</code> 回执（开启 <code>.completeFileProtectionUntilFirstUserAuthentication</code> 文件保护）。宿主机轮询到回执后即宣告就绪。</li>
+</ol>
+<h3 id="2-300-秒一次性-tailscale-serve-传输与双因子来源校验">2. 300 秒一次性 Tailscale Serve 传输与双因子来源校验</h3>
+<p>当你在 Mac 端或 Docker 门户点击 <strong>Import into LiveContainer</strong> 时，SideRelay 不会让 IPA 走公网图床，而是在 <code>Interface/TransfertCompagnon.py</code>（Docker）或 <code>Interface/ImportLiveContainer.py</code>（macOS）中动态生成一段 <strong>32 字节 URL-Safe 随机令牌</strong>，有效期严格锁定为 <code>300</code> 秒（5 分钟），并利用 <code>qrencode</code> 生成二维码或通过 <code>devicectl</code> 直接唤起 <code>livecontainer://install?url=...</code>。</p>
+<p>当手机访问该 <code>https://&lt;hostname&gt;.ts.net:19445/...</code>（macOS 临时导入通道使用 <code>:19444</code>）链接时，服务端 <code>CompagnonService.py</code> 会执行<strong>三重零信任校验</strong>：</p>
+<ul>
+<li>HTTP 请求头 <code>Tailscale-User-Login</code> 必须与宿主机当前 Tailnet 拥有者完全一致；</li>
+<li><code>X-Forwarded-For</code> 中的来访 IP 必须精准匹配目标设备在 <code>signature.db</code> 中注册的 Tailscale IP；</li>
+<li>路径中的 43 位字符令牌通过 <code>secrets.compare_digest</code> 常量时间比对，同时响应头强制附加 <code>Cache-Control: no-store</code>、<code>Referrer-Policy: no-referrer</code> 与 <code>Content-Security-Policy: default-src 'none'</code>。</li>
+</ul>
+<h3 id="3-主屏幕孤立快捷方式service-worker-离线自举的-web-clip">3. 主屏幕孤立快捷方式：Service Worker 离线自举的 Web Clip</h3>
+<p>在 LiveContainer 里装好应用后，如何像原生 App 一样从桌面直接启动？<code>Interface/CompagnonEcranAccueil.py</code> 与 <code>Interface/CompagnonService.py</code> 给出了一套非常聪明的“<strong>在线生成 <code>.mobileconfig</code> + 离线 Service Worker 自举</strong>”方案：</p>
+<ul>
+<li>SideRelay 动态打包一份 <code>com.apple.webClip.managed</code> 描述文件（单次最多支持 <code>256</code> 个应用快捷方式，单个图标限定 <code>400×400</code> 尺寸以内 PNG），将每个图标指向托管在 Tailscale Serve 上的受保护启动页；</li>
+<li>用户将其添加到 iPhone 主屏幕后，启动页内的 <code>LAUNCH_SCRIPT</code> 与 <code>WORKER_SCRIPT</code> 会把 <code>icon.png</code> 和 <code>launcher.js</code> 缓存进浏览器的 Cache Storage。<strong>此后哪怕彻底断开 Tailscale、在纯离线飞行模式下，点击桌面图标也能直接通过 Service Worker 本地瞬时唤醒 <code>livecontainer://livecontainer-launch?bundle-name=...</code> 跳转到对应 Guest 应用！</strong></li>
+</ul>
+<h3 id="4-apple-tv-专项突破top-shelf-共享容器与-app-id-节流复用">4. Apple TV 专项突破：Top Shelf 共享容器与 App ID 节流复用</h3>
+<p>相比 iOS，tvOS 侧载在社区里一直是工程荒漠，主要卡在两件事上：一是免费账号 App ID 配额极易被扩展（Extension）耗尽；二是苹果要求 tvOS 主应用与其 Top Shelf 扩展（<code>com.apple.tv-top-shelf</code>）必须共享同一个 App Group，否则系统直接拒签。</p>
+<p>我在 <code>moteur/isideload-tvos-app-id-reuse.patch</code> 和 <code>moteur/isideload-tvos-top-shelf.patch</code> 中看到了 SideRelay 的针对性解法：</p>
+<ul>
+<li><strong>Top Shelf App Group 自动链路</strong>：当检测到 <code>Info.plist</code> 开启了 <code>TopShelfSharedContainer = true</code> 且存在 <code>.topshelf</code> 扩展时，引擎自动调用开发者接口 <code>ensure_app_group</code> 创建 <code>group.&lt;main_app_id_str&gt;</code>，为两个 App ID 开启 Group Feature 并完成绑定，最后在下载描述文件后执行 <code>validate_top_shelf_group</code> 强校验，确保两边 <code>com.apple.security.application-groups</code> 完全一致。</li>
+<li><strong>App ID 满额复用机制</strong>：当旧版已安装应用不依赖 Top Shelf 扩展，或账号 App ID 配额耗尽时，SideRelay 支持传入 <code>app_id_override</code> 与 <code>require_existing_app_id = true</code>，直接复用尚未过期的既有主 App ID 完成签名更新，把原本的“死局”变成了一键升级。</li>
+<li><strong>TVContainer 控制反转</strong>：由于 Apple TV 没有文件管理器，SideRelay 支持通过 iPhone 伴侣端（<code>Apps → Apple TV</code>）或 Mac / Docker 门户直接把 tvOS IPA 通过 <code>devicectl</code> 推送至 <code>TVContainer</code> 的 <code>Library/Caches/SideRelayImport-&lt;uuid&gt;.ipa</code>，再通过 <code>tvcontainer://siderelay-import/&lt;uuid&gt;</code> 触发安装并轮询 <code>result.json</code> 回执。</li>
+</ul>
+<hr>
+<h2 id="四-把-docker-容器武装到牙齿密钥隔离-orbstack-宿主机穿透与跨端加密备份">四、把 Docker 容器武装到牙齿：密钥隔离、OrbStack 宿主机穿透与跨端加密备份</h2>
+<p>在很多开源项目里，“Docker 版”往往只是把桌面代码粗暴塞进容器里跑个 <code>root</code>。但审计完 <code>Dockerfile</code>、<code>compose.yaml</code>、<code>Interface/SecuriteDocker.py</code> 与 <code>Interface/CoreDeviceDocker.py</code> 后，我必须承认 SideRelay 的容器安全工程达到了相当少见的高水准。</p>
+<h3 id="1-容器纵深加固与-aes-256-gcm-数据库双卷分离">1. 容器纵深加固与 <code>AES-256-GCM</code> 数据库双卷分离</h3>
+<p>先看 <code>compose.yaml</code> 与 <code>Dockerfile</code> 给出的默认运行约束：</p>
+<ul>
+<li><strong>最小权限运行面</strong>：容器内以非特权 UID/GID <code>10001:10001</code> 运行，开启 <code>read_only: true</code> 只读根文件系统、<code>cap_drop: [ALL]</code>、<code>no-new-privileges: true</code> 与 <code>core: 0</code>（禁用 core dump 防止内存密钥转储），仅挂载 <code>/tmp</code> 内存临时盘与两个持久化卷 <code>siderelay_data</code>、<code>siderelay_secrets</code>。</li>
+<li><strong>双卷隔离与零残留迁移</strong>：<code>Interface/SecuriteDocker.py</code> 强制要求秘密目录（<code>/var/lib/siderelay-secrets</code>）权限严格为 <code>0700</code>、不得为符号链接且<strong>不得位于数据目录内部</strong>。启动时 <code>migrate_apple_sessions()</code> 会检查 SQLite <code>PRAGMA user_version</code>（目标版本 <code>0x53520002</code>）：
+<ul>
+<li>若发现历史明文记录，立即启用 <code>PRAGMA secure_delete = ON</code>；</li>
+<li>对 <code>apple_accounts.apple_id</code> 与 <code>ipa_batches.account_name</code> 使用 <code>AES-256-GCM</code> 加密，并用 <code>HMAC-SHA256(&quot;SideRelay Apple Account lookup\0&quot; + name)</code> 派生盲索引前缀；</li>
+<li>重写 <code>sideload_storage</code> 中的所有会话与 Xcode Token 键值对为 <code>enc:</code> 密文格式，最后执行 <code>VACUUM</code> 与 <code>PRAGMA wal_checkpoint(TRUNCATE)</code> 彻底擦除旧页残余明文。</li>
+</ul>
+</li>
+<li><strong>内存零清与门户防爆破</strong>：在 <code>moteur/jas-docker-credentials.patch</code> 中，Rust 端引入 <code>zeroize::Zeroizing</code> 托管用户输入的 Apple 密码，登录完成即刻 <code>drop</code> 清零；Web 门户登录口则配备了 <code>10次/60秒</code> 滑动窗口限流、43 位 URL-Safe 访问密钥、<code>HttpOnly; SameSite=Strict</code> 会话 Cookie（12 小时过期 / 最多 64 个活跃会话），以及严格校验 <code>Host</code>（仅限环回地址）、<code>Origin</code> 与 <code>Sec-Fetch-Site</code> 的 CSRF 防护。</li>
+</ul>
+<h3 id="2-orbstack-宿主机穿透无卷共享下的-coredevice-与代码验签中继">2. OrbStack 宿主机穿透：无卷共享下的 CoreDevice 与代码验签中继</h3>
+<p>由于 Linux Docker 容器内部无法直接运行 macOS 专属的 <code>xcrun devicectl</code>（Apple TV 无线管理依赖）与 <code>/usr/bin/codesign</code>（深度签名验证），SideRelay 设计了一套极其干净的 <strong><code>host.docker.internal:18786</code> Bearer 令牌中继架构</strong>（<code>Interface/DecouverteOrbStack.py</code>、<code>Interface/CoreDeviceDocker.py</code>、<code>Interface/SignatureOrbStack.py</code>）：</p>
+<ul>
+<li><strong>流式定长二进制封装</strong>：当需要在 OrbStack 容器内使用 Mac 验签或导入 <code>.p12</code> 证书签名时，<code>SignatureOrbStack.py</code> 构造自定义 MIME 类型 <code>application/x-siderelay-signing</code>（4 字节长度头 + JSON 清单 + 流式文件体），直接通过环回网络流式发送给 Mac 宿主机辅助进程；宿主机在临时私密目录建临时钥匙串完成操作后立即销毁，<strong>全程不共享任何宿主机数据卷</strong>。</li>
+<li><strong>受限白名单 tar 管道</strong>：对于 Apple TV 安装，<code>CoreDeviceDocker.py</code> 会先严格校验 <code>xcrun devicectl</code> 参数模板（仅允许预定义的超时档位 <code>8 / 12 / 30 / 300</code> 与固定指令形态），将 <code>.app</code> 打包为流式 <code>x-tar</code> 推送至 Mac 辅助进程；Mac 端 <code>receive_app()</code> 强制限制包体上限 <code>1 GiB</code>、文件条目上限 <code>50,000</code> 个，拒绝一切路径穿越与符号链接条目，检验 <code>CFBundleSupportedPlatforms</code> 包含 <code>AppleTVOS</code> 且存在 <code>embedded.mobileprovision</code> 后才交付 <code>devicectl install app</code>。</li>
+</ul>
+<h3 id="3-跨平台分块-aead-加密备份格式siderelaybackup1">3. 跨平台分块 AEAD 加密备份格式（<code>SideRelayBackup1</code>）</h3>
+<p>为了方便用户在 macOS 原生版与 Linux Docker 版之间无损迁移 IPA 仓库、商店源与自动续签偏好，<code>Interface/BackupCrypto.py</code>（对应 macOS 端的 <code>Interface/PortableBackup.swift</code>）定义了一套简洁可靠的流式分帧加密格式：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">字段 / 参数</th>
+<th style="text-align:left">规范与取值</th>
+<th style="text-align:left">安全设计意图</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>魔数头（Header）</strong></td>
+<td style="text-align:left"><code>b&quot;SideRelayBackup1&quot;</code> + <code>16</code> 字节随机 Salt</td>
+<td style="text-align:left">识别文件格式并隔离不同备份的密钥派生</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>密钥派生（KDF）</strong></td>
+<td style="text-align:left"><code>PBKDF2-HMAC-SHA256</code>（<code>600,000</code> 次迭代，<code>dklen=32</code>）</td>
+<td style="text-align:left">抵抗离线字典爆破，兼顾跨语言（Swift CryptoKit / Python Cryptography）互通</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>分帧加密（AEAD）</strong></td>
+<td style="text-align:left">每 <code>4 MiB</code> 一帧，AES-256-GCM（<code>12</code> 字节随机 Nonce + 密文）</td>
+<td style="text-align:left">避免大体积 IPA 库（数 GB）导出/导入时爆内存</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>关联数据（AAD）与防截断</strong></td>
+<td style="text-align:left"><code>AAD = header + struct.pack(&quot;&gt;Q&quot;, frame_index)</code>；末尾写入空块帧</td>
+<td style="text-align:left">防止攻击者调换帧顺序、重放或截断尾部数据；明确剥离 Apple 会话密钥与配对文件</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="五-ipa-工坊-商店生态与源码中的细节克制">五、IPA 工坊、商店生态与源码中的细节克制</h2>
+<p>除了核心的签名与网络调度，SideRelay 在“日常好用”这件事上也藏了不少务实的工程设计：</p>
+<ol>
+<li><strong>自带防爆仓门禁的 IPA 工坊</strong>（<code>Interface/ArchiveIPA.py</code>）：<br>
+支持修改应用名称、Bundle ID、最低系统版本、开启文件共享（<code>UIFileSharingEnabled</code>）、移除设备型号限制（<code>UISupportedDevices</code> 等 4 个键）、剥离 <code>.appex</code> 插件扩展、替换图标及注入动态库组件。针对第三方来路不明的 IPA，解压前强制校验<strong>单文件下载上限 <code>2 GiB</code>、展开总大小上限 <code>8 GiB</code>、最大条目 <code>100,000</code> 个、拒绝反斜杠及 <code>..</code> 路径穿越、以及大小写折叠后的文件名碰撞检测</strong>（专门防御 ZIP 炸弹与 macOS/Linux APFS/ext4 大小写差异导致的同名覆盖漏洞）。</li>
+<li><strong>双平台内置商店与 GitHub 限流降级</strong>（<code>Interface/Store2026.json</code> / <code>StoreTV.json</code>）：<br>
+截至 <code>v1.28.10</code>，仓库内置的 2026 精选 iOS 目录共收录 <strong><code>236</code> 款应用</strong>，Apple TV 目录收录 <strong><code>56</code> 款 tvOS 应用</strong>，并在 <code>StoreSources.json</code> 中分类预置了 <code>64</code> 个出版商与社区源。自 <code>v1.28.8</code> 起，一旦检测到 GitHub API 触发速率限制，SideRelay 会自动暂停 GitHub 源抓取并展示恢复时间，将自动检查拉长到每 <code>4</code> 小时一次，同时保证本地已缓存目录仍可正常浏览与下载。</li>
+<li><strong>Rust 原生跨平台配对工具</strong>（<code>Interface/Jumelage/src/main.rs</code>）：<br>
+只有短短 <code>140</code> 行 Rust 代码，却同时打通了三种配对路径：<code>usb-simple</code>（直接连接新版 <code>RemotePairingLockdownService</code>）、<code>usb</code>（降级走 <code>CoreDeviceProxy</code> -&gt; 软件隧道 -&gt; <code>RsdHandshake</code> -&gt; <code>com.apple.internal.dt.coredevice.untrusted.tunnelservice</code> 双阶段授权）以及 <code>wifi</code>（通过 <code>mdns-sd</code> 广播 <code>PAIRABLE_HOST_SERVICE_TYPE</code> 服务并用 <code>PairableHost</code> 打印 6 位无线配对码）。</li>
+</ol>
+<blockquote>
+<p>[!TIP] 准备自部署或二次开发前的三个实操提醒</p>
+<ol>
+<li><strong>Apple TV 无线管理前提</strong>：Docker 本身无法直接跑 Apple CoreDevice 协议栈。如果在 Linux 服务器运行 Docker，只有纯 iPhone / iPad 功能是原生开箱即用的；需要管理 Apple TV 或导出伴侣证书时，需在 macOS 上通过 OrbStack 配合 <code>Interface/DecouverteOrbStack.py</code> 运行宿主机辅助进程。</li>
+<li><strong>Docker 端口安全边界</strong>：官方 <code>compose.yaml</code> 默认只把门户绑定在 <code>127.0.0.1:18785</code>，请勿直接把 <code>8080</code> 裸露在公网！远程管理请严格使用 <code>ssh -N -L 18785:127.0.0.1:18785 user@docker-host</code> 隧道或 Tailscale 内网访问。</li>
+<li><strong>开源协议混用边界</strong>：SideRelay 自研代码采用 <strong>GPL-3.0</strong>，iPhone/tvOS 伴侣基于 <strong>AGPL-3.0</strong> 的 LiveContainer/TVContainer，<code>isideload</code> 为 <strong>MIT</strong>，而核心底层库 <code>jkcoxson/jas</code> 的作者在许可证中明确要求<strong>商业用途需取得书面授权</strong>，企业内部或二次打包前务必核清授权边界。</li>
+</ol>
+</blockquote>
+<hr>
+<h2 id="六-总结从个人脚本到基础设施级侧载的演进样本">六、总结：从“个人脚本”到“基础设施级侧载”的演进样本</h2>
+<p>审视完 <code>arkemys-consulting/SideRelay</code> 的全部 27 枚引擎补丁与双模控制面代码后，我认为它最大的参考价值在于<strong>架构克制</strong>：它没有重复发明轮子去手写一遍苹果私有无线协议，而是以 <code>jas</code> 和 <code>isideload</code> 为内核，用 Swift、Python 与少数关键 Rust 胶水代码补齐了侧载工作流里最缺失的四块拼图——<strong>可远控的 Docker 容器安全隔离、基于 5 分钟可达性嗅探的跨 Wi-Fi 自愈调度、零配置沙盒注入的双向伴侣接力、以及对 Apple TV Top Shelf 生态的完整支持</strong>。</p>
+<p>对于已经拥有 NAS/Linux 服务器与 Tailscale 组网习惯的开发者来说，SideRelay 几乎是目前把“iOS / tvOS 个人测试与自用应用生命周期管理”工程化到最彻底的开源方案之一。</p>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>GitHub 官方仓库</strong>：<a href="https://github.com/arkemys-consulting/SideRelay">arkemys-consulting/SideRelay - Keep your iPhone and iPad apps signed while you're away</a></li>
+<li><strong>Docker 部署与 OrbStack 指南</strong>：<a href="https://github.com/arkemys-consulting/SideRelay/blob/main/docs/DOCKER.md">SideRelay on Docker (docs/DOCKER.md)</a></li>
+<li><strong>Apple TV 与 TVContainer 伴侣指南</strong>：<a href="https://github.com/arkemys-consulting/SideRelay/blob/main/docs/APPLE-TV.md">SideRelay on Apple TV (docs/APPLE-TV.md)</a></li>
+<li><strong>上游核心签名与设备协议组件</strong>：<a href="https://github.com/jkcoxson/jas">jkcoxson/jas</a> · <a href="https://github.com/nab138/isideload">nab138/isideload</a> · <a href="https://github.com/jkcoxson/idevice">jkcoxson/idevice</a> · <a href="https://github.com/jkcoxson/idevice_pair">jkcoxson/idevice_pair</a></li>
+<li><strong>上下游容器伴侣项目</strong>：<a href="https://github.com/LiveContainer/LiveContainer">LiveContainer/LiveContainer</a> · <a href="https://github.com/hubzzzgr/TVContainer">hubzzzgr/TVContainer</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E4%BB%8E%E9%9B%B6%E9%87%8D%E5%86%99%E7%AD%BE%E5%90%8D%E5%BC%95%E6%93%8E27-%E6%9E%9A%E8%A1%A5%E4%B8%81-%E5%8F%8C%E6%80%81%E9%97%A8%E6%88%B7%E7%9A%84%E5%B7%A5%E7%A8%8B%E8%B4%A6">一、为什么不从零重写签名引擎？“27 枚补丁 + 双态门户”的工程账</a></li>
+<li><a href="#%E4%BA%8C-5-%E5%88%86%E9%92%9F%E5%8F%AF%E8%BE%BE%E6%80%A7%E5%97%85%E6%8E%A2%E4%B8%8E-7-%E5%A4%A9%E8%87%AA%E6%84%88%E9%A3%9E%E8%BD%AE%E4%B8%BA%E4%BB%80%E4%B9%88%E5%BC%82%E5%9C%B0%E7%BB%AD%E7%AD%BE%E5%BF%85%E9%A1%BB%E9%9D%A0-wi-fi-tailscale">二、5 分钟可达性嗅探与 7 天自愈飞轮：为什么异地续签必须靠 Wi-Fi + Tailscale？</a>
+<ul>
+<li><a href="#1-%E5%8F%8C%E9%A2%91%E8%B0%83%E5%BA%A6%E4%B8%8E-pairing_unreachable-%E6%95%85%E9%9A%9C%E5%8E%BB%E9%87%8D%E6%8A%98%E7%AE%97">1. 双频调度与 <code>PAIRING_UNREACHABLE</code> 故障去重折算</a></li>
+<li><a href="#2-rppairing-%E5%8D%8F%E8%AE%AE%E9%A2%84%E6%A3%80%E4%B8%8E%E7%BA%AF%E8%9C%82%E7%AA%9D%E7%BD%91%E7%BB%9C%E7%9B%B2%E5%8C%BA%E5%AE%9E%E8%AF%81">2. RPPairing 协议预检与“纯蜂窝网络”盲区实证</a></li>
+<li><a href="#3-5-%E5%A4%A9%E6%9C%80%E5%B0%8F%E6%9C%89%E6%95%88%E6%9C%9F%E5%BC%BA%E9%97%A8%E7%A6%81%E4%B8%8E%E6%97%A7%E7%89%88%E6%8F%8F%E8%BF%B0%E6%96%87%E4%BB%B6%E9%98%B2%E5%BE%A1">3. 5 天最小有效期强门禁与旧版描述文件防御</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-%E9%9B%B6%E8%B6%8A%E7%8B%B1%E5%8F%8C%E5%90%91%E4%BC%B4%E4%BE%A3%E6%8E%A5%E5%8A%9Blivecontaineriphone%E4%B8%8E-tvcontainerapple-tv">三、零越狱双向伴侣接力：LiveContainer（iPhone）与 TVContainer（Apple TV）</a>
+<ul>
+<li><a href="#1-%E5%85%8D%E6%89%8B%E5%B7%A5%E9%85%8D%E7%BD%AE%E9%80%9A%E8%BF%87-devicectl-%E6%B2%99%E7%9B%92%E7%BC%93%E5%AD%98%E5%AE%89%E5%85%A8%E6%B3%A8%E5%85%A5-p12-%E5%87%AD%E8%AF%81">1. 免手工配置：通过 <code>devicectl</code> 沙盒缓存安全注入 <code>.p12</code> 凭证</a></li>
+<li><a href="#2-300-%E7%A7%92%E4%B8%80%E6%AC%A1%E6%80%A7-tailscale-serve-%E4%BC%A0%E8%BE%93%E4%B8%8E%E5%8F%8C%E5%9B%A0%E5%AD%90%E6%9D%A5%E6%BA%90%E6%A0%A1%E9%AA%8C">2. 300 秒一次性 Tailscale Serve 传输与双因子来源校验</a></li>
+<li><a href="#3-%E4%B8%BB%E5%B1%8F%E5%B9%95%E5%AD%A4%E7%AB%8B%E5%BF%AB%E6%8D%B7%E6%96%B9%E5%BC%8Fservice-worker-%E7%A6%BB%E7%BA%BF%E8%87%AA%E4%B8%BE%E7%9A%84-web-clip">3. 主屏幕孤立快捷方式：Service Worker 离线自举的 Web Clip</a></li>
+<li><a href="#4-apple-tv-%E4%B8%93%E9%A1%B9%E7%AA%81%E7%A0%B4top-shelf-%E5%85%B1%E4%BA%AB%E5%AE%B9%E5%99%A8%E4%B8%8E-app-id-%E8%8A%82%E6%B5%81%E5%A4%8D%E7%94%A8">4. Apple TV 专项突破：Top Shelf 共享容器与 App ID 节流复用</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E6%8A%8A-docker-%E5%AE%B9%E5%99%A8%E6%AD%A6%E8%A3%85%E5%88%B0%E7%89%99%E9%BD%BF%E5%AF%86%E9%92%A5%E9%9A%94%E7%A6%BB-orbstack-%E5%AE%BF%E4%B8%BB%E6%9C%BA%E7%A9%BF%E9%80%8F%E4%B8%8E%E8%B7%A8%E7%AB%AF%E5%8A%A0%E5%AF%86%E5%A4%87%E4%BB%BD">四、把 Docker 容器武装到牙齿：密钥隔离、OrbStack 宿主机穿透与跨端加密备份</a>
+<ul>
+<li><a href="#1-%E5%AE%B9%E5%99%A8%E7%BA%B5%E6%B7%B1%E5%8A%A0%E5%9B%BA%E4%B8%8E-aes-256-gcm-%E6%95%B0%E6%8D%AE%E5%BA%93%E5%8F%8C%E5%8D%B7%E5%88%86%E7%A6%BB">1. 容器纵深加固与 <code>AES-256-GCM</code> 数据库双卷分离</a></li>
+<li><a href="#2-orbstack-%E5%AE%BF%E4%B8%BB%E6%9C%BA%E7%A9%BF%E9%80%8F%E6%97%A0%E5%8D%B7%E5%85%B1%E4%BA%AB%E4%B8%8B%E7%9A%84-coredevice-%E4%B8%8E%E4%BB%A3%E7%A0%81%E9%AA%8C%E7%AD%BE%E4%B8%AD%E7%BB%A7">2. OrbStack 宿主机穿透：无卷共享下的 CoreDevice 与代码验签中继</a></li>
+<li><a href="#3-%E8%B7%A8%E5%B9%B3%E5%8F%B0%E5%88%86%E5%9D%97-aead-%E5%8A%A0%E5%AF%86%E5%A4%87%E4%BB%BD%E6%A0%BC%E5%BC%8Fsiderelaybackup1">3. 跨平台分块 AEAD 加密备份格式（<code>SideRelayBackup1</code>）</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%94-ipa-%E5%B7%A5%E5%9D%8A-%E5%95%86%E5%BA%97%E7%94%9F%E6%80%81%E4%B8%8E%E6%BA%90%E7%A0%81%E4%B8%AD%E7%9A%84%E7%BB%86%E8%8A%82%E5%85%8B%E5%88%B6">五、IPA 工坊、商店生态与源码中的细节克制</a></li>
+<li><a href="#%E5%85%AD-%E6%80%BB%E7%BB%93%E4%BB%8E%E4%B8%AA%E4%BA%BA%E8%84%9A%E6%9C%AC%E5%88%B0%E5%9F%BA%E7%A1%80%E8%AE%BE%E6%96%BD%E7%BA%A7%E4%BE%A7%E8%BD%BD%E7%9A%84%E6%BC%94%E8%BF%9B%E6%A0%B7%E6%9C%AC">六、总结：从“个人脚本”到“基础设施级侧载”的演进样本</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/designed-to-scale-isometric-svg-engine/">
+              <h3 class="post-title">
+                没有 React、没有 Canvas：拆解 Designed to Scale 的纯原生 SVG 等轴测引擎与 40 课系统设计图谱
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+
+      // 架构图与插图原生灯箱放大模式 (Diagram Zoom Lightbox)
+      function initDiagramZoom() {
+        const postImages = document.querySelectorAll(".post-content img");
+        if (postImages.length === 0) return;
+
+        // 构建灯箱 DOM 结构
+        const overlay = document.createElement("div");
+        overlay.className = "diagram-zoom-overlay";
+        overlay.innerHTML = `
+          <div class="diagram-zoom-hint">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>滚轮缩放 · 拖拽平移 · 双击切换 · ESC退出</span>
+          </div>
+          <button class="diagram-zoom-close" title="关闭 (ESC)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+          <div class="diagram-zoom-stage">
+            <img class="diagram-zoom-img" src="" alt="Zoomed diagram" draggable="false" />
+          </div>
+          <div class="diagram-zoom-toolbar">
+            <button class="diagram-zoom-btn btn-zoom-out" title="缩小 (-)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <span class="diagram-zoom-info">100%</span>
+            <button class="diagram-zoom-btn btn-zoom-in" title="放大 (+)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-reset" title="重置适应 (0)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-open-raw" title="在新标签页查看高清原图">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </button>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const stage = overlay.querySelector(".diagram-zoom-stage");
+        const zoomImg = overlay.querySelector(".diagram-zoom-img");
+        const scaleInfo = overlay.querySelector(".diagram-zoom-info");
+        const closeBtn = overlay.querySelector(".diagram-zoom-close");
+        const zoomInBtn = overlay.querySelector(".btn-zoom-in");
+        const zoomOutBtn = overlay.querySelector(".btn-zoom-out");
+        const resetBtn = overlay.querySelector(".btn-reset");
+        const rawBtn = overlay.querySelector(".btn-open-raw");
+
+        let currentScale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let origTx = 0;
+        let origTy = 0;
+        let currentRawSrc = "";
+
+        function updateTransform() {
+          zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
+          scaleInfo.textContent = Math.round(currentScale * 100) + "%";
+          if (currentScale > 1) {
+            stage.classList.add("can-drag");
+          } else {
+            stage.classList.remove("can-drag");
+          }
+        }
+
+        function openModal(src, alt) {
+          currentRawSrc = src;
+          zoomImg.src = src;
+          zoomImg.alt = alt || "Diagram";
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+          overlay.classList.add("active");
+          document.body.style.overflow = "hidden";
+        }
+
+        function closeModal() {
+          overlay.classList.remove("active");
+          document.body.style.overflow = "";
+          setTimeout(() => {
+            zoomImg.src = "";
+          }, 250);
+        }
+
+        // 为正文图片绑定点击事件
+        postImages.forEach(img => {
+          img.setAttribute("title", "点击放大查看高清全景图");
+          img.addEventListener("click", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal(img.currentSrc || img.src, img.alt);
+          });
+        });
+
+        // 按钮事件
+        closeBtn.addEventListener("click", closeModal);
+        zoomInBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.min(currentScale * 1.25, 5);
+          updateTransform();
+        });
+        zoomOutBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.max(currentScale * 0.8, 0.4);
+          updateTransform();
+        });
+        resetBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+        });
+        rawBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          if (currentRawSrc) window.open(currentRawSrc, "_blank");
+        });
+
+        // 鼠标滚轮缩放
+        stage.addEventListener("wheel", e => {
+          e.preventDefault();
+          const factor = e.deltaY < 0 ? 1.15 : 0.85;
+          currentScale = Math.min(Math.max(currentScale * factor, 0.4), 5);
+          updateTransform();
+        }, { passive: false });
+
+        // 双击在 1x 与 2x 间切换
+        stage.addEventListener("dblclick", e => {
+          e.preventDefault();
+          if (currentScale > 1.2) {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+          } else {
+            currentScale = 2;
+          }
+          updateTransform();
+        });
+
+        // 拖拽平移
+        stage.addEventListener("mousedown", e => {
+          if (e.target === closeBtn || e.target.closest(".diagram-zoom-toolbar")) return;
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          origTx = translateX;
+          origTy = translateY;
+          stage.classList.add("dragging");
+        });
+
+        window.addEventListener("mousemove", e => {
+          if (!isDragging) return;
+          translateX = origTx + (e.clientX - startX);
+          translateY = origTy + (e.clientY - startY);
+          updateTransform();
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (isDragging) {
+            isDragging = false;
+            stage.classList.remove("dragging");
+          }
+        });
+
+        // 点击背景遮罩关闭（非拖拽位移触发）
+        stage.addEventListener("click", e => {
+          if (e.target === stage && Math.abs(translateX - origTx) < 5 && Math.abs(translateY - origTy) < 5) {
+            closeModal();
+          }
+        });
+
+        // 键盘快捷键监听
+        window.addEventListener("keydown", e => {
+          if (!overlay.classList.contains("active")) return;
+          if (e.key === "Escape") {
+            closeModal();
+          } else if (e.key === "+" || e.key === "=") {
+            currentScale = Math.min(currentScale * 1.25, 5);
+            updateTransform();
+          } else if (e.key === "-" || e.key === "_") {
+            currentScale = Math.max(currentScale * 0.8, 0.4);
+            updateTransform();
+          } else if (e.key === "0") {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+            updateTransform();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initDiagramZoom);
+      } else {
+        initDiagramZoom();
+      }
+    </script>
+  </body>
+</html>

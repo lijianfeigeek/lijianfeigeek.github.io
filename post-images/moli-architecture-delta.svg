@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1040" height="640" viewBox="0 0 1040 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="moli-delta-title moli-delta-desc" id="moli-delta-root" data-diagram="architecture-delta">
+  <title id="moli-delta-title">Moli 与传统 Chromium 多进程渲染栈的架构差异对比</title>
+  <desc id="moli-delta-desc">对比传统 Chromium 11 进程永久 RenderTree 渲染栈与 Moli 单进程结构优先内核在协议接入、进程模型、按需布局以及原生智能体输出上的拓扑演化。</desc>
+  <defs>
+    <pattern id="moli-delta-dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.9" fill="#0f172a" fill-opacity="0.08"/>
+    </pattern>
+    <marker id="delta-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+    </marker>
+    <marker id="delta-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+    </marker>
+    <marker id="delta-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#0284c7"/>
+    </marker>
+  </defs>
+
+  <!-- Paper Light Background -->
+  <rect width="1040" height="640" fill="#f8fafc"/>
+  <rect width="1040" height="640" fill="url(#moli-delta-dots)" opacity="0.55"/>
+
+  <!-- Header -->
+  <text x="24" y="34" fill="#475569" font-size="10" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.16em">ARCHITECTURE DELTA · CHROMIUM HEADLESS VS MOLI V1.1.26</text>
+  <text x="24" y="62" fill="#0f172a" font-size="22" font-weight="600" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif">架构跃迁：从 11 进程视觉合成到单进程“结构优先”内核</text>
+
+  <!-- Panel Headers -->
+  <text x="24" y="92" fill="#475569" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">BEFORE · TRADITIONAL CHROMIUM</text>
+  <text x="388" y="92" fill="#bf4520" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">CHANGES LEDGER</text>
+  <text x="680" y="92" fill="#0284c7" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">AFTER · MOLI STRUCTURE-FIRST</text>
+
+  <!-- BEFORE SNAPSHOT -->
+  <g data-snapshot="before" data-grid="336 440 4" transform="translate(24 104)">
+    <rect x="0" y="0" width="336" height="440" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- Connectors (drawn before nodes) -->
+    <path d="M 168 68 L 168 100" fill="none" stroke="#475569" stroke-width="1.2" marker-end="url(#delta-arrow)"/>
+    <path d="M 168 164 L 168 196" fill="none" stroke="#475569" stroke-width="1.2" marker-end="url(#delta-arrow)"/>
+    <path d="M 168 260 L 168 292" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#delta-arrow)"/>
+    <path d="M 244 228 L 288 228 Q 296 228 296 236 L 296 388 Q 296 396 288 396 L 244 396" fill="none" stroke="#475569" stroke-width="1.2" marker-end="url(#delta-arrow)"/>
+
+    <!-- Arrow Masks & Labels (beside vertical strokes with >=8px gap) -->
+    <rect x="176" y="76" width="76" height="14" rx="2" fill="#ffffff"/>
+    <text x="214" y="86" fill="#64748b" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CDP / DRIVER</text>
+    <rect x="176" y="172" width="68" height="14" rx="2" fill="#ffffff"/>
+    <text x="210" y="182" fill="#64748b" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">IPC / SHMEM</text>
+    <rect x="176" y="268" width="76" height="14" rx="2" fill="#ffffff"/>
+    <text x="214" y="278" fill="#64748b" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">RASTER TILES</text>
+
+    <!-- Node 1: External Driver -->
+    <g data-kind="component" data-object-id="driver" data-status="removed" data-signature="external-chromedriver" transform="translate(24 12)">
+      <rect x="0" y="0" width="288" height="56" rx="6" fill="#f8fafc"/>
+      <rect data-role="bounds" x="0" y="0" width="288" height="56" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="10" y="8" width="54" height="14" rx="2" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="37" y="18" fill="#64748b" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">REMOVED</text>
+      <text x="164" y="24" fill="#0f172a" font-size="13" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">外部 ChromeDriver / 桥接层</text>
+      <text x="164" y="42" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CDP WS + 独立协议驱动进程</text>
+    </g>
+
+    <!-- Node 2: Multi-Process Core -->
+    <g data-kind="component" data-object-id="core-proc" data-status="changed" data-signature="11-processes-123-threads" transform="translate(24 100)">
+      <rect x="0" y="0" width="288" height="64" rx="6" fill="#ffffff"/>
+      <rect data-role="bounds" x="0" y="0" width="288" height="64" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+      <rect x="10" y="8" width="54" height="14" rx="2" fill="#f1f5f9" stroke="#475569" stroke-width="0.8"/>
+      <text x="37" y="18" fill="#334155" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CHANGED</text>
+      <text x="168" y="26" fill="#0f172a" font-size="13" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">11 进程 / 123 线程重型沙盒</text>
+      <text x="168" y="46" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">Browser + Renderer + GPU + Network</text>
+    </g>
+
+    <!-- Node 3: Permanent RenderTree -->
+    <g data-kind="component" data-object-id="layout-engine" data-status="changed" data-signature="permanent-rendertree" transform="translate(24 196)">
+      <rect x="0" y="0" width="220" height="64" rx="6" fill="#ffffff"/>
+      <rect data-role="bounds" x="0" y="0" width="220" height="64" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+      <rect x="10" y="8" width="54" height="14" rx="2" fill="#f1f5f9" stroke="#475569" stroke-width="0.8"/>
+      <text x="37" y="18" fill="#334155" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CHANGED</text>
+      <text x="136" y="26" fill="#0f172a" font-size="12" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">永久 RenderTree</text>
+      <text x="136" y="46" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">Blink 持续回流与重排</text>
+    </g>
+
+    <!-- Node 4: GPU Compositor -->
+    <g data-kind="component" data-object-id="gpu-comp" data-status="removed" data-signature="gpu-compositor-tiling" transform="translate(24 292)">
+      <rect x="0" y="0" width="220" height="60" rx="6" fill="#f8fafc"/>
+      <rect data-role="bounds" x="0" y="0" width="220" height="60" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="10" y="8" width="54" height="14" rx="2" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="37" y="18" fill="#64748b" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">REMOVED</text>
+      <text x="136" y="25" fill="#0f172a" font-size="12" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">分块光栅 + GPU 合成</text>
+      <text x="136" y="44" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">697 MiB 中位内存底噪</text>
+    </g>
+
+    <!-- Node 5: External Serialization -->
+    <g data-kind="component" data-object-id="node-extract" data-status="removed" data-signature="outerhtml-ipc-turndown" transform="translate(24 372)">
+      <rect x="0" y="0" width="220" height="56" rx="6" fill="#f8fafc"/>
+      <rect data-role="bounds" x="0" y="0" width="220" height="56" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="10" y="8" width="54" height="14" rx="2" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="37" y="18" fill="#64748b" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">REMOVED</text>
+      <text x="136" y="24" fill="#0f172a" font-size="12" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">跨进程 outerHTML 清洗</text>
+      <text x="136" y="42" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">JSDOM / Readability 拷贝</text>
+    </g>
+  </g>
+
+  <!-- CENTER CHANGES LEDGER -->
+  <g transform="translate(384 104)">
+    <rect x="0" y="0" width="272" height="440" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <line x1="16" y1="92" x2="256" y2="92" stroke="#f1f5f9" stroke-width="1"/>
+    <line x1="16" y1="180" x2="256" y2="180" stroke="#f1f5f9" stroke-width="1"/>
+    <line x1="16" y1="268" x2="256" y2="268" stroke="#f1f5f9" stroke-width="1"/>
+    <line x1="16" y1="356" x2="256" y2="356" stroke="#f1f5f9" stroke-width="1"/>
+  </g>
+
+  <text data-change="REMOVED" data-target="driver" x="400" y="128" fill="#0f172a" font-size="11" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace">
+    <tspan fill="#64748b">− REMOVED driver</tspan>
+    <tspan x="400" dy="18" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">取消独立 ChromeDriver / geckodriver，</tspan>
+    <tspan x="400" dy="16" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">统一由单内核托管三协议端点。</tspan>
+  </text>
+
+  <text data-change="CHANGED" data-target="core-proc" x="400" y="216" fill="#0f172a" font-size="11" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace">
+    <tspan fill="#0284c7">Δ CHANGED core-proc</tspan>
+    <tspan x="400" dy="18" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">11 进程 / 123 线程 → 单进程 24 线程，</tspan>
+    <tspan x="400" dy="16" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">CDP 就绪耗时 169ms 压降至 34.85ms。</tspan>
+  </text>
+
+  <text data-change="CHANGED" data-target="layout-engine" x="400" y="304" fill="#0f172a" font-size="11" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace">
+    <tspan fill="#bf4520">Δ CHANGED layout-engine</tspan>
+    <tspan x="400" dy="18" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">默认 Mock 零计算；仅在 --layout 时</tspan>
+    <tspan x="400" dy="16" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">产出 FrozenLayoutTree 快照并即毁工作树。</tspan>
+  </text>
+
+  <text data-change="REMOVED" data-target="gpu-comp" x="400" y="392" fill="#0f172a" font-size="11" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace">
+    <tspan fill="#64748b">− REMOVED gpu-comp</tspan>
+    <tspan x="400" dy="18" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">剔除图块缓存、损伤图与 GPU 合成器，</tspan>
+    <tspan x="400" dy="16" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">截屏改用单帧 Vello CPU 瞬态光栅化。</tspan>
+  </text>
+
+  <text data-change="ADDED" data-target="agent-native" x="400" y="480" fill="#0f172a" font-size="11" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace">
+    <tspan fill="#059669">+ ADDED agent-native</tspan>
+    <tspan x="400" dy="18" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">零拷贝 html2md 栈机、原生 ARIA 语义树</tspan>
+    <tspan x="400" dy="16" fill="#334155" font-size="11" font-weight="400" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">与 WebMCP 表单工具化直接跑在 DOM 上。</tspan>
+  </text>
+
+  <!-- AFTER SNAPSHOT -->
+  <g data-snapshot="after" data-grid="336 440 4" transform="translate(680 104)">
+    <rect x="0" y="0" width="336" height="440" rx="8" fill="#ffffff" stroke="#0284c7" stroke-width="1"/>
+
+    <!-- Connectors (drawn before nodes) -->
+    <path d="M 168 68 L 168 100" fill="none" stroke="#0284c7" stroke-width="1.3" marker-end="url(#delta-arrow-link)"/>
+    <path d="M 130 164 L 130 196" fill="none" stroke="#0284c7" stroke-width="1.3" marker-end="url(#delta-arrow-link)"/>
+    <path d="M 296 164 L 296 316 Q 296 324 288 324 L 236 324" fill="none" stroke="#bf4520" stroke-width="1.4" marker-end="url(#delta-arrow-accent)"/>
+    <path d="M 130 356 L 130 376" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#delta-arrow)"/>
+
+    <!-- Arrow Masks & Labels (beside vertical strokes with >=8px gap) -->
+    <rect x="176" y="76" width="84" height="14" rx="2" fill="#ffffff"/>
+    <text x="218" y="86" fill="#0284c7" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">IN-PROCESS RPC</text>
+    <rect x="240" y="218" width="48" height="14" rx="2" fill="#ffffff"/>
+    <text x="264" y="228" fill="#bf4520" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">--LAYOUT</text>
+
+    <!-- Node 1: Unified Protocol Server -->
+    <g data-kind="component" data-object-id="proto-server" data-status="added" data-signature="moli-protocol-server-tri-proto" transform="translate(24 12)">
+      <rect x="0" y="0" width="288" height="56" rx="6" fill="#ffffff"/>
+      <rect data-role="bounds" x="0" y="0" width="288" height="56" rx="6" fill="#f0f9ff" stroke="#0284c7" stroke-width="1"/>
+      <rect x="10" y="8" width="44" height="14" rx="2" fill="#e0f2fe" stroke="#0284c7" stroke-width="0.8"/>
+      <text x="32" y="18" fill="#0369a1" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ADDED</text>
+      <text x="164" y="24" fill="#0f172a" font-size="13" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">moli-protocol-server 统一端点</text>
+      <text x="164" y="42" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CDP + WebDriver Classic / BiDi 同端口</text>
+    </g>
+
+    <!-- Node 2: Single Process Core -->
+    <g data-kind="component" data-object-id="core-proc" data-status="changed" data-signature="1-process-24-threads-v8-stylo" transform="translate(24 100)">
+      <rect x="0" y="0" width="288" height="64" rx="6" fill="#ffffff"/>
+      <rect data-role="bounds" x="0" y="0" width="288" height="64" rx="6" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+      <rect x="10" y="8" width="54" height="14" rx="2" fill="#f1f5f9" stroke="#475569" stroke-width="0.8"/>
+      <text x="37" y="18" fill="#334155" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">CHANGED</text>
+      <text x="168" y="26" fill="#0f172a" font-size="13" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">单进程 Rust 内核（24 线程）</text>
+      <text x="168" y="46" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">moli-dom + Stylo + V8 152.2 + curl-rust</text>
+    </g>
+
+    <!-- Node 3: Agent Native Fast Path (90%) -->
+    <g data-kind="component" data-object-id="agent-native" data-status="added" data-signature="html2md-ax-webmcp-dom-first" transform="translate(24 196)">
+      <rect x="0" y="0" width="212" height="64" rx="6" fill="#ffffff"/>
+      <rect data-role="bounds" x="0" y="0" width="212" height="64" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+      <rect x="10" y="8" width="44" height="14" rx="2" fill="#d1fae5" stroke="#059669" stroke-width="0.8"/>
+      <text x="32" y="18" fill="#047857" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">90% 路径</text>
+      <text x="132" y="26" fill="#0f172a" font-size="12" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">DOM-first 直出</text>
+      <text x="132" y="46" fill="#047857" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">html2md · AX · WebMCP</text>
+    </g>
+
+    <!-- Node 4: On-Demand FrozenLayoutTree (Focal Coral) -->
+    <g data-kind="component" data-object-id="layout-engine" data-status="changed" data-signature="ondemand-frozen-layout-tree" transform="translate(24 292)">
+      <rect x="0" y="0" width="212" height="64" rx="6" fill="#ffffff"/>
+      <rect data-role="bounds" x="0" y="0" width="212" height="64" rx="6" fill="#fff1f2" stroke="#bf4520" stroke-width="1.2"/>
+      <rect x="10" y="8" width="52" height="14" rx="2" fill="#ffe4e6" stroke="#bf4520" stroke-width="0.8"/>
+      <text x="36" y="18" fill="#bf4520" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ON-DEMAND</text>
+      <text x="134" y="26" fill="#0f172a" font-size="12" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">FrozenLayoutTree</text>
+      <text x="134" y="46" fill="#bf4520" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">算完即 Drop（256 MiB）</text>
+    </g>
+
+    <!-- Node 5: Transient CPU Paint -->
+    <g data-kind="component" data-object-id="cpu-paint" data-status="added" data-signature="vello-cpu-transient-raster" transform="translate(24 376)">
+      <rect x="0" y="0" width="212" height="52" rx="6" fill="#ffffff"/>
+      <rect data-role="bounds" x="0" y="0" width="212" height="52" rx="6" fill="#f8fafc" stroke="#64748b" stroke-width="1" stroke-dasharray="5,4"/>
+      <rect x="10" y="8" width="44" height="14" rx="2" fill="#f1f5f9" stroke="#64748b" stroke-width="0.8"/>
+      <text x="32" y="18" fill="#475569" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">10% 路径</text>
+      <text x="132" y="23" fill="#0f172a" font-size="12" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif" text-anchor="middle">单帧 CPU 光栅与 PDF</text>
+      <text x="132" y="40" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">Vello CPU（92 MiB RSS）</text>
+    </g>
+  </g>
+
+  <!-- Legend Bottom Strip -->
+  <line x1="24" y1="572" x2="1016" y2="572" stroke="#cbd5e1" stroke-width="0.8"/>
+  <text x="24" y="594" fill="#64748b" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">LEGEND</text>
+
+  <rect x="96" y="584" width="16" height="12" rx="2" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/>
+  <text x="120" y="594" fill="#334155" font-size="11" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">已移除组件 (Removed)</text>
+
+  <rect x="280" y="584" width="16" height="12" rx="2" fill="#ffffff" stroke="#0f172a" stroke-width="1"/>
+  <text x="304" y="594" fill="#334155" font-size="11" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">重构演进组件 (Changed)</text>
+
+  <rect x="468" y="584" width="16" height="12" rx="2" fill="#fff1f2" stroke="#bf4520" stroke-width="1.2"/>
+  <text x="492" y="594" fill="#bf4520" font-size="11" font-weight="600" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">核心焦距创新 (On-Demand Focal)</text>
+
+  <rect x="708" y="584" width="16" height="12" rx="2" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+  <text x="732" y="594" fill="#047857" font-size="11" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">新增原生能力 (Agent-First Added)</text>
+</svg>

@@ -1,0 +1,124 @@
+<svg width="960" height="520" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="sd-pay-title sd-pay-desc">
+  <title id="sd-pay-title">支付与交易系统的终极防线：幂等流水线时序图</title>
+  <desc id="sd-pay-desc">展示用户客户端生成Idempotency-Key、数据库唯一索引约束、调用Stripe网关与处理网络超时的端到端幂等支付时序。</desc>
+  <style>
+    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 18px; font-weight: 700; fill: #0f172a; }
+    .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; fill: #64748b; }
+    .actor-box { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; font-weight: 700; fill: #1e293b; }
+    .step-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 600; fill: #0f172a; }
+    .step-desc { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10px; fill: #64748b; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9.5px; }
+  </style>
+  <rect width="960" height="520" fill="#fafafa"/>
+  <rect x="24" y="20" width="912" height="480" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Header -->
+  <g transform="translate(48, 44)">
+    <text class="title" x="0" y="0">支付与交易系统终极防线：幂等流水线时序</text>
+    <text class="subtitle" x="0" y="20">网络抖动与用户狂点重试常态下，通过客户端唯一 Key 与数据库唯一索引彻底杜绝二次重复扣款</text>
+  </g>
+
+  <!-- Lifelines -->
+  <!-- Actor 1: Client (x=120) -->
+  <line x1="120" y1="90" x2="120" y2="470" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <rect x="50" y="70" width="140" height="34" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+  <text class="actor-box" x="120" y="91" text-anchor="middle">用户客户端 (User)</text>
+
+  <!-- Actor 2: Gateway (x=340) -->
+  <line x1="340" y1="90" x2="340" y2="470" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <rect x="270" y="70" width="140" height="34" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+  <text class="actor-box" x="340" y="91" text-anchor="middle">API 网关 (Gateway)</text>
+
+  <!-- Actor 3: PayService (x=560) -->
+  <line x1="560" y1="90" x2="560" y2="470" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <rect x="490" y="70" width="140" height="34" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text class="actor-box" fill="#1d4ed8" x="560" y="91" text-anchor="middle">支付核心 (PayService)</text>
+
+  <!-- Actor 4: DB (x=730) -->
+  <line x1="730" y1="90" x2="730" y2="470" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <rect x="665" y="70" width="130" height="34" rx="6" fill="#f0fdf4" stroke="#22c55e" stroke-width="1"/>
+  <text class="actor-box" fill="#15803d" x="730" y="91" text-anchor="middle">分布式账本 (ACID)</text>
+
+  <!-- Actor 5: PSP (x=870) -->
+  <line x1="870" y1="90" x2="870" y2="470" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <rect x="815" y="70" width="110" height="34" rx="6" fill="#fff7ed" stroke="#f97316" stroke-width="1"/>
+  <text class="actor-box" fill="#c2410c" x="870" y="91" text-anchor="middle">Stripe / 银行</text>
+
+  <!-- Message 1: Client -> Gateway -->
+  <g transform="translate(0, 120)">
+    <line x1="120" y1="0" x2="330" y2="0" stroke="#0f172a" stroke-width="1.5"/>
+    <polygon points="330,0 322,-3 322,3" fill="#0f172a"/>
+    <text class="step-text" x="130" y="-6">1. POST /pay (携带 Idempotency-Key: uuid-v4)</text>
+  </g>
+
+  <!-- Message 2: Gateway -> PayService -->
+  <g transform="translate(0, 150)">
+    <line x1="340" y1="0" x2="550" y2="0" stroke="#0f172a" stroke-width="1.5"/>
+    <polygon points="550,0 542,-3 542,3" fill="#0f172a"/>
+    <text class="step-text" x="350" y="-6">2. 路由透传幂等请求头</text>
+  </g>
+
+  <!-- Message 3: PayService -> DB (Insert Pending) -->
+  <g transform="translate(0, 185)">
+    <line x1="560" y1="0" x2="720" y2="0" stroke="#2563eb" stroke-width="1.5"/>
+    <polygon points="720,0 712,-3 712,3" fill="#2563eb"/>
+    <text class="step-text" fill="#1d4ed8" x="570" y="-6">3. INSERT payment (key, status='PENDING')</text>
+    <text class="mono" fill="#475569" x="570" y="10">利用 UNIQUE KEY 索引行级锁抢占</text>
+  </g>
+
+  <!-- Alt Block 1: First Request Success -->
+  <rect x="52" y="215" width="876" height="130" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1" stroke-dasharray="3,3"/>
+  <text class="mono" fill="#15803d" x="62" y="232">[场景 A：首次请求 (插入成功)]</text>
+
+  <!-- Message 4: PayService -> PSP -->
+  <g transform="translate(0, 245)">
+    <line x1="560" y1="0" x2="860" y2="0" stroke="#ea580c" stroke-width="1.5"/>
+    <polygon points="860,0 852,-3 852,3" fill="#ea580c"/>
+    <text class="step-text" fill="#c2410c" x="570" y="-6">4. 调用三方扣款 API (原样透传 Idempotency-Key)</text>
+  </g>
+
+  <!-- Message 5: PSP -> PayService -->
+  <g transform="translate(0, 275)">
+    <line x1="870" y1="0" x2="570" y2="0" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="4,4"/>
+    <polygon points="570,0 578,-3 578,3" fill="#16a34a"/>
+    <text class="step-text" fill="#15803d" x="580" y="-6">5. 扣款成功 (Transaction ID: ch_1N...)</text>
+  </g>
+
+  <!-- Message 6: PayService -> DB (Update Success) -->
+  <g transform="translate(0, 305)">
+    <line x1="560" y1="0" x2="720" y2="0" stroke="#16a34a" stroke-width="1.5"/>
+    <polygon points="720,0 712,-3 712,3" fill="#16a34a"/>
+    <text class="step-text" fill="#15803d" x="570" y="-6">6. UPDATE payment SET status='SUCCESS'</text>
+  </g>
+
+  <!-- Message 7: Return to Client -->
+  <g transform="translate(0, 335)">
+    <line x1="560" y1="0" x2="130" y2="0" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="4,4"/>
+    <polygon points="130,0 138,-3 138,3" fill="#16a34a"/>
+    <text class="step-text" fill="#15803d" x="140" y="-6">7. 扣款成功，返回支付凭证与交易单号</text>
+  </g>
+
+  <!-- Alt Block 2: Duplicate Retry -->
+  <rect x="52" y="360" width="876" height="100" rx="6" fill="#fff1f2" stroke="#fecdd3" stroke-width="1" stroke-dasharray="3,3"/>
+  <text class="mono" fill="#be123c" x="62" y="377">[场景 B：网络超时重试或用户狂点 (DuplicateKeyException)]</text>
+
+  <!-- Message 8: Retry Insert Duplicate -->
+  <g transform="translate(0, 395)">
+    <line x1="560" y1="0" x2="720" y2="0" stroke="#e11d48" stroke-width="1.5"/>
+    <polygon points="720,0 712,-3 712,3" fill="#e11d48"/>
+    <text class="step-text" fill="#be123c" x="570" y="-6">8. 唯一键冲突 DuplicateKeyException (被数据库唯一索引拦截)</text>
+  </g>
+
+  <!-- Message 9: Query and return cached status -->
+  <g transform="translate(0, 425)">
+    <line x1="730" y1="0" x2="570" y2="0" stroke="#475569" stroke-width="1.5" stroke-dasharray="4,4"/>
+    <polygon points="570,0 578,-3 578,3" fill="#475569"/>
+    <text class="step-text" x="580" y="-6">9. SELECT 获取当前最新状态 (PENDING 或 SUCCESS)</text>
+  </g>
+
+  <g transform="translate(0, 448)">
+    <line x1="560" y1="0" x2="130" y2="0" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="4,4"/>
+    <polygon points="130,0 138,-3 138,3" fill="#2563eb"/>
+    <text class="step-text" fill="#1d4ed8" x="140" y="-6">10. 直接返回幂等结果，绝对不发起二次扣款！</text>
+  </g>
+</svg>

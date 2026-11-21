@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000" height="540" viewBox="0 0 1000 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ks-layers-title ks-layers-desc" id="diagram2-root">
+      <title id="ks-layers-title">Kitesurf 五层内存与计算分层栈：SwapAlloc 与 PixelFree 优化机制</title>
+      <desc id="ks-layers-desc">展示 Kitesurf 如何在不可收缩的 wasm32 线性内存约束下，通过五层栈设计（包含 26 项 DOM 快路径、96 MiB SwapAlloc 主动换出以及 PixelFree 字体表裁剪）控制 V8 孤岛内存高水位。</desc>
+      <defs>
+      <style>#diagram2-root { font-family: 'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif; color: #0f172a; }
+      #diagram2-root .diagram-container { width: 100%; overflow-x: auto; }</style>
+        <pattern id="diagram2-dots" width="20" height="20" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="0.9" fill="#0f172a" fill-opacity="0.08"/>
+        </pattern>
+        <marker id="diagram2-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+        </marker>
+        <marker id="diagram2-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+        </marker>
+        <marker id="diagram2-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#0284c7"/>
+        </marker>
+      </defs>
+
+      <rect width="1000" height="540" fill="#f8fafc"/>
+      <rect width="1000" height="540" fill="url(#diagram2-dots)" opacity="0.6"/>
+
+      <!-- Header -->
+      <text x="48" y="36" fill="#475569" font-size="10" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.16em">LAYER STACK · WASM32 MEMORY PRESSURE · PIXEL-FREE SHAPING</text>
+      <text x="48" y="64" fill="#0f172a" font-size="22" font-weight="600">打破 Wasm 内存单向膨胀：Kitesurf 五层资源治理栈</text>
+
+      <!-- Left Abstraction Direction Rail -->
+      <text x="40" y="100" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">HOST</text>
+      <line x1="56" y1="112" x2="56" y2="444" stroke="#94a3b8" stroke-width="1.2"/>
+      <polygon points="52,116 60,116 56,108" fill="#475569"/>
+      <polygon points="52,440 60,440 56,448" fill="#475569"/>
+      <text x="36" y="468" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">WASM32</text>
+
+      <!-- L5: Host Orchestration & Policy Gate -->
+      <g transform="translate(96, 96)">
+        <rect x="0" y="0" width="856" height="64" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+        <text x="20" y="26" fill="#475569" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">L5</text>
+        <text x="20" y="44" fill="#64748b" font-size="9" font-family="'Geist Mono', ui-monospace, monospace">ORCHESTRATION</text>
+        <text x="140" y="28" fill="#0f172a" font-size="15" font-weight="600">宿主预检、脚本门禁与像素模式切换</text>
+        <text x="140" y="48" fill="#475569" font-size="11">@kitesurf/script-gate (CSP · SRI · MIME) · x-kitesurf-skip-raster: 1 · layoutMode=off</text>
+        <rect x="748" y="18" width="92" height="28" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+        <text x="794" y="36" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">Host TS</text>
+      </g>
+
+      <!-- L4: Boa + V8 Hybrid Execution -->
+      <g transform="translate(96, 172)">
+        <rect x="0" y="0" width="856" height="64" rx="4" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+        <text x="20" y="26" fill="#475569" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">L4</text>
+        <text x="20" y="44" fill="#64748b" font-size="9" font-family="'Geist Mono', ui-monospace, monospace">JS ENGINE</text>
+        <text x="140" y="28" fill="#0f172a" font-size="15" font-weight="600">无 unsafe-eval 混合脚本运行时</text>
+        <text x="140" y="48" fill="#475569" font-size="11">静态脚本烘焙为 CJS/ESM 模块 · eval / new Function / Runtime.evaluate 路由至 Wasm 内置 Boa</text>
+        <rect x="748" y="18" width="92" height="28" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="0.8"/>
+        <text x="794" y="36" fill="#475569" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">Boa 0.22</text>
+      </g>
+
+      <!-- L3: DOM Fastpath & Epoch Guard -->
+      <g transform="translate(96, 248)">
+        <rect x="0" y="0" width="856" height="64" rx="4" fill="#ffffff" stroke="#0284c7" stroke-width="1"/>
+        <text x="20" y="26" fill="#0284c7" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">L3</text>
+        <text x="20" y="44" fill="#64748b" font-size="9" font-family="'Geist Mono', ui-monospace, monospace">BRIDGE</text>
+        <text x="140" y="28" fill="#0f172a" font-size="15" font-weight="600">26 项 DOM 快路径桥接与 V8 纪元重验</text>
+        <text x="140" y="48" fill="#475569" font-size="11">dom_fastpath.rs 绕过 V8 FFI 序列化 · V8_EPOCH + DEOPT_MASK 探测页面猴补丁 · 弱引用防泄漏</text>
+        <rect x="748" y="18" width="92" height="28" rx="4" fill="#0284c7" stroke="#0284c7" stroke-width="0.8" fill-opacity="0.08"/>
+        <text x="794" y="36" fill="#0284c7" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">26 FastOps</text>
+      </g>
+
+      <!-- L2: SwapAlloc & Facet SQLite (Focal Layer) -->
+      <g transform="translate(96, 324)">
+        <rect x="0" y="0" width="856" height="68" rx="4" fill="#bf4520" stroke="#bf4520" stroke-width="1.4" fill-opacity="0.08"/>
+        <text x="20" y="27" fill="#bf4520" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">L2</text>
+        <text x="20" y="46" fill="#bf4520" font-size="9" font-family="'Geist Mono', ui-monospace, monospace">SWAP ALLOC</text>
+        <text x="140" y="29" fill="#0f172a" font-size="15" font-weight="600">SwapAlloc 全局分配器与 Facet SQLite 换出</text>
+        <text x="140" y="49" fill="#334155" font-size="11">拦截每次分配统计 LIVE 字节 · 越过 96 MiB 预算触发 ks_swap_under_pressure() · 冷源码换出至 SQLite</text>
+        <rect x="748" y="20" width="92" height="28" rx="4" fill="#ffffff" stroke="#bf4520" stroke-width="0.9"/>
+        <text x="794" y="38" fill="#bf4520" font-size="9" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">96 MiB Cap</text>
+      </g>
+
+      <!-- L1: PixelFree Font Shaping & Panic Unwind -->
+      <g transform="translate(96, 404)">
+        <rect x="0" y="0" width="856" height="64" rx="4" fill="#f8fafc" stroke="#059669" stroke-width="1"/>
+        <text x="20" y="26" fill="#059669" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.14em">L1</text>
+        <text x="20" y="44" fill="#64748b" font-size="9" font-family="'Geist Mono', ui-monospace, monospace">SHAPING / ABI</text>
+        <text x="140" y="28" fill="#0f172a" font-size="15" font-weight="600">PixelFree 字体轮廓剥离与 Wasm 异常自愈</text>
+        <text x="140" y="48" fill="#475569" font-size="11">strip_sfnt_tables 剔除 glyf/CFF/COLR 省下 >2 MiB · 保留度量表保证排版等价 · panic=unwind 保护 DOM</text>
+        <rect x="748" y="18" width="92" height="28" rx="4" fill="#059669" stroke="#059669" stroke-width="0.8" fill-opacity="0.08"/>
+        <text x="794" y="36" fill="#059669" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">SFNT Strip</text>
+      </g>
+
+      <!-- Bottom Summary Strip -->
+      <line x1="96" y1="488" x2="952" y2="488" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="96" y="510" fill="#475569" font-size="10" font-family="'Geist Mono', ui-monospace, monospace">关键约束：wasm32 memory.grow 只增不减 → 按高水位计费</text>
+      <text x="580" y="510" fill="#bf4520" font-size="10" font-weight="600" font-family="'Geist Mono', ui-monospace, monospace">破局手段：AST 装箱减半 + 96 MiB Swap + SFNT 剔除轮廓</text>
+    </svg>

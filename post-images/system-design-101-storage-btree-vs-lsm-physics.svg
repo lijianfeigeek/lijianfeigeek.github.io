@@ -1,0 +1,88 @@
+<svg width="960" height="480" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" role="img" aria-labelledby="sd-store-title sd-store-desc">
+  <title id="sd-store-title">存储底层物理学：B+ Tree 与 LSM-Tree 的读写代价权衡</title>
+  <desc id="sd-store-desc">对比展示 B+ Tree 引擎的就地更新随机 I/O 与高效范围查询，以及 LSM-Tree 引擎的顺序追加写、MemTable 刷盘与后台 Compact 读放大机制。</desc>
+  <style>
+    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 18px; font-weight: 700; fill: #0f172a; }
+    .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; fill: #64748b; }
+    .col-header { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 700; }
+    .card-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 700; fill: #0f172a; }
+    .card-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10.5px; fill: #475569; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
+  </style>
+  <rect width="960" height="480" fill="#fafafa"/>
+  <rect x="24" y="20" width="912" height="440" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Header -->
+  <g transform="translate(48, 44)">
+    <text class="title" x="0" y="0">存储底层物理学：B+ Tree 与 LSM-Tree 的读写代价</text>
+    <text class="subtitle" x="0" y="20">没有任何存储引擎能够同时在随机写、顺序写、范围查询与存储空间上做到极致</text>
+  </g>
+
+  <!-- Left Column: B+ Tree -->
+  <g transform="translate(48, 86)">
+    <rect width="412" height="348" rx="8" fill="#e0e7ff" stroke="#a5b4fc" stroke-width="1.5"/>
+    <g transform="translate(16, 16)">
+      <text class="col-header" fill="#3730a3" x="0" y="0">B+ Tree 引擎 (MySQL InnoDB / PostgreSQL)</text>
+      <text class="mono" fill="#4338ca" x="0" y="16">读密集关系型标杆 · 就地更新模型 (In-place Update)</text>
+
+      <!-- Step 1: Write -->
+      <g transform="translate(0, 32)">
+        <rect width="380" height="84" rx="6" fill="#ffffff" stroke="#818cf8" stroke-width="1"/>
+        <g transform="translate(12, 16)">
+          <text class="card-title" fill="#be123c" x="0" y="0">写入物理机制：随机更新与页分裂 (Page Splitting)</text>
+          <text class="card-body" x="0" y="16">• 数据直接修改在特定的 16KB Page 物理页中</text>
+          <text class="card-body" x="0" y="32">• 离散写引发昂贵的磁盘随机寻道与页重排</text>
+          <text class="mono" fill="#e11d48" x="0" y="50">COST: 随机 I/O 写入吞吐受限于硬件 IOPS 上限</text>
+        </g>
+      </g>
+
+      <!-- Step 2: Read -->
+      <g transform="translate(0, 126)">
+        <rect width="380" height="154" rx="6" fill="#ffffff" stroke="#818cf8" stroke-width="1"/>
+        <g transform="translate(12, 16)">
+          <text class="card-title" fill="#15803d" x="0" y="0">读取物理机制：极致确定的点查与范围扫描</text>
+          <text class="card-body" x="0" y="16">• 树高度固定 (3~4 层)，点查 O(log N) 确定性磁盘寻址</text>
+          <text class="card-body" x="0" y="32">• 底层全部叶子节点通过双向链表相连</text>
+          <text class="card-body" x="0" y="48">• 范围查找 (Range Scan) 仅需树寻址起点后连续磁盘顺序读</text>
+          <text class="card-body" x="0" y="64">• 零多版本墓碑干扰，读延迟高度平稳无毛刺</text>
+          <text class="mono" fill="#15803d" x="0" y="90">BEST FOR: 强事务一致性、复杂多列索引与范围分析</text>
+          <text class="mono" fill="#3730a3" x="0" y="110">TYPICAL: 金融账本、用户账户系统、订单主表</text>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- Right Column: LSM-Tree -->
+  <g transform="translate(500, 86)">
+    <rect width="412" height="348" rx="8" fill="#fff7ed" stroke="#fed7aa" stroke-width="1.5"/>
+    <g transform="translate(16, 16)">
+      <text class="col-header" fill="#9a3412" x="0" y="0">LSM-Tree 引擎 (RocksDB / Cassandra / ScyllaDB)</text>
+      <text class="mono" fill="#ea580c" x="0" y="16">写密集分布式标杆 · 顺序追加写模型 (Append-only)</text>
+
+      <!-- Step 1: Write -->
+      <g transform="translate(0, 32)">
+        <rect width="380" height="84" rx="6" fill="#ffffff" stroke="#f97316" stroke-width="1"/>
+        <g transform="translate(12, 16)">
+          <text class="card-title" fill="#15803d" x="0" y="0">写入物理机制：WAL 追加写 + 内存 MemTable</text>
+          <text class="card-body" x="0" y="16">• 顺序写 WAL 保障持久性，内存跳表排好序</text>
+          <text class="card-body" x="0" y="32">• 内存满后批量顺序 Flush 落盘为不可变 SSTable</text>
+          <text class="mono" fill="#15803d" x="0" y="50">POWER: 彻底摒弃磁盘随机寻道，写入吞吐达 B+ Tree 数倍</text>
+        </g>
+      </g>
+
+      <!-- Step 2: Read -->
+      <g transform="translate(0, 126)">
+        <rect width="380" height="154" rx="6" fill="#ffffff" stroke="#f97316" stroke-width="1"/>
+        <g transform="translate(12, 16)">
+          <text class="card-title" fill="#c2410c" x="0" y="0">读取代价：读放大 (Read Amplification) 与 Compaction</text>
+          <text class="card-body" x="0" y="16">• 同一 Key 可能分散在多层 SSTable 中，读取需多文件查找</text>
+          <text class="card-body" x="0" y="32">• 必须引入布隆过滤器 (Bloom Filter) 纳秒级排除无用文件</text>
+          <text class="card-body" x="0" y="48">• 后台定期 Compaction 归并文件消除已删除墓碑 (Tombstone)</text>
+          <text class="card-body" x="0" y="64">• 大规模压实时极易引发 CPU 峰值颠簸与 P99 延迟毛刺</text>
+          <text class="mono" fill="#ea580c" x="0" y="90">BEST FOR: 高并发写入、时序遥测流、万亿级消息日志</text>
+          <text class="mono" fill="#9a3412" x="0" y="110">TYPICAL: Discord 消息、IoT 物联网监控、分布式缓存</text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
