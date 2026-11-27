@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="588" viewBox="0 0 980 588" role="img" aria-labelledby="pmt-layer-title pmt-layer-desc" id="pmt-binary-layer-stack-root">
+  <title id="pmt-layer-title">PMTiles v3 二进制文件物理分段与列式目录编码栈</title>
+  <desc id="pmt-layer-desc">展示 PMTiles v3 单文件归档的五大物理分段（127 字节文件头、16 KiB 内必达的根目录、JSON 元数据、可选叶子目录、Hilbert 聚类与去重后的瓦片载荷），以及列式 Varint、Delta 差分与 RLE 游程编码细节。</desc>
+  <defs>
+    <style>
+      #pmt-binary-layer-stack-root {
+        font-family: 'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
+        color: #1e293b;
+      }
+    </style>
+    <pattern id="pmt-ls-dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="0.85" fill="#94a3b8" opacity="0.24"/>
+    </pattern>
+    <marker id="pmt-ls-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+    </marker>
+    <marker id="pmt-ls-arrow-coral" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+    </marker>
+  </defs>
+
+  <rect width="980" height="588" fill="#f8fafc"/>
+  <rect width="980" height="588" fill="url(#pmt-ls-dots)"/>
+
+  <text x="32" y="36" font-family="'Instrument Serif', 'Noto Serif SC', Georgia, serif" font-size="22" font-weight="400" fill="#0f172a">PMTiles v3 Binary Archive Anatomy &amp; Columnar Directory Encoding</text>
+  <text x="32" y="56" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="9.5" fill="#64748b">5 PHYSICAL SECTIONS · HILBERT CURVE TILEID · DELTA VARINT + RUN-LENGTH ENCODING (RLE)</text>
+
+  <!-- Left vertical direction indicator -->
+  <line x1="88" y1="88" x2="88" y2="432" stroke="#475569" stroke-width="1.4" marker-end="url(#pmt-ls-arrow)"/>
+  <text x="76" y="248" text-anchor="end" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" font-weight="600" fill="#475569">BYTE OFFSET</text>
+  <text x="76" y="262" text-anchor="end" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#64748b">0 → EOF</text>
+
+  <!-- First 16 KiB optimistic prefetch bracket on right -->
+  <path d="M 936 80 L 948 80 L 948 214 L 936 214" fill="none" stroke="#bf4520" stroke-width="1.5"/>
+  <text x="954" y="138" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" font-weight="600" fill="#bf4520" transform="rotate(90, 954, 146)" text-anchor="middle">FIRST 16 KiB PREFETCH</text>
+
+  <!-- Section 1: 127B Header -->
+  <g transform="translate(116, 76)">
+    <rect x="0" y="0" width="812" height="62" rx="6" fill="#ffffff" stroke="#0284c7" stroke-width="1.2"/>
+    <rect x="14" y="17" width="116" height="28" rx="4" fill="#e0f2fe"/>
+    <text x="72" y="35" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#0369a1">01 · HEADER (127B)</text>
+    <text x="148" y="27" font-family="'Geist', 'PingFang SC', sans-serif" font-size="14" font-weight="600" fill="#0f172a">固定 127 字节文件头（魔数 PMTiles + 版本 0x03 + 全局索引与边界）</text>
+    <text x="148" y="46" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.2" fill="#475569">7B Magic + 1B Ver + 11×uint64 (Offset/Len/Counts) + Clustered + IC/TC/TT + MinZ/MaxZ + 1e7 Bounds</text>
+    <rect x="688" y="19" width="110" height="24" rx="4" fill="#f0f9ff" stroke="#bae6fd" stroke-width="0.8"/>
+    <text x="743" y="35" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#0369a1">bytes 0..126</text>
+  </g>
+
+  <!-- Section 2: Root Directory (Focal Coral) -->
+  <g transform="translate(116, 150)">
+    <rect x="0" y="0" width="812" height="66" rx="6" fill="#fef2ee" stroke="#bf4520" stroke-width="1.6"/>
+    <rect x="14" y="19" width="116" height="28" rx="4" fill="#bf4520"/>
+    <text x="72" y="37" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#ffffff">02 · ROOT DIR</text>
+    <text x="148" y="28" font-family="'Geist', 'PingFang SC', sans-serif" font-size="14" font-weight="600" fill="#bf4520">根目录索引（硬约束：Header + 压缩后根目录 &lt;= 16,384 字节）</text>
+    <text x="148" y="48" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.2" fill="#334155">最大 16,257B · 首包 16KiB Range 请求同时拉取 Header + Root · 超出自动分裂为 Leaf（leaf_size 4096×2ⁿ）</text>
+    <rect x="688" y="21" width="110" height="24" rx="4" fill="#fff7ed" stroke="#bf4520" stroke-width="0.8"/>
+    <text x="743" y="37" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#bf4520">1 RTT 必达</text>
+  </g>
+
+  <!-- Section 3: JSON Metadata -->
+  <g transform="translate(116, 228)">
+    <rect x="0" y="0" width="812" height="58" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <rect x="14" y="15" width="116" height="28" rx="4" fill="#f1f5f9"/>
+    <text x="72" y="33" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#1e293b">03 · METADATA</text>
+    <text x="148" y="26" font-family="'Geist', 'PingFang SC', sans-serif" font-size="14" font-weight="600" fill="#0f172a">UTF-8 JSON 元数据区（TileJSON 3.0 兼容字段）</text>
+    <text x="148" y="44" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.2" fill="#475569">按 IC 压缩 · 含 vector_layers / attribution / encoding (terrarium) · 仅 inspect 时按需额外读取</text>
+    <rect x="688" y="17" width="110" height="24" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+    <text x="743" y="33" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#1e293b">Lazy Fetch</text>
+  </g>
+
+  <!-- Section 4: Leaf Directories -->
+  <g transform="translate(116, 298)">
+    <rect x="0" y="0" width="812" height="62" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <rect x="14" y="17" width="116" height="28" rx="4" fill="#f1f5f9"/>
+    <text x="72" y="35" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#1e293b">04 · LEAF DIRS</text>
+    <text x="148" y="27" font-family="'Geist', 'PingFang SC', sans-serif" font-size="14" font-weight="600" fill="#0f172a">可选叶子目录区（当 Root 目录条目超出 16 KiB 上限时启用）</text>
+    <text x="148" y="46" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.2" fill="#475569">每个叶子独立 Gzip 压缩 · Root 中以 RunLength = 0 标识指针 · 客户端最多允许 depth &lt;= 3 层</text>
+    <rect x="688" y="19" width="110" height="24" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+    <text x="743" y="35" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#1e293b">RunLength = 0</text>
+  </g>
+
+  <!-- Section 5: Tile Data -->
+  <g transform="translate(116, 372)">
+    <rect x="0" y="0" width="812" height="64" rx="6" fill="#ffffff" stroke="#059669" stroke-width="1.2"/>
+    <rect x="14" y="18" width="116" height="28" rx="4" fill="#d1fae5"/>
+    <text x="72" y="36" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#047857">05 · TILE DATA</text>
+    <text x="148" y="27" font-family="'Geist', 'PingFang SC', sans-serif" font-size="14" font-weight="600" fill="#0f172a">Hilbert 空间填充曲线聚类与哈希去重后的瓦片二进制载荷区</text>
+    <text x="148" y="46" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.2" fill="#475569">邻近瓦片物理相邻 (CDN 预取友好) · 同内容哈希指针复用 · MVT / PNG / JPEG / WebP / AVIF / MLT</text>
+    <rect x="688" y="20" width="110" height="24" rx="4" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="0.8"/>
+    <text x="743" y="36" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#047857">Clustered=1</text>
+  </g>
+
+  <!-- Zoom-in Callout: Columnar Directory Encoding inside Section 2 / 4 -->
+  <g transform="translate(32, 456)">
+    <rect x="0" y="0" width="916" height="72" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="16" y="20" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" font-weight="600" fill="#0f172a">COLUMNAR DIRECTORY WIRE FORMAT (SERIALIZED BY FIELD COLUMN FOR MAXIMUM GZIP RATIO)</text>
+
+    <g transform="translate(16, 30)">
+      <rect x="0" y="0" width="112" height="32" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="0.8"/>
+      <text x="56" y="14" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#0f172a">1. n (Varint)</text>
+      <text x="56" y="26" text-anchor="middle" font-family="'Geist', 'PingFang SC', sans-serif" font-size="9.5" fill="#64748b">条目总数</text>
+    </g>
+
+    <g transform="translate(136, 30)">
+      <rect x="0" y="0" width="188" height="32" rx="4" fill="#fef2ee" stroke="#bf4520" stroke-width="0.9"/>
+      <text x="94" y="14" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#bf4520">2. TileIDs[n] (Delta)</text>
+      <text x="94" y="26" text-anchor="middle" font-family="'Geist', 'PingFang SC', sans-serif" font-size="9.5" fill="#334155">tile_id[i] - tile_id[i-1]</text>
+    </g>
+
+    <g transform="translate(332, 30)">
+      <rect x="0" y="0" width="184" height="32" rx="4" fill="#f0f9ff" stroke="#0284c7" stroke-width="0.9"/>
+      <text x="92" y="14" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#0369a1">3. RunLengths[n]</text>
+      <text x="92" y="26" text-anchor="middle" font-family="'Geist', 'PingFang SC', sans-serif" font-size="9.5" fill="#334155">0=叶子指针 · ≥1=连续相同瓦片</text>
+    </g>
+
+    <g transform="translate(524, 30)">
+      <rect x="0" y="0" width="152" height="32" rx="4" fill="#f1f5f9" stroke="#94a3b8" stroke-width="0.8"/>
+      <text x="76" y="14" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#0f172a">4. Lengths[n]</text>
+      <text x="76" y="26" text-anchor="middle" font-family="'Geist', 'PingFang SC', sans-serif" font-size="9.5" fill="#64748b">压缩后字节长度 (&gt;0)</text>
+    </g>
+
+    <g transform="translate(684, 30)">
+      <rect x="0" y="0" width="216" height="32" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="0.9"/>
+      <text x="108" y="14" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" fill="#047857">5. Offsets[n] (Contiguous=0)</text>
+      <text x="108" y="26" text-anchor="middle" font-family="'Geist', 'PingFang SC', sans-serif" font-size="9.5" fill="#334155">紧邻前块编码为 0 · 否则 offset+1</text>
+    </g>
+  </g>
+
+  <!-- Bottom Legend -->
+  <line x1="32" y1="544" x2="948" y2="544" stroke="#e2e8f0" stroke-width="1"/>
+  <g transform="translate(32, 566)">
+    <text x="0" y="3" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#475569">LEGEND</text>
+    <rect x="76" y="-8" width="14" height="14" rx="2" fill="#fef2ee" stroke="#bf4520" stroke-width="1.2"/>
+    <text x="98" y="3" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11.5" fill="#bf4520">16 KiB 关键路径约束：确保首包同时拿下文件头与完整根目录</text>
+    <rect x="504" y="-8" width="14" height="14" rx="2" fill="#ecfdf5" stroke="#059669" stroke-width="1.2"/>
+    <text x="526" y="3" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11.5" fill="#047857">紧凑列式存储：相邻块 Offset=0 使 Gzip 产生极长零游程高压缩率</text>
+  </g>
+</svg>

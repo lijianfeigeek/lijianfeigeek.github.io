@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" data-diagram="architecture-delta" width="1020" height="528" viewBox="0 0 1020 528" role="img" aria-labelledby="skwir-ad-title skwir-ad-desc" id="skwir-memory-startup-delta-root">
+  <title id="skwir-ad-title">Skwir v0.3.1 至 v0.6.1 内存布局与启动链路架构演进对比</title>
+  <desc id="skwir-ad-desc">对比 Skwir v0.3.1 与 v0.6.1 在链接符号布局、Vulkan ICD 加载、全局内存分配器以及文件预览读取策略上的演进，展示如何将闲置自身 PSS 从 103.8 MiB 压降至 83.2 MiB 并把首帧控制在 132 至 143 毫秒。</desc>
+  <defs>
+    <style>
+      #skwir-memory-startup-delta-root {
+        font-family: 'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
+        color: #1e293b;
+      }
+    </style>
+    <pattern id="skwir-ad-dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="0.85" fill="#94a3b8" opacity="0.22"/>
+    </pattern>
+    <marker id="ad-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+    </marker>
+    <marker id="ad-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+    </marker>
+  </defs>
+
+  <rect width="1020" height="528" fill="#f8fafc"/>
+  <rect width="1020" height="528" fill="url(#skwir-ad-dots)"/>
+
+  <text x="28" y="36" font-family="'Instrument Serif', 'Noto Serif SC', Georgia, serif" font-size="22" font-weight="400" fill="#0f172a">Startup Residency &amp; Memory Footprint Evolution (v0.3.1 → v0.6.1)</text>
+  <text x="28" y="56" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="9.5" fill="#64748b">IDLE OWN-SHARE PSS: 103.8 MiB (OVER BUDGET) → 83.2 MiB (WITHIN 100 MiB BUDGET) · FIRST FRAME: 132–143 ms</text>
+
+  <!-- Panel Headers -->
+  <text x="28" y="84" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="10" font-weight="600" fill="#b91c1c">BEFORE · v0.3.1 (103.8 MiB IDLE PSS)</text>
+  <text x="380" y="84" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="10" font-weight="600" fill="#475569">CHANGES LEDGER (变更清册)</text>
+  <text x="676" y="84" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="10" font-weight="600" fill="#059669">AFTER · v0.6.1 (83.2 MiB IDLE PSS)</text>
+
+  <!-- BEFORE SNAPSHOT -->
+  <g data-snapshot="before" data-grid="320 364 4" transform="translate(28, 96)">
+    <rect x="0" y="0" width="320" height="364" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- Paths first -->
+    <path data-kind="relationship" data-object-id="rel_boot" data-status="changed" data-signature="boot->gpu:unfiltered" data-from="linker_before" data-to="gpu_before" d="M 160 88 L 160 120" fill="none" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#ad-arrow)"/>
+    <path data-kind="relationship" data-object-id="rel_alloc" data-status="changed" data-signature="gpu->alloc:retain" data-from="gpu_before" data-to="alloc_before" d="M 160 192 L 160 224" fill="none" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#ad-arrow)"/>
+    <path data-kind="relationship" data-object-id="rel_read" data-status="changed" data-signature="alloc->preview:full-or-mmap" data-from="alloc_before" data-to="preview_before" d="M 160 288 L 160 308" fill="none" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#ad-arrow)"/>
+
+    <g data-kind="component" data-object-id="linker_before" data-status="changed" data-signature="linker:default-scattered" transform="translate(20, 16)">
+      <rect data-role="bounds" x="0" y="0" width="280" height="72" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.2"/>
+      <text x="12" y="22" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="12" font-weight="600" fill="#991b1b">Δ 默认散落符号布局 (.text 68.3 MiB)</text>
+      <text x="12" y="40" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#475569">触发 73% 的 64 KiB 页缓存预读窗口</text>
+      <text x="12" y="56" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#b91c1c">48.9 MiB 常驻 · 29.0 MiB 从未执行</text>
+    </g>
+
+    <g data-kind="component" data-object-id="gpu_before" data-status="changed" data-signature="vulkan:all-icds" transform="translate(20, 120)">
+      <rect data-role="bounds" x="0" y="0" width="280" height="72" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+      <text x="12" y="22" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Δ Vulkan 加载全量驱动清单</text>
+      <text x="12" y="40" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#475569">映射 Mesa/llvmpipe/不存在硬件的 ICD</text>
+      <text x="12" y="56" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#64748b">平白多占约 40 MB 常驻代码段</text>
+    </g>
+
+    <g data-kind="component" data-object-id="alloc_before" data-status="changed" data-signature="alloc:default-arena" transform="translate(20, 224)">
+      <rect data-role="bounds" x="0" y="0" width="280" height="64" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+      <text x="12" y="21" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Δ 常规堆与默认提交时机</text>
+      <text x="12" y="39" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#475569">glibc 线程 Arena 滞留图像缓存至 600 MB</text>
+      <text x="12" y="53" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#64748b">main() 后调参错过首个 30 MB Arena</text>
+    </g>
+
+    <g data-kind="component" data-object-id="preview_before" data-status="changed" data-signature="preview:naive-decode" transform="translate(20, 308)">
+      <rect data-role="bounds" x="0" y="0" width="280" height="44" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+      <text x="12" y="19" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#0f172a">Δ 解码全图 + 各插件独立反复读盘</text>
+      <text x="12" y="34" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#64748b">依赖外置 ImageMagick 转换 JXL/HEIC</text>
+    </g>
+  </g>
+
+  <!-- CENTER CHANGES LEDGER -->
+  <g transform="translate(380, 96)">
+    <rect x="0" y="0" width="268" height="364" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+
+    <g transform="translate(16, 20)">
+      <rect x="0" y="0" width="64" height="18" rx="2" fill="#fef2ee" stroke="#bf4520" stroke-width="0.8"/>
+      <text x="32" y="12" text-anchor="middle" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" font-weight="600" fill="#bf4520">ADDED</text>
+      <text x="0" y="34" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#0f172a">link-ordered 两趟符号重排 (ADR-128)</text>
+      <text x="0" y="50" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="10.5" fill="#475569">按 Intel PT 轨迹把启动函数紧凑打包</text>
+    </g>
+
+    <line x1="16" y1="84" x2="252" y2="84" stroke="#f1f5f9" stroke-width="1"/>
+
+    <g transform="translate(16, 98)">
+      <rect x="0" y="0" width="76" height="18" rx="2" fill="#f0f9ff" stroke="#0284c7" stroke-width="0.8"/>
+      <text x="38" y="12" text-anchor="middle" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" font-weight="600" fill="#0369a1">CHANGED</text>
+      <text x="0" y="34" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#0f172a">sysfs 硬件嗅探裁剪 Vulkan ICD</text>
+      <text x="0" y="50" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="10.5" fill="#475569">线程创建前设 VK_LOADER_DRIVERS_DISABLE</text>
+    </g>
+
+    <line x1="16" y1="164" x2="252" y2="164" stroke="#f1f5f9" stroke-width="1"/>
+
+    <g transform="translate(16, 178)">
+      <rect x="0" y="0" width="76" height="18" rx="2" fill="#f0f9ff" stroke="#0284c7" stroke-width="0.8"/>
+      <text x="38" y="12" text-anchor="middle" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" font-weight="600" fill="#0369a1">CHANGED</text>
+      <text x="0" y="34" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#0f172a">mimalloc .init_array.00099 早调优</text>
+      <text x="0" y="50" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="10.5" fill="#475569">PURGE_DELAY=0 且闲置线程主动 mi_collect</text>
+    </g>
+
+    <line x1="16" y1="244" x2="252" y2="244" stroke="#f1f5f9" stroke-width="1"/>
+
+    <g transform="translate(16, 258)">
+      <rect x="0" y="0" width="76" height="18" rx="2" fill="#ecfdf5" stroke="#059669" stroke-width="0.8"/>
+      <text x="38" y="12" text-anchor="middle" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" font-weight="600" fill="#047857">CHANGED</text>
+      <text x="0" y="34" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#0f172a">preview::Held 单次读 + 像素级解码</text>
+      <text x="0" y="50" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="10.5" fill="#475569">64 KiB 首部 + 16 MiB 共享 + JXL/HEIC 局部解码</text>
+      <text x="0" y="66" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#64748b">禁止 mmap 规避 SIGBUS 与 Eject 占用</text>
+    </g>
+  </g>
+
+  <!-- AFTER SNAPSHOT -->
+  <g data-snapshot="after" data-grid="320 364 4" transform="translate(676, 96)">
+    <rect x="0" y="0" width="320" height="364" rx="6" fill="#ffffff" stroke="#059669" stroke-width="1.2"/>
+
+    <!-- Paths first -->
+    <path data-kind="relationship" data-object-id="rel_boot_after" data-status="changed" data-signature="boot->gpu:filtered" data-from="linker_after" data-to="gpu_after" d="M 160 88 L 160 120" fill="none" stroke="#bf4520" stroke-width="1.6" marker-end="url(#ad-arrow-accent)"/>
+    <path data-kind="relationship" data-object-id="rel_alloc_after" data-status="changed" data-signature="gpu->alloc:immediate-purge" data-from="gpu_after" data-to="alloc_after" d="M 160 192 L 160 224" fill="none" stroke="#475569" stroke-width="1.4" marker-end="url(#ad-arrow)"/>
+    <path data-kind="relationship" data-object-id="rel_read_after" data-status="changed" data-signature="alloc->preview:held-once" data-from="alloc_after" data-to="preview_after" d="M 160 288 L 160 308" fill="none" stroke="#475569" stroke-width="1.4" marker-end="url(#ad-arrow)"/>
+
+    <g data-kind="component" data-object-id="linker_after" data-status="changed" data-signature="linker:startup-ordered" transform="translate(20, 16)">
+      <rect data-role="bounds" x="0" y="0" width="280" height="72" rx="6" fill="#fef2ee" stroke="#bf4520" stroke-width="1.5"/>
+      <text x="12" y="22" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="12" font-weight="600" fill="#bf4520">+ lld --symbol-ordering-file</text>
+      <text x="12" y="40" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#475569">tools/build/startup-order.txt 去哈希重排</text>
+      <text x="12" y="56" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#059669">闲置自身 PSS 83.2 MiB · 首帧 132–143 ms</text>
+    </g>
+
+    <g data-kind="component" data-object-id="gpu_after" data-status="changed" data-signature="vulkan:present-vendors-only" transform="translate(20, 120)">
+      <rect data-role="bounds" x="0" y="0" width="280" height="72" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+      <text x="12" y="22" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="12" font-weight="600" fill="#047857">Δ 仅放行当前 DRM 硬件驱动</text>
+      <text x="12" y="40" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#475569">读 /sys/class/drm/card*/device/vendor</text>
+      <text x="12" y="56" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#64748b">禁用 lvp_icd* 与无关厂商 ICD 映射</text>
+    </g>
+
+    <g data-kind="component" data-object-id="alloc_after" data-status="changed" data-signature="alloc:mimalloc-early-purge" transform="translate(20, 224)">
+      <rect data-role="bounds" x="0" y="0" width="280" height="64" rx="6" fill="#f8fafc" stroke="#1e293b" stroke-width="1"/>
+      <text x="12" y="21" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="12" font-weight="600" fill="#0f172a">Δ mimalloc 早于运行时调优</text>
+      <text x="12" y="39" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#475569">ARENA_EAGER_COMMIT=0 · PURGE_DELAY=0</text>
+      <text x="12" y="53" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#64748b">任务结束触发 release_when_idle</text>
+    </g>
+
+    <g data-kind="component" data-object-id="preview_after" data-status="changed" data-signature="preview:held-on-demand" transform="translate(20, 308)">
+      <rect data-role="bounds" x="0" y="0" width="280" height="44" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+      <text x="12" y="19" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#047857">Δ 视口像素按需解码 + 8 阶降采样缩略图</text>
+      <text x="12" y="34" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" fill="#64748b">JPEG DC 扫描 · jxl-oxide · skwir-heif 分块</text>
+    </g>
+  </g>
+
+  <!-- Legend -->
+  <line x1="28" y1="480" x2="992" y2="480" stroke="#e2e8f0" stroke-width="1"/>
+  <g transform="translate(28, 500)">
+    <text x="0" y="3" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#475569">LEGEND</text>
+    <rect x="76" y="-8" width="14" height="14" rx="2" fill="#fef2f2" stroke="#dc2626" stroke-width="1"/>
+    <text x="98" y="3" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" fill="#991b1b">旧版瓶颈（代码页误读膨胀）</text>
+    <rect x="292" y="-8" width="14" height="14" rx="2" fill="#fef2ee" stroke="#bf4520" stroke-width="1.2"/>
+    <text x="314" y="3" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" fill="#bf4520">核心焦点突破（Intel PT 启动符号重排）</text>
+    <rect x="572" y="-8" width="14" height="14" rx="2" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+    <text x="594" y="3" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif" font-size="11.5" fill="#047857">优化后达标模块（83.2 MiB 预算内）</text>
+  </g>
+</svg>

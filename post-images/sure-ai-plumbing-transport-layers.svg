@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" width="960" height="640" role="img" aria-labelledby="sure-ai-title sure-ai-desc" style="background:#f8fafc; font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <title id="sure-ai-title">Sure v0.8 AI 传输层与可观测性四层垂直堆栈</title>
+  <desc id="sure-ai-desc">展示 Sure 最新 AI plumbing 重构后的四层垂直堆栈：从 CallContext 预算注入、Transport 接管重试与模型核验、Http.ruby_llm_adapter 统一 TLS/代理出口，到底层 .ai 事件流脱敏与 Langfuse/llm_usages 落库。</desc>
+  <defs>
+    <marker id="sa-arrow-muted" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#64748b"/>
+    </marker>
+    <marker id="sa-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#0284c7"/>
+    </marker>
+    <marker id="sa-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+    </marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect x="0" y="0" width="960" height="640" fill="#f8fafc"/>
+
+  <!-- Header -->
+  <g transform="translate(32, 20)">
+    <rect x="0" y="0" width="896" height="56" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="20" y="25" font-size="16" font-weight="700" fill="#0f172a">AI Plumbing 2a 四层垂直堆栈：接管重试主权、统一 HTTP 出口与零泄漏追踪</text>
+    <text x="20" y="44" font-size="11" fill="#475569">基于 RubyLLM 公共契约封装的薄传输层（app/models/ai/），彻底隔离配置读取、重试预算与密钥清洗</text>
+    <rect x="760" y="16" width="120" height="24" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+    <text x="820" y="32" font-size="10" font-family="ui-monospace,Menlo,monospace" font-weight="600" fill="#475569" text-anchor="middle">LAYER STACK</text>
+  </g>
+
+  <!-- Vertical Connectors between Layers (drawn BEFORE boxes) -->
+  <path d="M 480 184 L 480 212" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#sa-arrow-muted)"/>
+  <path d="M 480 308 L 480 336" fill="none" stroke="#bf4520" stroke-width="1.6" marker-end="url(#sa-arrow-accent)"/>
+  <path d="M 480 432 L 480 460" fill="none" stroke="#0284c7" stroke-width="1.6" marker-end="url(#sa-arrow-link)"/>
+
+  <!-- Layer 1: y=92, h=92 -->
+  <g transform="translate(32, 92)">
+    <rect x="0" y="0" width="896" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <rect x="0" y="0" width="180" height="92" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="20" y="36" font-size="10" font-family="ui-monospace,Menlo,monospace" font-weight="600" fill="#64748b">LAYER 01 · CONTEXT</text>
+    <text x="20" y="58" font-size="13" font-weight="700" fill="#0f172a">调用方与 CallContext</text>
+
+    <g transform="translate(200, 14)">
+      <rect x="0" y="0" width="324" height="64" rx="6" fill="#f8fafc" stroke="#334155" stroke-width="1"/>
+      <text x="14" y="24" font-size="12" font-weight="600" fill="#0f172a">业务调用入口 (Caller)</text>
+      <text x="14" y="44" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#475569">Assistant::Builtin / AiHealth::Probe / 规则批处理</text>
+    </g>
+
+    <g transform="translate(544, 14)">
+      <rect x="0" y="0" width="332" height="64" rx="6" fill="#f8fafc" stroke="#334155" stroke-width="1"/>
+      <text x="14" y="24" font-size="12" font-weight="600" fill="#0f172a">Ai::CallContext.call</text>
+      <text x="14" y="44" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#475569">注入 family_id 用量归属 + 不可变 Endpoint/Model + 总时间预算</text>
+    </g>
+  </g>
+
+  <!-- Layer 2: y=216, h=92 (Focal 1) -->
+  <g transform="translate(32, 216)">
+    <rect x="0" y="0" width="896" height="92" rx="8" fill="#ffffff" stroke="#bf4520" stroke-width="1.3"/>
+    <rect x="0" y="0" width="180" height="92" rx="8" fill="#fff7f5" stroke="#bf4520" stroke-width="1.3"/>
+    <text x="20" y="36" font-size="10" font-family="ui-monospace,Menlo,monospace" font-weight="700" fill="#bf4520">LAYER 02 · TRANSPORT</text>
+    <text x="20" y="58" font-size="13" font-weight="700" fill="#7c2d12">传输与重试主权层</text>
+
+    <g transform="translate(200, 14)">
+      <rect x="0" y="0" width="324" height="64" rx="6" fill="#fff7f5" stroke="#bf4520" stroke-width="1.2"/>
+      <text x="14" y="24" font-size="12" font-weight="700" fill="#7c2d12">Ai::Transport::Base (Compatible | Anthropic)</text>
+      <text x="14" y="44" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#9a3412">强制 RubyLLM max_retries=0 · 自研指数退避 + 余额耗尽熔断</text>
+    </g>
+
+    <g transform="translate(544, 14)">
+      <rect x="0" y="0" width="332" height="64" rx="6" fill="#ffffff" stroke="#334155" stroke-width="1"/>
+      <text x="14" y="24" font-size="12" font-weight="600" fill="#0f172a">check_answering_model! &amp; Ai::Error</text>
+      <text x="14" y="44" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#475569">拦截 LM Studio 200 张冠李戴；不读 ENV / Setting / AR</text>
+    </g>
+  </g>
+
+  <!-- Layer 3: y=340, h=92 (Focal 2) -->
+  <g transform="translate(32, 340)">
+    <rect x="0" y="0" width="896" height="92" rx="8" fill="#ffffff" stroke="#0284c7" stroke-width="1.2"/>
+    <rect x="0" y="0" width="180" height="92" rx="8" fill="#eff6ff" stroke="#0284c7" stroke-width="1.2"/>
+    <text x="20" y="36" font-size="10" font-family="ui-monospace,Menlo,monospace" font-weight="700" fill="#0284c7">LAYER 03 · EGRESS</text>
+    <text x="20" y="58" font-size="13" font-weight="700" fill="#0c4a6e">唯一网络出口契约</text>
+
+    <g transform="translate(200, 14)">
+      <rect x="0" y="0" width="444" height="64" rx="6" fill="#eff6ff" stroke="#0284c7" stroke-width="1.2"/>
+      <text x="14" y="24" font-size="12" font-weight="700" fill="#0c4a6e">Ai::Transport::Http.ruby_llm_adapter (Net::HTTP 适配器)</text>
+      <text x="14" y="44" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#0369a1">补齐 RubyLLM 缺失的 TLS 证书选项与 HTTPS_PROXY (路由至 Pipelock :8888)</text>
+    </g>
+
+    <g transform="translate(660, 14)">
+      <rect x="0" y="0" width="216" height="64" rx="6" fill="#fff7f5" stroke="#bf4520" stroke-width="1.2" stroke-dasharray="4,3"/>
+      <text x="14" y="24" font-size="12" font-weight="700" fill="#7c2d12">架构契约测试门禁</text>
+      <text x="14" y="44" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#9a3412">严禁私建 Faraday / Client.new</text>
+    </g>
+  </g>
+
+  <!-- Layer 4: y=464, h=96 -->
+  <g transform="translate(32, 464)">
+    <rect x="0" y="0" width="896" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <rect x="0" y="0" width="180" height="96" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+    <text x="20" y="38" font-size="10" font-family="ui-monospace,Menlo,monospace" font-weight="600" fill="#059669">LAYER 04 · TELEMETRY</text>
+    <text x="20" y="60" font-size="13" font-weight="700" fill="#064e3b">异步事件与脱敏账本</text>
+
+    <g transform="translate(200, 14)">
+      <rect x="0" y="0" width="216" height="68" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1"/>
+      <text x="12" y="24" font-size="12" font-weight="600" fill="#064e3b">UsageSubscriber</text>
+      <text x="12" y="42" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#047857">监听 usage.ruby_llm</text>
+      <text x="12" y="57" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#047857">单次写入 llm_usages 表</text>
+    </g>
+
+    <g transform="translate(432, 14)">
+      <rect x="0" y="0" width="216" height="68" rx="6" fill="#f8fafc" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="24" font-size="12" font-weight="600" fill="#0f172a">Instrumentation::Redactor</text>
+      <text x="12" y="42" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#475569">基于 Endpoint#secrets 闭包</text>
+      <text x="12" y="57" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#475569">自动剥离 API Key 与长请求头</text>
+    </g>
+
+    <g transform="translate(664, 14)">
+      <rect x="0" y="0" width="212" height="68" rx="6" fill="#f8fafc" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="24" font-size="12" font-weight="600" fill="#0f172a">Langfuse &amp; DebugLog</text>
+      <text x="12" y="42" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#475569">订阅 *.ai 事件流</text>
+      <text x="12" y="57" font-size="10" font-family="ui-monospace,Menlo,monospace" fill="#475569">仅记文件大小，不落库字节</text>
+    </g>
+  </g>
+
+  <!-- Legend Strip -->
+  <g transform="translate(32, 580)">
+    <rect x="0" y="0" width="896" height="36" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <rect x="16" y="11" width="14" height="14" rx="2" fill="#fff7f5" stroke="#bf4520" stroke-width="1.3"/>
+    <text x="38" y="22" font-size="11" fill="#334155">核心隔离层 (Transport 主权 &amp; 契约测试红线)</text>
+    <rect x="336" y="11" width="14" height="14" rx="2" fill="#eff6ff" stroke="#0284c7" stroke-width="1.2"/>
+    <text x="358" y="22" font-size="11" fill="#334155">唯一 HTTP/TLS/代理适配器出口</text>
+    <rect x="580" y="11" width="14" height="14" rx="2" fill="#ecfdf5" stroke="#059669" stroke-width="1.2"/>
+    <text x="602" y="22" font-size="11" fill="#334155">异步用量计费与脱敏遥测</text>
+  </g>
+</svg>

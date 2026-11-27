@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>在 iOS 沙盒里跑起真 Linux 6.18 内核与 Android 17：深潜 Kernarium 与 Andarium 的 User-Mode Linux、Gadget 解释器及 KosmicKrisp 架构 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1795745888143">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="在 iOS 沙盒里跑起真 Linux 6.18 内核与 Android 17：深潜 Kernarium 与 Andarium 的 User-Mode Linux、Gadget 解释器及 KosmicKrisp 架构 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/kernarium-andarium-uml-ios-architecture/">
+    <meta name="description" content="最近在 X 上刷到 @Techjunkie_Aman 演示的一款名为 Andarium 的 iOS 应用：它不仅把完整的 Android 17（LineageOS 24）装进了 iPhone 沙盒，还能直接运行 Termux、Winlato..." />
+    <meta name="keywords" content="架构剖析,虚拟化,Linux,Android,iOS,Metal" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="在 iOS 沙盒里跑起真 Linux 6.18 内核与 Android 17：深潜 Kernarium 与 Andarium 的 User-Mode Linux、Gadget 解释器及 KosmicKrisp 架构">
+    <meta property="og:description" content="最近在 X 上刷到 @Techjunkie_Aman 演示的一款名为 Andarium 的 iOS 应用：它不仅把完整的 Android 17（LineageOS 24）装进了 iPhone 沙盒，还能直接运行 Termux、Winlato...">
+    <meta property="og:url" content="https://lijianfei.com/post/kernarium-andarium-uml-ios-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/kernarium-andarium-uml-ios-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-11-20T05:20:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="架构剖析">
+    
+    <meta property="article:tag" content="虚拟化">
+    
+    <meta property="article:tag" content="Linux">
+    
+    <meta property="article:tag" content="Android">
+    
+    <meta property="article:tag" content="iOS">
+    
+    <meta property="article:tag" content="Metal">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="在 iOS 沙盒里跑起真 Linux 6.18 内核与 Android 17：深潜 Kernarium 与 Andarium 的 User-Mode Linux、Gadget 解释器及 KosmicKrisp 架构">
+    <meta name="twitter:description" content="最近在 X 上刷到 @Techjunkie_Aman 演示的一款名为 Andarium 的 iOS 应用：它不仅把完整的 Android 17（LineageOS 24）装进了 iPhone 沙盒，还能直接运行 Termux、Winlato...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/kernarium-andarium-uml-ios-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "在 iOS 沙盒里跑起真 Linux 6.18 内核与 Android 17：深潜 Kernarium 与 Andarium 的 User-Mode Linux、Gadget 解释器及 KosmicKrisp 架构",
+      "description": "最近在 X 上刷到 @Techjunkie_Aman 演示的一款名为 Andarium 的 iOS 应用：它不仅把完整的 Android 17（LineageOS 24）装进了 iPhone 沙盒，还能直接运行 Termux、Winlato...",
+      "image": "https://lijianfei.com/post-images/kernarium-andarium-uml-ios-architecture.png",
+      "datePublished": "2026-11-20T05:20:00.000Z",
+      "dateModified": "2026-11-20T05:20:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/kernarium-andarium-uml-ios-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "架构剖析",
+          "item": "https://lijianfei.com/tag/jia-gou-pou-xi/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "在 iOS 沙盒里跑起真 Linux 6.18 内核与 Android 17：深潜 Kernarium 与 Andarium 的 User-Mode Linux、Gadget 解释器及 KosmicKrisp 架构",
+          "item": "https://lijianfei.com/post/kernarium-andarium-uml-ios-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+      /* Diagram & Image Zoom Lightbox Modal */
+      .post-content img {
+        cursor: zoom-in !important;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
+      }
+      .post-content img:hover {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+      }
+      .diagram-zoom-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: rgba(15, 23, 42, 0.82);
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .diagram-zoom-overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+      .diagram-zoom-stage {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+        cursor: grab;
+      }
+      .diagram-zoom-stage.dragging {
+        cursor: grabbing;
+      }
+      .diagram-zoom-img {
+        max-width: 92vw;
+        max-height: 86vh;
+        object-fit: contain;
+        transform-origin: center center;
+        transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+        border-radius: 8px;
+        background-color: #ffffff;
+      }
+      .diagram-zoom-toolbar {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.95);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        padding: 6px 14px;
+        border-radius: 30px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.06);
+        z-index: 10;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .diagram-zoom-btn {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #1e293b;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+        font-size: 14px;
+        padding: 0;
+      }
+      .diagram-zoom-btn:hover {
+        background: #f1f5f9;
+        color: #0284c7;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-btn:active {
+        transform: scale(0.95);
+      }
+      .diagram-zoom-info {
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+        min-width: 46px;
+        text-align: center;
+      }
+      .diagram-zoom-close {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.92);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1e293b;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+        transition: all 0.15s ease;
+        z-index: 10;
+      }
+      .diagram-zoom-close:hover {
+        background: #ffffff;
+        color: #e11d48;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-hint {
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 12px;
+        font-weight: 500;
+        pointer-events: none;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1795745888143" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              在 iOS 沙盒里跑起真 Linux 6.18 内核与 Android 17：深潜 Kernarium 与 Andarium 的 User-Mode Linux、Gadget 解释器及 KosmicKrisp 架构
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-11-20
+              </span>
+              <span>
+                24 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-pou-xi/" class="post-tag">
+                  # 架构剖析
+                </a>
+              
+                <a href="https://lijianfei.com/tag/xu-ni-hua/" class="post-tag">
+                  # 虚拟化
+                </a>
+              
+                <a href="https://lijianfei.com/tag/linux/" class="post-tag">
+                  # Linux
+                </a>
+              
+                <a href="https://lijianfei.com/tag/android/" class="post-tag">
+                  # Android
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ios/" class="post-tag">
+                  # iOS
+                </a>
+              
+                <a href="https://lijianfei.com/tag/metal/" class="post-tag">
+                  # Metal
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/kernarium-andarium-uml-ios-architecture.png" alt="在 iOS 沙盒里跑起真 Linux 6.18 内核与 Android 17：深潜 Kernarium 与 Andarium 的 User-Mode Linux、Gadget 解释器及 KosmicKrisp 架构" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>最近在 X 上刷到 <a href="https://x.com/Techjunkie_Aman/status/2119790720945184980?lang=en">@Techjunkie_Aman</a> 演示的一款名为 <strong>Andarium</strong> 的 iOS 应用：它不仅把完整的 <strong>Android 17</strong>（LineageOS 24）装进了 iPhone 沙盒，还能直接运行 Termux、Winlator、通过 ADB 侧载 APK，甚至在 iPhone 18 Pro Max 上跑起 3D 赛车大作《Asphalt Legends》。与过去常见“套壳容器”或只做系统调用转译的用户态兼容层不同，Andarium 背后的开源核心项目 <strong><a href="https://github.com/imxieyi/Kernarium">imxieyi/Kernarium</a></strong> 选择了一条更为硬核的道路——把真实的 <strong>主线 Linux 6.18 LTS 内核</strong> 通过 <strong>User-Mode Linux（UML）</strong> 技术直接编译为原生 <code>arm64</code> 代码嵌入 iOS 运行时，再用 iSH 风格的无 JIT 线程解释器与 Mesa KosmicKrisp 图形栈打通苹果 Metal 4。</p>
+<p>为了摸清这套刚刚在 2026 年 11 月开源并迅速斩获 1,200+ Star 的项目究竟是如何跨过苹果 <code>W^X</code> 内存签名、4 KiB 与 16 KiB 页表错配以及 iOS 后台 Jetsam 杀进程的层层封锁，我完整拉取了 <code>imxieyi/Kernarium</code> 仓库源码（含 2026 年 11 月 20 日最新提交 <code>b14aa9e</code> 与 <code>1.0b15-release</code>），逐层精读了内核桥接 ABI、汇编 Gadget 引擎、Virtio-GPU 渲染管线以及内存休眠子系统。下面我将以第一视角，全面拆解 Kernarium 与 Andarium 背后的真实工程版图。</p>
+<!-- more -->
+<blockquote>
+<p>[!NOTE] 代码审计基线与真实状态说明<br>
+本文所有技术细节、文件命名、ABI 常量与参数均源自 2026 年 11 月 20 日对 <a href="https://github.com/imxieyi/Kernarium">imxieyi/Kernarium</a> 公开源码仓库（GPL-2.0-or-later）及 <a href="https://x.com/Techjunkie_Aman/status/2119790720945184980?lang=en">@Techjunkie_Aman</a> 帖文的直接调研。值得关注的是，基于 Kernarium 运行时构建的 <strong>Andarium</strong> 此前一度成功上架 App Store，但随后因触及苹果审核指南 <strong>Guideline 2.5.2 &amp; 1.1</strong>（“允许用户在 iOS 平台上复刻 Android 操作系统”）而被下架；目前开发者已开放 TestFlight 公测与 GitHub Releases 侧载 IPA 分发，而通用 Linux 发行版宿主应用 <strong>Kernarium</strong> 仍处于早期开发阶段。</p>
+</blockquote>
+<hr>
+<h2 id="一-为什么不模拟硬件也不用纯用户态垫片kernarium-的中间路线">一、为什么不模拟硬件，也不用纯用户态垫片？Kernarium 的“中间路线”</h2>
+<p>在免越狱 iOS 设备上运行 Linux 或 Android，开发者长期被困在“性能、兼容性与过审红线”的三角困局里：</p>
+<ul>
+<li><strong>全系统硬件模拟</strong>（如 UTM / QEMU）：必须模拟 CPU 特权态、中断控制器与 MMU 页表遍历，一旦离开外接调试器的 JIT 授权，退回纯解释执行后性能会断崖式暴跌；</li>
+<li><strong>纯用户态系统调用垫片</strong>（如 iSH 或 Twoyi Neo）：虽然避开了硬件模拟开销，但必须用 C/C++/Rust 在 Darwin 用户态手工重写一整套 Linux 系统调用、<code>/proc</code> 虚拟文件系统、Binder IPC 与信号语义，遇到 Docker Namespaces、FUSE、Loop 挂载或深度定制的 Android 17 SELinux 策略时往往寸步难行。</li>
+</ul>
+<p>当我在阅读 <code>Kernarium</code> 根目录的 <code>README.md</code> 与 <code>docs/architecture.md</code> 时，立刻看出了作者 <strong>Yi Xie</strong>（<code>imxieyi</code>）的破局思路：<strong>把系统调用与内核态逻辑直接交给真正的 Linux 内核原生执行，只对客体用户态指令进行无 JIT 翻译</strong>。</p>
+<figure data-type="image" tabindex="1"><img src="https://lijianfei.com/post-images/kernarium-uml-layer-stack.svg" alt="Kernarium 与 Andarium 四层跨核虚拟化堆栈架构" loading="lazy"></figure>
+<p>这套架构最精妙的平衡点在于：</p>
+<ol>
+<li><strong>内核原生直跑，零指令翻译开销</strong>：Linux 6.18 LTS 内核本身就是以 <code>ARCH=um SUBARCH=arm64 UML_HOST_OS=Darwin</code> 编译出来的原生 <code>arm64</code> 二进制代码，被静态打包进 Xcode 签名框架的 <code>__TEXT,__uml_elf</code> 只读代码段。苹果只要求“运行时不能动态生成可执行页”，静态签名好的 Mach-O 代码段跑起来跟普通 Swift/C++ 函数一样，全部直接跑在 Apple Silicon 硬件核上！</li>
+<li><strong>用户态指令走纯数据流解释器 + 静态 AOT</strong>：Guest 里的普通 Linux ELF 或 Android APK 进程，因为没有经过苹果代码签名，不能直接跳转执行，于是交由“数据指针流驱动的 Gadget 线程解释器”和可逐页校验的静态 AOT 框架接管。</li>
+</ol>
+<p>正好我最近也拆解过同样能把完整 Android 塞进免越狱 iPhone 的 <strong>两仪 Twoyi</strong>（Neo 运行时 + 2,852 个静态 AOT 单元 + <code>gfxstream/MoltenVK</code>）。把这两条目前站在 iOS 虚拟化最前沿的技术路线放在一起做拓扑对比，差异一目了然：</p>
+<figure data-type="image" tabindex="2"><img src="https://lijianfei.com/post-images/kernarium-vs-twoyi-delta.svg" alt="iOS 安卓与 Linux 虚拟化双路线架构对比" loading="lazy"></figure>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">架构维度</th>
+<th style="text-align:left">用户态模拟内核路线（如 Twoyi Neo）</th>
+<th style="text-align:left">原生 User-Mode Linux 路线（Kernarium / Andarium）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>内核本质</strong></td>
+<td style="text-align:left">Darwin 用户态模拟层（<code>vbinder</code> / 虚拟 VMA）</td>
+<td style="text-align:left">真实 <strong>主线 Linux 6.18 LTS</strong> 原生编译入 <code>__TEXT,__uml_elf</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>系统负载上限</strong></td>
+<td style="text-align:left">深度聚焦 Android 13 容器</td>
+<td style="text-align:left"><strong>Android 17（LineageOS 24）+ KDE/Debian + Docker + Winlator</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>CPU 执行策略</strong></td>
+<td style="text-align:left">2,852 单元系统白名单静态 AOT + 块解释器</td>
+<td style="text-align:left"><strong>14,512 行手写汇编 Gadget 解释器</strong> + AOT + 可选 StikDebug JIT</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>GPU 渲染路径</strong></td>
+<td style="text-align:left"><code>gfxstream</code> + <code>MoltenVK</code> → Metal</td>
+<td style="text-align:left"><strong>Virtio-GPU（Virgl / Venus）→ <code>virglrenderer</code> → Mesa Zink / KosmicKrisp → Metal 4</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>多架构支持</strong></td>
+<td style="text-align:left">arm64 Android</td>
+<td style="text-align:left"><code>arm64</code> + <strong>AArch32</strong>（<code>armhf</code> / <code>armeabi-v7a</code>）+ macOS <code>x86_64</code> 兼容切片</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="二-把真-linux-618-塞进-ios128-tib-软件-mmu-与-4k16k-页表桥接">二、把真 Linux 6.18 塞进 iOS：128 TiB 软件 MMU 与 4K/16K 页表桥接</h2>
+<p>把原本为 Linux 宿主设计的 User-Mode Linux（UML）移植到 Darwin / iOS 上，绝不是改几个编译宏那么简单。阅读 <code>kernel/common/README.md</code> 和 <code>kernel/common/abi/darwin_uml_abi.h</code> 后，我梳理出了它必须啃下的三块硬骨头：</p>
+<h3 id="1-4-kib-客体页与-16-kib-苹果宿主页的严丝合缝">1. 4 KiB 客体页与 16 KiB 苹果宿主页的严丝合缝</h3>
+<p>Apple Silicon 与 iOS 的硬件虚拟内存页是 <strong>16 KiB</strong>，而所有 arm64 Linux 发行版与 Android 17（LineageOS 24）用户态生态都默认运行在 <strong>4 KiB</strong> 页粒度上。为了防止每次内存访问都被 16 KiB 对齐坑死，Kernarium 在宿主机虚拟地址空间里划出了一片 <strong>128 TiB 的稀疏软件 MMU 客户任务地址范围</strong>：</p>
+<ul>
+<li><strong>一次性保留、绝不 <code>munmap</code> 释放窗体</strong>：首次启动时，<code>runtime::reserve_process_native_window</code> 保留原生内核窗口，iOS 设备与模拟器上受限于 14 GiB 签名虚拟地址上限，Guest 最大物理内存天花板锁定在 <strong>9,152 MiB</strong>（512 MiB 起步，64 MiB 步进）；后续在进程内重启客体时只通过 <code>MAP_FIXED</code> 覆写映射，绝不调用 <code>munmap</code>，防止系统其它 <code>mmap(NULL)</code> 趁虚抢占保留槽位。</li>
+<li><strong>按需物理页提交与 Wired 锁定</strong>：启动参数里的 <code>mem=</code> 仅仅是上限而非预分配。内核分配物理页前才通过 <code>darwin_uml_physmem_commit</code> 提交给宿主，并在物理 iOS 设备上实时 <strong>Wire（锁定）</strong> 物理页，释放时再通过 <code>_release</code> 归还进程足迹。</li>
+<li><strong>4 页聚合共享规则（<code>vmap_group_order = 4</code>）</strong>：针对内核态 <code>init_mm</code> 映射，每 1 个 16 KiB 宿主槽位对应 4 个连续的 4 KiB Guest PTE。只有当这 4 个 PTE 全部存在、来自同一底层存储文件且 16 KiB 对齐、权限完全一致时，宿主机才会把它们合并为同一块共享内存页；否则退化为私有副本并在同步点刷新——这也是为什么 <code>io_uring</code> 和 <code>vmalloc</code> 必须按 4 页对齐分配，才能与用户空间安全共享零拷贝环形缓冲区。</li>
+</ul>
+<h3 id="2-脱离-fork-的多核-vcpu-载体调度">2. 脱离 <code>fork</code> 的多核 vCPU 载体调度</h3>
+<p>iOS 沙盒严禁 <code>fork()</code> 派生子进程。Kernarium 的应对方式是在 <code>darwin/runtime</code> 里为每个配置的 vCPU 预先创建一条持久化 <code>pthread</code> 载体线程（命名为 <code>uml-vcpu-N-carrier</code>，并伴随 <code>uml-irq-notify</code> 中断通知线程和 <code>uml-rtc-alarm</code> 闹钟线程）。Linux 客体内部创建成百上千个线程或 Docker 容器进程时，<strong>宿主机上并不会新建任何线程</strong>，所有 Linux 任务上下文都停留在客体内核栈上，在这些有限的 vCPU 载体之间自由迁移调度。</p>
+<p>甚至为了榨干每一点调度性能，我在 <code>kernel/common/README.md</code> 里还注意到一个极其精细的 Darwin 底层优化：在 iOS 上频繁调用 <code>pthread_getspecific()</code> 读取当前 CPU 编号开销太高，Kernarium 的 <code>uml_curr_cpu()</code> 会在载体上线时自检 Darwin pthread 内存布局，验证通过后直接内联读取线程私有键，一旦布局不匹配立刻报错熔断，避免静默踩内存。</p>
+<h3 id="3-全功能内核设备矩阵为何能跑-docker-与-winlator">3. 全功能内核设备矩阵：为何能跑 Docker 与 Winlator</h3>
+<p>正因为跑的是完整的主线 <strong>Linux 6.18.x</strong>（仅针对 Darwin 宿主剥离了 <code>arch/um/os-Linux</code> 依赖，保留完整 Linux 子系统），Kernarium 顺理成章拿到了用户态垫片难以企及的内核能力：</p>
+<ul>
+<li><strong>完整 Namespaces、SELinux 与虚拟文件系统</strong>：支持 <code>ext2/3/4</code>、<code>erofs</code>、<code>xfs</code>、Loop 设备与 <strong>FUSE</strong>，并在 SMBIOS 3.0 表里自报厂商为 <code>Kernarium</code>、处理器为 <code>Kernarium Virtual CPU</code>（同时严格禁用了 <code>/dev/mem</code> 以防暴露 0 地址上的内核镜像）。</li>
+<li><strong>全套 <code>vhost-user</code> 半虚拟化设备</strong>：在 <code>darwin/device/</code> 下独立实现了 UBD 虚拟磁盘（支持 <code>discard</code> 空间回收）、Console 控制台、Input 多点触控/键鼠、Audio 音频、Camera 相机、GNSS 定位（透传 NMEA 定位流）、vsock（直接打通宿主机到 Guest 内部 <code>adbd</code> 的字节流通道，且宿主机不暴露监听端口）以及基于 <strong>libslirp</strong> 的用户态 TCP/IP 协议栈。</li>
+<li><strong>严谨的防穿透与零弹框网络设计</strong>：阅读 <code>darwin/README.md</code> 时，我发现它的网络实现考虑到了极细的苹果隐私权限陷阱——它特意关闭了 SLiRP 自带的 DNS 代理（否则查询局域网路由器会触发 iOS 弹出“本地网络权限”提示框），而是通过宿主系统解析器代答；同时主动拦截 Guest 对宿主机本机接口及 <code>127.0.0.1</code> 的所有 TCP/UDP 探测，防止沙盒内逃逸探测宿主机服务。</li>
+</ul>
+<hr>
+<h2 id="三-cpu-执行引擎的艺术14512-行汇编-gadget-stikdebug-jit-与逐页哈希-aot">三、CPU 执行引擎的艺术：14,512 行汇编 Gadget、StikDebug JIT 与逐页哈希 AOT</h2>
+<p>内核直接原生跑在硬件上解决了特权级开销，但 App Store 和 TestFlight 依然死死卡着“不允许普通进程在运行时生成并执行新机器码”的红线。Kernarium 的 CPU 层（<code>darwin/cpu/arm64/</code>）给出了三轨并行的答案。</p>
+<h3 id="轨道-aish-风格-但完全重写的纯数据-gadget-线程解释器">轨道 A：iSH 风格、但完全重写的纯数据 Gadget 线程解释器</h3>
+<p>在 <code>darwin/cpu/arm64/gadgets/NOTICE.md</code> 中，作者明确向 Theodore Dubois 的 iSH（&quot;asbestos&quot; 引擎）致敬，同时强调除“函数指针数组 + 内联操作数”的核心思想外，所有解码器、Gadget 银行、TLB 几何布局和翻译缓存全部为自研重写。</p>
+<p>我统计了 <code>darwin/cpu/arm64/gadgets/engine.S</code> 与 <code>engine/*.inc</code> 下的代码规模，足足有 <strong>14,512 行汇编</strong>：</p>
+<ul>
+<li><strong>绝对固定的代码段布局</strong>：所有 Gadget 汇编通过 <code>UML::GadgetRegionLayout</code> 强制排列在 <code>__TEXT,__text</code> 最前端（16 KiB 页对齐），各子段甚至精细校准了 64 字节缓存行相位（如 <code>GADGET_PHASE_BANK 48</code>，文档注释坦言这是在 iPad 真机上实测避免标量混合指令跌入慢速路径的经验值）。</li>
+<li><strong>翻译块只是纯数据，零可执行内存</strong>：解码器把 Guest 的 <code>A64</code>、<code>A32</code> 或 <code>T32</code> 指令流翻译成由“函数指针 + 打包操作数”组成的纯数据流，存储在普通只读/读写数据堆中。由于不涉及任何 <code>MAP_JIT</code> 或 RX 页动态生成，它天然可以通过 App Store 与 TestFlight 审核。</li>
+<li><strong>编译器级微优化压榨极限吞吐</strong>：
+<ul>
+<li><strong>单基址寄存器复用链（<code>same_base.inc</code>）</strong>：若同一基本块内连续多次通过同一基址寄存器向同一方向访存且中途未修改基址，首个指令作为 Leader 将转换后的宿主机基址缓存进专用寄存器 <code>x25</code>，后续 Follower 只要偏移不跨页即可直接复用 <code>x25</code> 完成访存，省去重复软件 TLB 查询。</li>
+<li><strong>序言/尾声批量头（<code>run_heads.inc</code>）</strong>：针对函数开头的连续 <code>SUB SP</code> + 成对寄存器压栈，或结尾的批量出栈 + <code>RET X30</code>，直接合并成一条快路径 Head 批量执行，对齐且不跨页时一步到位；甚至还利用 <code>AUTIASP</code> 在无指针认证开销时零成本跳过。</li>
+<li><strong>严格禁碰 <code>x18</code> 寄存器</strong>：<code>architecture-audit</code> 脚本会扫描全部宿主源码与生成机器码，禁止任何地方触碰 Darwin 平台保留寄存器 <code>x18</code>（因为 XNU 在线程中断时会随时清零 <code>x18</code>）。</li>
+<li><strong>多核共享译码体与有界缓存驱逐</strong>：多个 vCPU 执行同一个地址空间时默认共享翻译体（<code>gadget_shared_space.hpp</code>）；每个进程受全局字节预算约束，当某个进程占满缓存触发驱逐时，会优先保护 175 ms 内正在其他 vCPU 上活跃运行的地址空间，避免“刚翻译完就被另一颗核踢掉”的乒乓抖动。</li>
+</ul>
+</li>
+</ul>
+<h3 id="轨道-b开发版专属的真机-jitbrk-0xf00d-与-stikdebug">轨道 B：开发版专属的真机 JIT（<code>brk #0xf00d</code> 与 StikDebug）</h3>
+<p>在支持 JIT 的 macOS（含基于 <strong>FEXCore</strong> 的 <code>x86_64</code> 用户态兼容切片）以及挂载了调试器的 iOS 开发版中，Kernarium 可以切换至原生 JIT 引擎。</p>
+<p>值得注意的是，<code>darwin/cpu/jit_memory/executable_memory.cpp</code> 是全仓库唯一被允许触碰可执行内存分配的孤岛文件。在物理 iOS 设备上，由于没有 <code>MAP_JIT</code>，它会在镜像附近 1 TiB 范围内申请一块可执行区域并映射一份可写别名，随后执行 <code>brk #0xf00d</code>（携带参数 <code>x16 = 1</code>、地址 <code>x0</code> 和长度 <code>x1</code>），请求外部调试器 <strong>StikDebug</strong> 向每一个 16 KiB 页写入一个字节完成系统级解锁祝福（Bless），完成后再通过 <code>x16 = 0</code> 让调试器安全分离。而在面向 App Store 和 TestFlight 打包时，<code>scripts/check-app-store-bundle.py</code> 会像安检门一样扫描二进制文件，一旦发现 <code>UML_IOS_DEBUGGER_JIT</code> 符号或 <code>brk</code> 指令立即报错中止打包。</p>
+<h3 id="轨道-cumlarm64aotframework-静态-aot-与密码学逐页校验">轨道 C：<code>UmlArm64Aot.framework</code> 静态 AOT 与密码学逐页校验</h3>
+<p>为了给 Android 17（LineageOS 24）等庞大系统提速，Kernarium 在 <code>tools/aot/</code> 下也构建了一套静态 AOT 管线：提前把 Android 核心系统库与启动镜像中已编译的 Java 字节码（<code>boot*.oat</code>）重写为纯只读的原生汇编块，封进 <code>UmlArm64Aot.framework</code>（零数据段、零重定位、可多进程共享只读映射）。</p>
+<p>但我对比代码后发现，Kernarium 对 AOT 执行的安全性要求到了近乎偏执的程度：</p>
+<ol>
+<li><strong>必须带 EROFS 不可变位（<code>immutable</code>）</strong>：内核通过桥接 ABI 29 在传递 <code>guest_code</code> 标志位时，只有当页面明确来自只读的 <strong>EROFS</strong> 文件系统页缓存、而非匿名页或写时复制（CoW）页时，才允许进入 AOT 路径。</li>
+<li><strong>CommonCrypto 整页 <code>CC_SHA256</code> 硬核验签</strong>：第一次踏入某页代码前，宿主机必须调用苹果硬件 SHA-256 指令集对整个 4 KiB 客户页做全量哈希计算，与框架内嵌的摘要逐字节比对通过后才放行；更绝的是，若另一进程或内核通过 <code>ptrace</code> / <code>process_vm_writev</code> / <code>IC IVAU</code> 篡改了同一物理页帧，<code>darwin/memory/mmu/code_holders.hpp</code> 里的物理帧持有者记录会立刻推进全局 Epoch，废除所有地址空间对该页的共享校验缓存（<code>UML_AOT_SHARED_VERDICTS</code>），彻底杜绝“挂羊头卖狗肉”的过时代码执行。</li>
+</ol>
+<hr>
+<h2 id="四-彻底抛弃-moltenvkmesa-zink-venus-kosmickrisp-直驱-metal-4">四、彻底抛弃 MoltenVK！Mesa Zink / Venus + KosmicKrisp 直驱 Metal 4</h2>
+<p>如果说真内核 + Gadget 解释器决定了它“能跑什么”，那么图形栈就决定了它“能不能玩《Asphalt Legends》和 Winlator”。</p>
+<p>查阅 <code>docs/graphics.md</code> 时，最让我惊喜的是：<strong>Kernarium 彻底放弃了传统的 MoltenVK，转而集成了 Mesa 官方最新的原生 Vulkan-to-Metal 驱动——KosmicKrisp</strong>。整个 Apple 端构建被强制要求不链接 OpenGL.framework、EAGL 或外部 Vulkan Loader，而是由 <code>virglrenderer</code> 与 Mesa 内部直连：</p>
+<ol>
+<li><strong>桌面 OpenGL 4.6 / GLES 3.2 通路</strong>：<br>
+<code>Guest Mesa → Virtio-GPU / Virgl → vhost-user → virglrenderer → Mesa Zink（无界面 EGL）→ KosmicKrisp → MTLTexture → AppKit / UIKit</code></li>
+<li><strong>Guest 原生 Vulkan 1.4 透传通路</strong>（支持 Winlator / DXVK 与高端 Android 游戏）：<br>
+<code>Guest Linux Vulkan → Mesa Venus → virglrenderer（capset 4）→ 直连 Mesa KosmicKrisp → Metal 4</code></li>
+</ol>
+<p>为了支撑这套管线在沙盒内稳定运行，作者在底层打通了大量极易被忽略的细节：</p>
+<ul>
+<li><strong>1 GiB 专属共享内存孔径</strong>：Guest 主机可见的 Vulkan 内存并不占用 Linux 物理 RAM，而是由宿主机分配共享内存，通过内核协商的 <code>VHOST_USER_PROTOCOL_F_SHMEM_MAP</code> 映射到一段固定 1 GiB 物理地址孔径（<code>UML_VHOST_USER_SHMEM_SIZE</code>），同时严防恶意 Guest 越界写入宿主机地址空间。</li>
+<li><strong>硬件纹理压缩防崩溃拦截</strong>：iOS 端 GPU 一旦收到 BC / RGTC / BPTC 压缩纹理会直接触发进程强行中止，因此运行时会向 <code>MTLDevice.supportsBCTextureCompression</code> 查询能力并在 iOS 上主动屏蔽这些扩展；但对移动端原生支持的 <strong>ETC1 / ETC2 / EAC / ASTC LDR</strong> 则直接透传给 KosmicKrisp 硬件采样，避免客体 Mesa 在 CPU 上做高耗能的 RGBA8 解码。</li>
+<li><strong>独立视频硬件编解码</strong>：除了 GPU 渲染通道，Kernarium 还专门拉起了一条不依赖 GPU 上下文的 <strong>Virtio-video</strong> 专线，把 Linux 客体的 <strong>V4L2</strong> 有状态编解码节点直接桥接到苹果原生的 <strong>VideoToolbox</strong>（支持 H.264 与 HEVC 硬件加速），并在 Debian 桌面镜像中附带了一个轻量级 <code>virtio_gpu_gbm.so</code> 后端，专门解决 Debian 原生 <code>libgbm</code> 无法分配 NV12/P010 平面视频缓冲区的问题。</li>
+</ul>
+<blockquote>
+<p>[!IMPORTANT] 为什么 X 评论区里有人问“为什么只支持 iOS 27？”<br>
+我在检查 <code>cmake/toolchains/Apple.cmake</code> 时找到了最直接的工程答案：该项目的苹果平台部署基线被硬性锁定在 <strong>27.0</strong>，并且 <code>Andarium</code> 启动时会主动探测宿主 GPU 是否具备 <strong>Metal 4</strong> 家族特性（主要对应 A14 及以上芯片，也是驱动 Mesa KosmicKrisp 的硬前提）。由于 Xcode 的 iOS 模拟器缺乏 Metal 4 硬件设备，模拟器构建只能通过编译期宏 <code>UML_GPU_SOFTWARE_RENDERER</code> 回退到 Mesa <code>llvmpipe</code> CPU 软渲染，专门用于 UI 自动化测试（该宏会在真机/商店打包审计时被严厉禁止）。</p>
+</blockquote>
+<hr>
+<h2 id="五-ios-沙盒保活与-jetsam-生存工程gpu-门控-锁剥离与分片休眠">五、iOS 沙盒保活与 Jetsam 生存工程：GPU 门控、锁剥离与分片休眠</h2>
+<p>在电脑上跑虚拟机崩溃了大不了重启进程，但在内存管制极度严苛的 iOS 上，只要后台持有一把文件锁、触碰一次被系统收回的 Metal 设备，或者内存瞬间越过 Jetsam 阈值，系统就会毫不留情地一刀劈死整个 App。在 <code>docs/architecture.md</code> 后半部分，我看到了一整套堪称“教科书级别”的 iOS 生存护盾设计：</p>
+<figure data-type="image" tabindex="3"><img src="https://lijianfei.com/post-images/kernarium-lifecycle-hibernation-loop.svg" alt="Kernarium iOS 沙盒防杀与分片休眠生命周期闭环" loading="lazy"></figure>
+<h3 id="1-显式算出来的-gpu-与-jetsam-内存预算公式">1. 显式算出来的 GPU 与 Jetsam 内存预算公式</h3>
+<p>iOS 会给每个 App 分配一个进程总内存上限 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>L</mi></mrow><annotation encoding="application/x-tex">L</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord mathdefault">L</span></span></span></span>。Kernarium 在每次启动前只计算一次固定预算，决不让虚拟机内存和 Metal 显存互相踩踏导致 OOM：</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>B</mi><mo>=</mo><mi>max</mi><mo>⁡</mo><mo>(</mo><mi>L</mi><mo>−</mo><mi>A</mi><mo>−</mo><mi>G</mi><mo>−</mo><mi>E</mi><mo>−</mo><mi>S</mi><mo separator="true">,</mo><mtext>  </mtext><mn>352</mn><mtext> MiB</mtext><mo>)</mo></mrow><annotation encoding="application/x-tex">B = \max(L - A - G - E - S,\; 352\text{ MiB})
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.05017em;">B</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mop">max</span><span class="mopen">(</span><span class="mord mathdefault">L</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.76666em;vertical-align:-0.08333em;"></span><span class="mord mathdefault">A</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.76666em;vertical-align:-0.08333em;"></span><span class="mord mathdefault">G</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.76666em;vertical-align:-0.08333em;"></span><span class="mord mathdefault" style="margin-right:0.05764em;">E</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault" style="margin-right:0.05764em;">S</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mord">3</span><span class="mord">5</span><span class="mord">2</span><span class="mord text"><span class="mord"> MiB</span></span><span class="mclose">)</span></span></span></span></span></p>
+<p>其中 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>G</mi></mrow><annotation encoding="application/x-tex">G</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord mathdefault">G</span></span></span></span> 为客体内存、<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>E</mi></mrow><annotation encoding="application/x-tex">E</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.05764em;">E</span></span></span></span> 为 CPU 译码缓存等客体侧宿主开销、<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>A</mi></mrow><annotation encoding="application/x-tex">A</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord mathdefault">A</span></span></span></span> 为宿主 App 自身开销、<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>S</mi></mrow><annotation encoding="application/x-tex">S</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.05764em;">S</span></span></span></span> 为预留安全余量，最终为宿主机 GPU 划定显存池上限 <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>B</mi></mrow><annotation encoding="application/x-tex">B</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.68333em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.05017em;">B</span></span></span></span>（最低保底 352 MiB）。在 <code>darwin/runtime/guest_memory_budget.hpp</code> 的注释里，作者甚至记录了真实设备测试数据：例如在 6 vCPU 手机上启动《Asphalt Legends》时，Gadget 缓存峰值会冲到约 240 MiB。因此默认设置会把初始 Guest 内存压在 4 GiB 以内并确保留给 GPU 至少 992 MiB～1 GiB 空间，同时 vCPU 数量默认且最多不超过宿主机物理核数与 8 核上限。</p>
+<h3 id="2-退后台时的四重防死工程">2. 退后台时的“四重防死工程”</h3>
+<p>当用户上滑切换应用、Andarium 或 Kernarium 退入后台时，底层会在短短几秒内依次触发四步精密操作：</p>
+<ol>
+<li><strong>关闭 GPU 请求门控（<code>set_gpu_hold</code>）与排空相机流</strong>：iOS 退后台后会立刻剥夺进程的 Metal GPU 访问权，一旦此时有残留的渲染指令打向 Metal，Vulkan 设备会永久进入 <code>DEVICE_LOST</code> 状态。因此退后台边缘会先通知相机停止录制（最多等待 2 秒），随即将 GPU Gate 设为关闭状态（总耗时控制在 3 秒内），让未送出的渲染帧安全留在虚拟环里。</li>
+<li><strong>内核同步与冷页缓存主动裁剪</strong>：通过管理控制台向 Linux 内核下发 <code>sync(2)</code> 落盘确认与 <code>page_cache_trim</code> 指令，先让 Guest 把冷文件页归还给宿主。</li>
+<li><strong>释放所有宿主机磁盘文件锁（<code>flock</code>）</strong>：这是极易踩中的暗坑——<strong>iOS 系统会直接终止在挂起期间仍持有宿主文件锁的进程</strong>。因此在物理 iOS 上，Kernarium 由自己的 <code>platform/guest_files</code> 注册表在内部维护全文件锁，一旦确认内核进入系统挂起（Suspend），立刻释放锁并在恢复时重新加锁，同时严格校验磁盘文件的 inode、大小、修改时间防止外部篡改。</li>
+<li><strong>Mach 线程挂起与哈希分片休眠（<code>guest_hibernation</code>）</strong>：由于 iOS 真机上提交给客体的物理内存是 <strong>Wired（不可压缩、不可回收）</strong> 的，4 GiB 驻留内存退后台必死无疑。Kernarium 会利用 Mach 内核调用安全挂起所有 <code>uml-*</code> 与内核线程（且严格避开持有 <code>malloc</code>/libc 内部锁的线程，防止死锁），然后将已提交的物理页分块计算哈希写入应用临时目录（<code>$TMPDIR</code> 下的无链接临时文件），写完一块就立刻解除该块的物理内存占用；切回前台时再逐片校验哈希还原内存并唤醒 Linux 内核。</li>
+</ol>
+<h3 id="3-零侵入的黑匣子uml-stall-watch-与-192-kb-飞行记录仪">3. 零侵入的黑匣子：<code>uml-stall-watch</code> 与 19.2 KB 飞行记录仪</h3>
+<p>为了排查真机上的偶发卡顿与后台被杀原因，每个构建都内置了一个极轻量的 <code>uml-stall-watch</code> 线程——当所有 vCPU 都在空闲等待时它完全休眠、零耗电；一旦有载体跑出空闲态超过阈值，它便以 50 ms 周期只通过 <code>libsystem_kernel</code> 系统调用采样热降频状态、低电量模式、主线程响应和宿主等待点，把诊断指标原地覆写进一个定长 <strong>19,200 字节</strong> 的会话黑匣子（<code>uml-session 8</code>，划分了 8 KiB 内存历史槽、4 KiB 卡顿槽、网络槽、存储槽与相机诊断槽）。哪怕进程在后台被 Jetsam 悄无声息地杀掉，下次启动时只需读出这份文件上残留的 <code>running</code> 状态，就能精准还原被杀前最后一秒发生了什么。</p>
+<hr>
+<h2 id="六-实操边界与客观评价它离日常主力还有多远">六、实操边界与客观评价：它离日常主力还有多远？</h2>
+<p>把 <code>Kernarium</code> 与 <code>Andarium</code> 的工程全貌盘完后，我认为这是近年来苹果生态开源社区里技术密度最高、架构最纯粹的底层系统工程之一，但普通开发者与玩家在上手前也需要看清它的真实边界：</p>
+<ol>
+<li><strong>生态与合规红线</strong>：Andarium 从 App Store 上架又被 Guideline 2.5.2 &amp; 1.1 下架的经历已经证明，在官方商店公开分发完整 Android 虚拟机依然存在极高政策风险；目前最稳妥的体验路径是通过 <strong>TestFlight</strong> 或导出签名 IPA 侧载安装，配合 <code>Kernarium</code> 测试通用 Linux 桌面（KDE / Phrog / postmarketOS）。</li>
+<li><strong>硬件与系统门槛极高</strong>：项目把部署基线锁定在 <strong>iOS 27.0+</strong> 与 <strong>Metal 4</strong>（A14+），老旧设备无法跨越；而无 JIT 的 Gadget 解释器虽然过审且跑日常 Linux 命令行、Termux 与轻量 3D 游戏完全可行，但在纯软件解释模式下运行重度桌面应用或 Winlator 转译 PC 游戏时，依然受限于单核翻译吞吐（若想要极限性能，仍需配合 StikDebug 开启 JIT）。</li>
+<li><strong>自行构建门槛</strong>：如仓库 <code>README.md</code> 所提示，虽然在 macOS 上用 CMake + Xcode 就能编译 Darwin 运行时和 iOS App，但若想从头自行构建 LineageOS 24 / Android 17 系统镜像，仍需要一台强力的 <code>x86_64</code> Linux 构建机；普通用户体验最省心的方式是直接拉取 Releases 里的预构建镜像与产物包。</li>
+</ol>
+<p>但无论如何，Kernarium 用一套“原生 Linux 6.18 UML 内核 + 14,512 行纯数据 Gadget 解释器 + 逐页 SHA-256 AOT + Mesa KosmicKrisp 直驱 Metal 4 + Mach 分片休眠”的组合拳，把 iOS 沙盒虚拟化的工程天花板又向上捅穿了一大截。如果你也在研究跨内核虚拟化、无 JIT 执行引擎或苹果 Metal 图形桥接，这份仓库里的 <code>docs/architecture.md</code>、<code>docs/graphics.md</code> 和 <code>docs/optimization-history.md</code> 绝对值得你花一个周末细细精读。</p>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>X（Twitter）原帖与实机演示视频</strong>：<a href="https://x.com/Techjunkie_Aman/status/2119790720945184980?lang=en">Techjunkie Aman - Andarium brings Android 17 to iOS</a></li>
+<li><strong>开源项目主仓库</strong>：<a href="https://github.com/imxieyi/Kernarium">imxieyi/Kernarium (GitHub, GPL-2.0-or-later)</a></li>
+<li><strong>TestFlight 公测入口</strong>：<a href="https://testflight.apple.com/join/qyPvJTUE">Join the Andarium beta on TestFlight</a></li>
+<li><strong>核心图形底层参考</strong>：<a href="https://docs.mesa3d.org/drivers/kosmickrisp.html">Mesa KosmicKrisp (Vulkan-to-Metal) 官方文档</a> · <a href="https://docs.mesa3d.org/drivers/zink.html">Mesa Zink (OpenGL-on-Vulkan) 官方文档</a></li>
+<li><strong>用户态网络栈参考</strong>：<a href="https://gitlab.freedesktop.org/slirp/libslirp">libslirp (Freedesktop)</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E6%A8%A1%E6%8B%9F%E7%A1%AC%E4%BB%B6%E4%B9%9F%E4%B8%8D%E7%94%A8%E7%BA%AF%E7%94%A8%E6%88%B7%E6%80%81%E5%9E%AB%E7%89%87kernarium-%E7%9A%84%E4%B8%AD%E9%97%B4%E8%B7%AF%E7%BA%BF">一、为什么不模拟硬件，也不用纯用户态垫片？Kernarium 的“中间路线”</a></li>
+<li><a href="#%E4%BA%8C-%E6%8A%8A%E7%9C%9F-linux-618-%E5%A1%9E%E8%BF%9B-ios128-tib-%E8%BD%AF%E4%BB%B6-mmu-%E4%B8%8E-4k16k-%E9%A1%B5%E8%A1%A8%E6%A1%A5%E6%8E%A5">二、把真 Linux 6.18 塞进 iOS：128 TiB 软件 MMU 与 4K/16K 页表桥接</a>
+<ul>
+<li><a href="#1-4-kib-%E5%AE%A2%E4%BD%93%E9%A1%B5%E4%B8%8E-16-kib-%E8%8B%B9%E6%9E%9C%E5%AE%BF%E4%B8%BB%E9%A1%B5%E7%9A%84%E4%B8%A5%E4%B8%9D%E5%90%88%E7%BC%9D">1. 4 KiB 客体页与 16 KiB 苹果宿主页的严丝合缝</a></li>
+<li><a href="#2-%E8%84%B1%E7%A6%BB-fork-%E7%9A%84%E5%A4%9A%E6%A0%B8-vcpu-%E8%BD%BD%E4%BD%93%E8%B0%83%E5%BA%A6">2. 脱离 <code>fork</code> 的多核 vCPU 载体调度</a></li>
+<li><a href="#3-%E5%85%A8%E5%8A%9F%E8%83%BD%E5%86%85%E6%A0%B8%E8%AE%BE%E5%A4%87%E7%9F%A9%E9%98%B5%E4%B8%BA%E4%BD%95%E8%83%BD%E8%B7%91-docker-%E4%B8%8E-winlator">3. 全功能内核设备矩阵：为何能跑 Docker 与 Winlator</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-cpu-%E6%89%A7%E8%A1%8C%E5%BC%95%E6%93%8E%E7%9A%84%E8%89%BA%E6%9C%AF14512-%E8%A1%8C%E6%B1%87%E7%BC%96-gadget-stikdebug-jit-%E4%B8%8E%E9%80%90%E9%A1%B5%E5%93%88%E5%B8%8C-aot">三、CPU 执行引擎的艺术：14,512 行汇编 Gadget、StikDebug JIT 与逐页哈希 AOT</a>
+<ul>
+<li><a href="#%E8%BD%A8%E9%81%93-aish-%E9%A3%8E%E6%A0%BC-%E4%BD%86%E5%AE%8C%E5%85%A8%E9%87%8D%E5%86%99%E7%9A%84%E7%BA%AF%E6%95%B0%E6%8D%AE-gadget-%E7%BA%BF%E7%A8%8B%E8%A7%A3%E9%87%8A%E5%99%A8">轨道 A：iSH 风格、但完全重写的纯数据 Gadget 线程解释器</a></li>
+<li><a href="#%E8%BD%A8%E9%81%93-b%E5%BC%80%E5%8F%91%E7%89%88%E4%B8%93%E5%B1%9E%E7%9A%84%E7%9C%9F%E6%9C%BA-jitbrk-0xf00d-%E4%B8%8E-stikdebug">轨道 B：开发版专属的真机 JIT（<code>brk #0xf00d</code> 与 StikDebug）</a></li>
+<li><a href="#%E8%BD%A8%E9%81%93-cumlarm64aotframework-%E9%9D%99%E6%80%81-aot-%E4%B8%8E%E5%AF%86%E7%A0%81%E5%AD%A6%E9%80%90%E9%A1%B5%E6%A0%A1%E9%AA%8C">轨道 C：<code>UmlArm64Aot.framework</code> 静态 AOT 与密码学逐页校验</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E5%BD%BB%E5%BA%95%E6%8A%9B%E5%BC%83-moltenvkmesa-zink-venus-kosmickrisp-%E7%9B%B4%E9%A9%B1-metal-4">四、彻底抛弃 MoltenVK！Mesa Zink / Venus + KosmicKrisp 直驱 Metal 4</a></li>
+<li><a href="#%E4%BA%94-ios-%E6%B2%99%E7%9B%92%E4%BF%9D%E6%B4%BB%E4%B8%8E-jetsam-%E7%94%9F%E5%AD%98%E5%B7%A5%E7%A8%8Bgpu-%E9%97%A8%E6%8E%A7-%E9%94%81%E5%89%A5%E7%A6%BB%E4%B8%8E%E5%88%86%E7%89%87%E4%BC%91%E7%9C%A0">五、iOS 沙盒保活与 Jetsam 生存工程：GPU 门控、锁剥离与分片休眠</a>
+<ul>
+<li><a href="#1-%E6%98%BE%E5%BC%8F%E7%AE%97%E5%87%BA%E6%9D%A5%E7%9A%84-gpu-%E4%B8%8E-jetsam-%E5%86%85%E5%AD%98%E9%A2%84%E7%AE%97%E5%85%AC%E5%BC%8F">1. 显式算出来的 GPU 与 Jetsam 内存预算公式</a></li>
+<li><a href="#2-%E9%80%80%E5%90%8E%E5%8F%B0%E6%97%B6%E7%9A%84%E5%9B%9B%E9%87%8D%E9%98%B2%E6%AD%BB%E5%B7%A5%E7%A8%8B">2. 退后台时的“四重防死工程”</a></li>
+<li><a href="#3-%E9%9B%B6%E4%BE%B5%E5%85%A5%E7%9A%84%E9%BB%91%E5%8C%A3%E5%AD%90uml-stall-watch-%E4%B8%8E-192-kb-%E9%A3%9E%E8%A1%8C%E8%AE%B0%E5%BD%95%E4%BB%AA">3. 零侵入的黑匣子：<code>uml-stall-watch</code> 与 19.2 KB 飞行记录仪</a></li>
+</ul>
+</li>
+<li><a href="#%E5%85%AD-%E5%AE%9E%E6%93%8D%E8%BE%B9%E7%95%8C%E4%B8%8E%E5%AE%A2%E8%A7%82%E8%AF%84%E4%BB%B7%E5%AE%83%E7%A6%BB%E6%97%A5%E5%B8%B8%E4%B8%BB%E5%8A%9B%E8%BF%98%E6%9C%89%E5%A4%9A%E8%BF%9C">六、实操边界与客观评价：它离日常主力还有多远？</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/twoyi-aot-android-container-ios-architecture/">
+              <h3 class="post-title">
+                把完整 Android 13 塞进免越狱 iPhone：解剖两仪 Twoyi 的 2852 单元静态 AOT 引擎、gfxstream/Metal 管线与双端容器演进
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+
+      // 架构图与插图原生灯箱放大模式 (Diagram Zoom Lightbox)
+      function initDiagramZoom() {
+        const postImages = document.querySelectorAll(".post-content img");
+        if (postImages.length === 0) return;
+
+        // 构建灯箱 DOM 结构
+        const overlay = document.createElement("div");
+        overlay.className = "diagram-zoom-overlay";
+        overlay.innerHTML = `
+          <div class="diagram-zoom-hint">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>滚轮缩放 · 拖拽平移 · 双击切换 · ESC退出</span>
+          </div>
+          <button class="diagram-zoom-close" title="关闭 (ESC)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+          <div class="diagram-zoom-stage">
+            <img class="diagram-zoom-img" src="" alt="Zoomed diagram" draggable="false" />
+          </div>
+          <div class="diagram-zoom-toolbar">
+            <button class="diagram-zoom-btn btn-zoom-out" title="缩小 (-)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <span class="diagram-zoom-info">100%</span>
+            <button class="diagram-zoom-btn btn-zoom-in" title="放大 (+)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-reset" title="重置适应 (0)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-open-raw" title="在新标签页查看高清原图">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </button>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const stage = overlay.querySelector(".diagram-zoom-stage");
+        const zoomImg = overlay.querySelector(".diagram-zoom-img");
+        const scaleInfo = overlay.querySelector(".diagram-zoom-info");
+        const closeBtn = overlay.querySelector(".diagram-zoom-close");
+        const zoomInBtn = overlay.querySelector(".btn-zoom-in");
+        const zoomOutBtn = overlay.querySelector(".btn-zoom-out");
+        const resetBtn = overlay.querySelector(".btn-reset");
+        const rawBtn = overlay.querySelector(".btn-open-raw");
+
+        let currentScale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let origTx = 0;
+        let origTy = 0;
+        let currentRawSrc = "";
+
+        function updateTransform() {
+          zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
+          scaleInfo.textContent = Math.round(currentScale * 100) + "%";
+          if (currentScale > 1) {
+            stage.classList.add("can-drag");
+          } else {
+            stage.classList.remove("can-drag");
+          }
+        }
+
+        function openModal(src, alt) {
+          currentRawSrc = src;
+          zoomImg.src = src;
+          zoomImg.alt = alt || "Diagram";
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+          overlay.classList.add("active");
+          document.body.style.overflow = "hidden";
+        }
+
+        function closeModal() {
+          overlay.classList.remove("active");
+          document.body.style.overflow = "";
+          setTimeout(() => {
+            zoomImg.src = "";
+          }, 250);
+        }
+
+        // 为正文图片绑定点击事件
+        postImages.forEach(img => {
+          img.setAttribute("title", "点击放大查看高清全景图");
+          img.addEventListener("click", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal(img.currentSrc || img.src, img.alt);
+          });
+        });
+
+        // 按钮事件
+        closeBtn.addEventListener("click", closeModal);
+        zoomInBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.min(currentScale * 1.25, 5);
+          updateTransform();
+        });
+        zoomOutBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.max(currentScale * 0.8, 0.4);
+          updateTransform();
+        });
+        resetBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+        });
+        rawBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          if (currentRawSrc) window.open(currentRawSrc, "_blank");
+        });
+
+        // 鼠标滚轮缩放
+        stage.addEventListener("wheel", e => {
+          e.preventDefault();
+          const factor = e.deltaY < 0 ? 1.15 : 0.85;
+          currentScale = Math.min(Math.max(currentScale * factor, 0.4), 5);
+          updateTransform();
+        }, { passive: false });
+
+        // 双击在 1x 与 2x 间切换
+        stage.addEventListener("dblclick", e => {
+          e.preventDefault();
+          if (currentScale > 1.2) {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+          } else {
+            currentScale = 2;
+          }
+          updateTransform();
+        });
+
+        // 拖拽平移
+        stage.addEventListener("mousedown", e => {
+          if (e.target === closeBtn || e.target.closest(".diagram-zoom-toolbar")) return;
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          origTx = translateX;
+          origTy = translateY;
+          stage.classList.add("dragging");
+        });
+
+        window.addEventListener("mousemove", e => {
+          if (!isDragging) return;
+          translateX = origTx + (e.clientX - startX);
+          translateY = origTy + (e.clientY - startY);
+          updateTransform();
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (isDragging) {
+            isDragging = false;
+            stage.classList.remove("dragging");
+          }
+        });
+
+        // 点击背景遮罩关闭（非拖拽位移触发）
+        stage.addEventListener("click", e => {
+          if (e.target === stage && Math.abs(translateX - origTx) < 5 && Math.abs(translateY - origTy) < 5) {
+            closeModal();
+          }
+        });
+
+        // 键盘快捷键监听
+        window.addEventListener("keydown", e => {
+          if (!overlay.classList.contains("active")) return;
+          if (e.key === "Escape") {
+            closeModal();
+          } else if (e.key === "+" || e.key === "=") {
+            currentScale = Math.min(currentScale * 1.25, 5);
+            updateTransform();
+          } else if (e.key === "-" || e.key === "_") {
+            currentScale = Math.max(currentScale * 0.8, 0.4);
+            updateTransform();
+          } else if (e.key === "0") {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+            updateTransform();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initDiagramZoom);
+      } else {
+        initDiagramZoom();
+      }
+    </script>
+  </body>
+</html>

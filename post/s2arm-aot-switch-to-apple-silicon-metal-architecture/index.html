@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>零 JIT 将 Switch 游戏原生搬上 iPhone：S2Arm 0.6.0 的双补丁岛改写、Metal 直连与单应用容器内幕 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1795745888143">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="零 JIT 将 Switch 游戏原生搬上 iPhone：S2Arm 0.6.0 的双补丁岛改写、Metal 直连与单应用容器内幕 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/s2arm-aot-switch-to-apple-silicon-metal-architecture/">
+    <meta name="description" content="此前我在拆解《暗黑破坏神 II：狱火重生》的 iOS 原生兼容层 d2r-mobile 时，曾感叹过它利用 Tegra X1 与 Apple Silicon 同属 ARMv8 架构的特性，绕开 iOS W^X 沙盒禁令的巧思。但单款游戏手工..." />
+    <meta name="keywords" content="Switch,二进制改写,架构剖析,macOS,Apple Silicon,iOS,Metal" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="零 JIT 将 Switch 游戏原生搬上 iPhone：S2Arm 0.6.0 的双补丁岛改写、Metal 直连与单应用容器内幕">
+    <meta property="og:description" content="此前我在拆解《暗黑破坏神 II：狱火重生》的 iOS 原生兼容层 d2r-mobile 时，曾感叹过它利用 Tegra X1 与 Apple Silicon 同属 ARMv8 架构的特性，绕开 iOS W^X 沙盒禁令的巧思。但单款游戏手工...">
+    <meta property="og:url" content="https://lijianfei.com/post/s2arm-aot-switch-to-apple-silicon-metal-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/s2arm-aot-switch-to-apple-silicon-metal-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-11-21T14:09:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="Switch">
+    
+    <meta property="article:tag" content="二进制改写">
+    
+    <meta property="article:tag" content="架构剖析">
+    
+    <meta property="article:tag" content="macOS">
+    
+    <meta property="article:tag" content="Apple Silicon">
+    
+    <meta property="article:tag" content="iOS">
+    
+    <meta property="article:tag" content="Metal">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="零 JIT 将 Switch 游戏原生搬上 iPhone：S2Arm 0.6.0 的双补丁岛改写、Metal 直连与单应用容器内幕">
+    <meta name="twitter:description" content="此前我在拆解《暗黑破坏神 II：狱火重生》的 iOS 原生兼容层 d2r-mobile 时，曾感叹过它利用 Tegra X1 与 Apple Silicon 同属 ARMv8 架构的特性，绕开 iOS W^X 沙盒禁令的巧思。但单款游戏手工...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/s2arm-aot-switch-to-apple-silicon-metal-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "零 JIT 将 Switch 游戏原生搬上 iPhone：S2Arm 0.6.0 的双补丁岛改写、Metal 直连与单应用容器内幕",
+      "description": "此前我在拆解《暗黑破坏神 II：狱火重生》的 iOS 原生兼容层 d2r-mobile 时，曾感叹过它利用 Tegra X1 与 Apple Silicon 同属 ARMv8 架构的特性，绕开 iOS W^X 沙盒禁令的巧思。但单款游戏手工...",
+      "image": "https://lijianfei.com/post-images/s2arm-aot-switch-to-apple-silicon-metal-architecture.png",
+      "datePublished": "2026-11-21T14:09:00.000Z",
+      "dateModified": "2026-11-21T14:09:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/s2arm-aot-switch-to-apple-silicon-metal-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Switch",
+          "item": "https://lijianfei.com/tag/switch/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "零 JIT 将 Switch 游戏原生搬上 iPhone：S2Arm 0.6.0 的双补丁岛改写、Metal 直连与单应用容器内幕",
+          "item": "https://lijianfei.com/post/s2arm-aot-switch-to-apple-silicon-metal-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+      /* Diagram & Image Zoom Lightbox Modal */
+      .post-content img {
+        cursor: zoom-in !important;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
+      }
+      .post-content img:hover {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+      }
+      .diagram-zoom-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: rgba(15, 23, 42, 0.82);
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .diagram-zoom-overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+      .diagram-zoom-stage {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+        cursor: grab;
+      }
+      .diagram-zoom-stage.dragging {
+        cursor: grabbing;
+      }
+      .diagram-zoom-img {
+        max-width: 92vw;
+        max-height: 86vh;
+        object-fit: contain;
+        transform-origin: center center;
+        transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+        border-radius: 8px;
+        background-color: #ffffff;
+      }
+      .diagram-zoom-toolbar {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.95);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        padding: 6px 14px;
+        border-radius: 30px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.06);
+        z-index: 10;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .diagram-zoom-btn {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #1e293b;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+        font-size: 14px;
+        padding: 0;
+      }
+      .diagram-zoom-btn:hover {
+        background: #f1f5f9;
+        color: #0284c7;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-btn:active {
+        transform: scale(0.95);
+      }
+      .diagram-zoom-info {
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+        min-width: 46px;
+        text-align: center;
+      }
+      .diagram-zoom-close {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.92);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1e293b;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+        transition: all 0.15s ease;
+        z-index: 10;
+      }
+      .diagram-zoom-close:hover {
+        background: #ffffff;
+        color: #e11d48;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-hint {
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 12px;
+        font-weight: 500;
+        pointer-events: none;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1795745888143" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              零 JIT 将 Switch 游戏原生搬上 iPhone：S2Arm 0.6.0 的双补丁岛改写、Metal 直连与单应用容器内幕
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-11-21
+              </span>
+              <span>
+                22 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/switch/" class="post-tag">
+                  # Switch
+                </a>
+              
+                <a href="https://lijianfei.com/tag/er-jin-zhi-gai-xie/" class="post-tag">
+                  # 二进制改写
+                </a>
+              
+                <a href="https://lijianfei.com/tag/jia-gou-pou-xi/" class="post-tag">
+                  # 架构剖析
+                </a>
+              
+                <a href="https://lijianfei.com/tag/macos/" class="post-tag">
+                  # macOS
+                </a>
+              
+                <a href="https://lijianfei.com/tag/apple-silicon/" class="post-tag">
+                  # Apple Silicon
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ios/" class="post-tag">
+                  # iOS
+                </a>
+              
+                <a href="https://lijianfei.com/tag/metal/" class="post-tag">
+                  # Metal
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/s2arm-aot-switch-to-apple-silicon-metal-architecture.png" alt="零 JIT 将 Switch 游戏原生搬上 iPhone：S2Arm 0.6.0 的双补丁岛改写、Metal 直连与单应用容器内幕" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>此前我在拆解《暗黑破坏神 II：狱火重生》的 iOS 原生兼容层 <strong>d2r-mobile</strong> 时，曾感叹过它利用 Tegra X1 与 Apple Silicon 同属 ARMv8 架构的特性，绕开 iOS W^X 沙盒禁令的巧思。但单款游戏手工适配终究只能服务特定作品，最近我完整克隆并逐层审计了同一作者开源的通用化工程 <strong><a href="https://github.com/jhaizhou-ops/S2Arm">jhaizhou-ops/S2Arm</a></strong>（Apache-2.0 协议，截至 2026 年 11 月 21 日最新 <code>0.6.0</code> 主线）。它的野心远不止一款游戏——而是把玩家合法自备的任意 64 位 Switch（乃至部分 Switch 2）游戏，<strong>零配置静态改写为原生 ARM64 机器码并直连 Metal 3/4 渲染，全部装进手机上的同一个 App 游戏库里</strong>。</p>
+<p>通读完它横跨 C11、Objective-C、Swift、C# NativeAOT 与 Python 的构建与运行源码后，我最深的感受是：S2Arm 真正令人敬畏的地方不在于“能跑”，而在于它把 211 款游戏的规模化普查（首建通过率 <strong>95.6%</strong>、真机运行 <strong>4,704+</strong> 次、macOS 运行 <strong>1,022</strong> 次）中踩穿的每一道硬件与系统深坑——从 Apple M 系列激进乱序引发的自旋锁崩溃、36 位地址空间越界、iOS 8 GB 内存强杀与闪存写穿，到 Switch 2 张量核指令识别和 <code>MTL4FX</code> 队列内补帧——全都沉淀成了可验证的工程基线。这篇源码拆解手记，就带你逐层剥开它的底层实现。</p>
+<!-- more -->
+<blockquote>
+<p>[!NOTE] 源码审计基线与真实能力边界<br>
+本文所有模块路径、数据结构、寄存器偏移、错误码与实测读数，均直接对照自开源仓库 <a href="https://github.com/jhaizhou-ops/S2Arm">jhaizhou-ops/S2Arm</a>（<code>0.6.0</code> 周期主线源码及 <code>docs/validation/EVIDENCE.md</code>）。需要坦诚说明的是，正如项目自身所声明的 <strong>Honest boundaries</strong>：由于 Apple Silicon 硬件已移除 32 位 ARM 执行状态，S2Arm <strong>仅支持 64 位（AArch64）游戏</strong>，诸如《二之国》《怪物猎人 XX》等 32 位作品以及强依赖完整 36 位地址空间的特定游戏（如《我的世界：故事模式》部分版本）明确不在当前支持范围内；同时，项目本身不分发任何游戏本体或密钥，需由玩家合法自备。</p>
+</blockquote>
+<hr>
+<h2 id="一-全局拓扑为什么零-jit-直连-metal-单应用容器能走通">一、全局拓扑：为什么“零 JIT + 直连 Metal + 单应用容器”能走通？</h2>
+<p>在非越狱 iOS 设备上运行主机游戏，传统动态重编译模拟器长期受困于两道死结：一是苹果内核强制实施 <strong>W^X（Write XOR Execute）</strong>，未越狱且未挂调试器时无法在运行时动态申请可写又可执行的 JIT 内存页；二是即便靠远程脚本唤醒调试通道，完整的 Switch GPU 模拟与多线程 IPC 也会在移动端白白烧掉宝贵功耗。</p>
+<p>S2Arm 在架构演进中完成了一次彻底的“去模拟器化”重组。对比传统方案以及早期 <code>0.5</code> 一游一包（迅速占满免费 Apple ID 3 个自签应用槽位）的局限，<code>0.6.0</code> 把整套体系收束为五层垂直堆栈：</p>
+<figure data-type="image" tabindex="1"><img src="https://lijianfei.com/post-images/s2arm-layer-stack.svg" alt="S2Arm 0.6.0 五层零 JIT 原生执行与直连图形堆栈" loading="lazy"></figure>
+<p>如果把新旧拓扑拉开对比，S2Arm <code>0.6.0</code> 最核心的结构性变化集中在 <strong>统一容器、双补丁岛静态改写、NVN/NVN2 直连 Metal、分块溢出内存、版本化快照</strong> 这五个轴线上：</p>
+<figure data-type="image" tabindex="2"><img src="https://lijianfei.com/post-images/s2arm-architecture-delta.svg" alt="从单款模拟到 S2Arm 0.6.0 统一容器直连拓扑演进" loading="lazy"></figure>
+<p>在 <code>docs/设计_直连架构.md</code> 与 <code>docs/架构_多终端.md</code> 中，我看到了作者在 <code>0.5</code> 到 <code>0.6</code> 演进期留下的极其清醒的架构取舍记录：</p>
+<ol>
+<li><strong>双轨判定与“直连起手、通用兜底”</strong>：S2Arm 进程内保留了两套图形消费路径——当资源包里包含匹配当前翻译链版本的离线直连着色器库（<code>shaders/direct/b-&lt;DMSH_CHAIN&gt;/</code>）时，装载器在重定位前通过 <code>runtime/src/gfxmode.c</code> 一次锁定走 <strong>直连模式</strong>（跳过 <code>Ryujinx.Graphics.Gpu</code> 显卡模拟，直接在 <code>nvnBootstrapLoader</code> 处接管图形调用并直译为 Metal）；一旦发生 GPU 错误或直连异常，系统才会记录日志并在必要时由玩家或自动机制退回通用模拟路径。</li>
+<li><strong>省电约 30% 的直接实测依据</strong>：在同设备、同 16:9 30 帧场景（程序号 <code>01006F8002326000</code>）对照下，通用 GPU 模拟路径功耗为 <strong>2.67 W</strong>，而 NVN 直连 Metal 路径的中位功耗仅 <strong>1.89 W</strong>（直降约 30%）。在更重负载的 Switch 2 实机测试中（iPhone 17 Pro Max 240 秒窗口均值），整机以 <strong>6.63 W</strong> 跑出 <strong>43.3 fps</strong>（冷机满帧 <strong>60.0 fps</strong>，持续发热后 <strong>37.4 fps</strong>），折合每帧能耗仅 <strong>0.153 J</strong>。</li>
+</ol>
+<hr>
+<h2 id="二-零-jit-静态二进制改写双补丁岛-远跳陷阱与-m-系列内存序修补">二、零 JIT 静态二进制改写：双补丁岛、远跳陷阱与 M 系列内存序修补</h2>
+<p>要把原生 Switch NSO 可执行镜像直接加载到 iOS/macOS 用户态运行，最大的难点在于 <strong>Horizon OS 与 Darwin 的 ABI 冲突</strong>，以及 <strong>苹果 ARM64 沙盒下不能在运行时改写代码页</strong>。S2Arm 在 <code>runtime/rewriter/</code> 中彻底淘汰了早期的 Python 改写脚本（<code>patch_nso.py</code>），改用基于 Capstone 与 LZ4 的纯 <strong>C11 静态改写器</strong>（<code>s2a-rewrite</code>），跨 iOS、macOS、Android 共用同一份静态分析内核。</p>
+<p>我在审计 <code>runtime/rewriter/README.md</code> 时，发现了五个远超普通二进制修补工具的硬核工程设计：</p>
+<h3 id="1-128-mib-射程破局双补丁岛与-brk-0xa000-远跳">1. ±128 MiB 射程破局：双补丁岛与 <code>brk #0xA000</code> 远跳</h3>
+<p>ARM64 的无条件相对跳转指令 <code>B</code> 的有效寻址射程只有 <strong>±128 MiB</strong>。当碰到代码段（<code>.text</code>）体积超标的大型游戏时，单一的尾部补丁区根本够不到镜像前端的待改写指令。为此，S2Arm 实现了 <strong>双补丁岛（Dual Patch Islands）</strong> 布局：</p>
+<ul>
+<li>在镜像基址之前预留 <strong>前岛（<code>FRONT</code>）</strong>，在镜像之后安置 <strong>后岛</strong>；改写器根据每个改写单元所在地址与中点 <code>SPLIT</code> 的距离，自动把跳板生成到射程可达的那一座岛上；若初始 <code>FRONT</code> 容量不足，改写器会自动按 <code>align64KiB(补丁字节数 + 16 KiB)</code> 扩充前岛并从原 NSO 完整重算一次（上限 <code>127 MiB</code>）。</li>
+<li>万一遇到超巨型模块（例如《我的世界》在 <code>[128, 144) MiB</code> 区间的 6,325 个 <code>x18</code> 保留寄存器改写点），前后两座岛都被彻底甩出 ±128 MiB 射程之外怎么办？S2Arm 的做法堪称绝妙：
+<ol>
+<li>对于 <code>mrs tpidr_el0</code>、<code>mrs tpidrro_el0</code>、<code>msr tpidr_el0</code>、<code>mrs ctr_el0</code> 等系统寄存器访问，原地替换为 <code>brk #(0x8000 + 序号)</code>（刻意避开 macOS 系统占用的 <code>0xB000–0xBFFF</code> 区间），由 <code>runtime/src/traps.c</code> 在 <code>SIGTRAP</code> 信号处理器里模拟语义并推进 <code>pc += 4</code>；</li>
+<li>对于无法直接单条模拟的 <code>x18</code> 指令块，原代码入口与岛内出口改写成 <code>brk #0xA000</code>，同时在 <code>fixups.tsv</code> 中写入排序后的 <code># FAR_JUMPS</code> 映射表——触发 <code>SIGTRAP</code> 后内核态信号返回不受 ±128 MiB 限制，直接把 <code>pc</code> 重定向到目标岛！</li>
+</ol>
+</li>
+</ul>
+<h3 id="2-apple-silicon-激进乱序内存模型的自动化加锁">2. Apple Silicon 激进乱序内存模型的自动化“加锁”</h3>
+<p>这是我在整个仓库里拍案叫绝的一段实证修补。任天堂 Switch 的 Cortex-A57 核心内存序相对温和，很多游戏手写的无锁自旋锁和无锁链表在 Switch 上相安无事，但一旦搬到 <strong>Apple M 系列</strong> 这样乱序执行极其激进的处理器上，隐含的数据竞争立刻爆发：</p>
+<ul>
+<li><strong>自旋取锁补 Acquire（<code>acq_upgrade</code>）</strong>：部分游戏自旋锁只用 <code>ldxr</code> + <code>stxr</code> + <code>cbnz</code> 循环抢锁，出环后不加屏障就直接读取锁内共享数据。Apple Silicon 会将锁内读取推测提前到取锁完成之前，导致两条线程同时弹出同一个作业（《1-2-Switch》不改前 <strong>6 局全崩</strong>）。改写器通过指令形态模式匹配（不依赖硬编码地址），扫描 <code>ldxr</code> → 8 条内同基址 <code>stxr</code>/<code>stlxr</code> → 3 条内 <code>cbnz</code> 且出环后 12 条内先碰普通读的模式，<strong>原地将指令的第 15 位置 1（<code>ldxr</code> → <code>ldaxr</code>）</strong>。等长原地替换后，实测 <strong>3 局 0 崩溃</strong>。</li>
+<li><strong>独占存补 Release（<code>rel_upgrade</code>）</strong>：《极品飞车：热力追踪 重制版》先用普通 <code>str</code> 写节点内容，再直接用 <code>ldxp</code>/<code>stxp</code> 挂上无锁链表而不加 <code>stlxp</code>。在 M5 Max 实机上约有 <strong>0.2%</strong> 的概率导致下游核读到旧节点并执行上一轮回调，引发画面卡死。改写器同样通过向前扫描 16 条内的独占取指令，<strong>原地将 <code>stxr*</code> / <code>stxp</code> 升级为带释放语义的 <code>stlxr*</code> / <code>stlxp</code></strong>。</li>
+</ul>
+<h3 id="3-代码段内嵌数据闭包过滤108">3. 代码段内嵌数据闭包过滤（<code>#108</code>）</h3>
+<p>面对把海量只读数据直接塞进 <code>.text</code> 代码段的游戏，线性反汇编扫描会把数据误认成非法指令（如 <code>hvc</code>/<code>smc</code>/<code>dcps</code>），产生大量伪缺口甚至误改数据。改写器设定了精确阈值：当第一轮扫出 ≥ 64 条用户态不可能执行的特权指令时，自动启动第二轮范围重建——仅以 <code>.eh_frame</code> 函数表、动态符号表以及从它们出发的直接分支闭包作为真实代码域，域外按纯数据放行不改写。</p>
+<hr>
+<h2 id="三-驯服-ios-63-gib-地址天花板与-8-gb-内存强杀vawinc-与-farc">三、驯服 iOS 63 GiB 地址天花板与 8 GB 内存强杀：<code>vawin.c</code> 与 <code>far.c</code></h2>
+<p>解决了指令执行问题后，摆在面前的是苹果移动平台最令人窒息的资源紧箍咒：<strong>地址空间</strong> 与 <strong>物理内存记账（<code>phys_footprint</code>）</strong>。</p>
+<h3 id="1-sdk_sainit-分配器压缩闸与-farc-2-mib-远端影子目录">1. <code>sdk_sainit</code> 分配器压缩闸与 <code>far.c</code> 2 MiB 远端影子目录</h3>
+<p>很多 Switch 游戏在启动初始化阶段，会直接传空指针和 <strong>几十 GiB</strong> 的尺寸调用 <code>nn::mem::StandardAllocator::Initialize</code> 或 <code>VammManager::AllocateAddressRegion</code>，试图在 36 位或更大别名区里先“划地盘”再按需提交物理页。但在 iOS 上，即便开启了 <code>extended-virtual-addressing</code> 权限，免费签名大地址档的可用上限也只有 <strong>63 GiB</strong>（最大连续空洞实测仅 <strong>51.0 GiB</strong>），游戏一旦在 +49 GiB 偏移处解引用（如《巫师 3》），传统窗口会立刻因为空间不足而报错。</p>
+<p>S2Arm 用“<strong>先压缩、再兜底</strong>”的两段式策略完美拆解了这个问题：</p>
+<ul>
+<li><strong>构建期压缩（<code>sdk_sainit</code> &amp; <code>aregion</code>）</strong>：改写器按结构特征定位 SDK 节点区与 <code>nn::mem::StandardAllocator</code> 的 6 个导出入口，挂载 <code>aregion</code> 返回门；运行时在 <code>runtime/src/svc_mem.c</code> 里将约 1 GB 的节点预留压缩到 <strong>62 MB</strong>、1 GB 对齐压到 <strong>32 MB</strong>，并在安全余量内自动缩减几十 GiB 的虚拟预留。</li>
+<li><strong>运行时远端影子目录（<code>runtime/src/far.c</code>）</strong>：对于实在超出宿主连续虚拟窗口的“远端”客体地址，S2Arm 将该地址段通过 <code>fence_far</code> 严格保留为不可访问的 <code>PROT_NONE</code> 围栏，而将真实物理页分配在宿主堆区或线性预留区的“影子区”中，并维护一张 <strong>按 2 MiB 分块索引的差值目录（<code>s2a_far_desc</code>）</strong>。无论游戏线程还是 C# 服务层（<code>GuestMemory.cs</code>）只要触碰远端地址触发缺页异常，信号处理器即刻查表算出 <code>影子地址 = 客体地址 + 差值</code>，在原地通过 <code>emul_ld</code> / <code>emul_st</code> 代执行该次访存，甚至连即时存档都能按游戏地址无痛序列化与重建！</li>
+</ul>
+<h3 id="2-从写爆闪存-223-gb到-32-mib-动态溢出文件后备vawinc">2. 从“写爆闪存 223 GB”到 32 MiB 动态溢出文件后备（<code>vawin.c</code>）</h3>
+<p>iOS 杀后台（Jetsam）看的是 <code>phys_footprint</code>（约 8192 MB 上限），匿名脏页和压缩页全额计入，而 <strong><code>MAP_SHARED</code> 文件映射的脏页归入文件页缓存、不计入进程足迹</strong>（M5 Pro 实测同样写入 2 GB：匿名页 +2048 MB，文件映射仅 +1 MB）。</p>
+<p>但 S2Arm 在 <code>11-13</code> 踩过一个极其惨痛的坑：当他们最早对整段窗口开启 <code>MAP_SHARED</code> 文件后备时，iPad Pro M2 在 30 分钟内被 iOS 内核强制往闪存回写了 <strong>189 GB 到 223 GB</strong> 数据，帧率直接掉到 17 帧并导致系统卡死重启！于是 <code>runtime/src/vawin.c</code> 在 <code>11-16</code> 彻底重构为 <strong>32 MiB 分块溢出模式（<code>GCHUNK = 32 MiB</code>）</strong>：</p>
+<ul>
+<li>每当一块 32 MiB 空间第一次被放开为可读写时（<code>s2a_guest_commit</code>），运行时检查当前累计匿名配额是否低于预算 <code>s2a_guest_next_budget</code>——<strong>够装就留在高速匿名内存中，绝不碰闪存</strong>；</li>
+<li>只有超出预算的溢出块才映射为临时匿名文件块（创建后立即 <code>unlink</code> 确保退出即回收）；</li>
+<li>更绝的是预算的<strong>闭环自校准算法</strong>：如果上一局在前台不幸被系统因内存杀掉（<code>died</code> 标记未清除），下一局自动收紧为 <code>0</code>（全溢出保护）并记录真实峰值；若上一局稳稳过关，则按实测剩余安全裕度 <code>prev_b + (hmin - margin) - GCHUNK</code> 自动放宽匿名预算，在“零闪存写损耗”与“防强杀”之间找到每台设备的最优平衡点。</li>
+</ul>
+<hr>
+<h2 id="四-零分配同步服务宿主与直连-metal-34-渲染管线">四、零分配同步服务宿主与直连 Metal 3/4 渲染管线</h2>
+<p>在 CPU 执行与内存底座之上，S2Arm 用两条极简链路把系统服务与图形调用直接焊死在 Apple 生态的高速通道上。</p>
+<figure data-type="image" tabindex="3"><img src="https://lijianfei.com/post-images/s2arm-pipeline-dataflow.svg" alt="S2Arm 从离线构包到真机无卡顿运行的全链路数据流" loading="lazy"></figure>
+<h3 id="1-同线程直调与零字节分配的-c-服务层services">1. 同线程直调与“零字节分配”的 C# 服务层（<code>services/</code>）</h3>
+<p>许多跨平台兼容层在系统服务（文件系统、音频、HID、显示）处习惯采用异步消息队列跨线程转发，不仅引入上下文切换抖动，在托管语言（C#）里更会频繁触发 GC 停顿。S2Arm 将 Ryujinx HLE 服务编译为 <strong>NativeAOT 静态库</strong>，并通过 <code>Dispatcher.cs</code> 实现了<strong>客体线程同线程同步直调</strong>：</p>
+<ul>
+<li>当游戏通过 <code>svc 0x1F</code>（连接 <code>sm:</code>）或 <code>svc 0x21</code>/<code>0x22</code>（发送 IPC 请求）陷入原生跳板时，服务层直接在当前游戏线程上下文中同步完成请求处理与句柄映射，彻底省掉 Ryujinx 的独立服务线程与内核调度开销；</li>
+<li>更硬核的是内存分配门禁：通过补丁 <code>0015–0023</code> 与 <code>S2A.Services.Tests</code> 的逐命令基准校验，包括 <code>nvdrv Ioctl</code>、<code>fs</code> 读取、Horizon 新框架命令以及音频渲染循环在内的核心热路径已实现 <strong>0 B 托管堆分配</strong>；在音频侧（<code>docs/坑记录.md</code> 11-14 条），S2Arm 甚至精准区分了 Mac 的供电状态——插电时恢复 <code>time-constraint</code> 实时线程调度，避免因 <code>interactive</code> QoS 线程偶发迟到拖拽每 5 ms 同步一次的游戏帧，消灭了 60–85 ms 的莫名卡顿簇。</li>
+</ul>
+<h3 id="2-离线着色器全量烘焙与-falcom-pkg-拆包奇迹">2. 离线着色器全量烘焙与 Falcom <code>.pkg</code> 拆包奇迹</h3>
+<p>玩 Switch 模拟器最毁体验的莫过于“进入新场景瞬间卡死半秒编译着色器”。S2Arm <code>0.6.0</code> 在 <code>translator/</code> 中建立了一套横跨 Switch 1（Maxwell）与 Switch 2（Ampere / <code>nvn2</code>）的离线着色器提取与预编体系：</p>
+<ul>
+<li><strong>26,531 支失效着色器清零</strong>：针对玩家诊断回传的 69 款游戏共 <strong>26,809</strong> 支真机编译失败的着色器（剔除 278 份无法解析的损坏输入），<code>0.6.0</code> 修复了 91 起内存抓取错位与 7 类翻译根因，让余下的 <strong>26,531 支着色器实现 100% 离线编译通过</strong>。连接 iPhone 执行一键推送时，连带 <code>.metallib</code> 与预编译管线归档一并下发，彻底消灭首遇卡顿。</li>
+<li><strong>拆解 Falcom <code>.pkg</code> LZ4 归档（<code>11-19</code> 实证案例）</strong>：某 Falcom 大作将 14.8 万支着色器全部打包进了 16 个无魔数的 LZ4 压缩 <code>.pkg</code> 文件里，旧扫描器只能从主程序里抠出 4 支着色器，导致 iPad Pro 11 (M4) 5 分钟内出现 62 个长卡顿帧（合计停顿 <strong>17.5 秒</strong>）。补齐 <code>.pkg</code> 离线解包后，单次抽取出 <strong>148,359</strong> 支着色器、打包 <strong>148,363</strong> 支入库（1.1 GB），在随后长达 127 分钟与 150 分钟的实机长跑中，新管线卡顿分别骤降到 <strong>3 帧（0.5 秒）</strong> 与 <strong>6 帧（0.5 秒）</strong>，设备现编次数直接归零。</li>
+<li><strong>Switch 2 <code>nvn2</code> 与张量核超分指令识别（<code>graphics/nvn/gfx/nvn/nvn2.h</code>）</strong>：我在源码里甚至看到了面向 Switch 2（SDK 20+ <code>&quot;spec: Ounce&quot;</code>）的完整支持。S2Arm 不仅按 GLSLC <code>0x00220015</code> 规范哈希 <code>0x48</code> 字节 NVN2 控制段，还直接反汇编识别 Ampere 机器码里的张量核矩阵乘指令 <code>HMMA</code>（操作码 <code>0x23c</code>）、带符号平方 <code>HMUL2</code>（<code>0x232</code>）以及 sRGB <code>0.04045</code> 门限比较 <code>HSETP2</code>（<code>0x434</code>），以此精准锁定游戏自带的超分神经网络及其出口层。</li>
+</ul>
+<h3 id="3-帧级-pass-调度与-metalfx-队列内补帧">3. 帧级 Pass 调度与 MetalFX 队列内补帧</h3>
+<p>在渲染后端 <code>graphics/metal/</code> 与 <code>graphics/nvn/</code> 中，两项优化直接决定了移动端的帧率与能耗上限：</p>
+<ul>
+<li><strong>精确区间依赖消除伪切遍（<code>docs/设计_帧级调度.md</code>）</strong>：过去 <code>gal_buf.m</code> 对缓冲已用区间只记 8 段、超限就合并成外包框，导致《暗黑破坏神 II》每帧触发高达 <strong>265.7 次</strong> 渲染通道切换（片外内存存回+读入 <strong>3,401 MB/帧</strong>）。改用互不相交的有序精确区间集二分查找与遍前段重排后，Pass 数量暴跌至 <strong>55.2 次/帧</strong>，带宽降至 <strong>264 MB/帧（直降 92%）</strong>。</li>
+<li><strong><code>MTL4FXFrameInterpolator</code> 队列内插值（<code>nvn_present_fi.inc</code>）</strong>：对于原生锁定 30 帧的游戏，S2Arm 在 iOS/macOS 26 的 Metal 4 队列上紧跟真帧后执行 <code>1/4</code> 亮度块匹配运动矢量计算、镜头切换检测（<code>mvCut</code>）与 MetalFX 帧插值——由于与真帧在同一条命令队列中按序排队，彻底消除了此前双队列分时抢占 GPU 导致的 12 ms 超时跳帧，在 iPhone 实机上把开放世界游戏稳定从 <strong>28.56 帧推升至 59.98 帧</strong>。</li>
+</ul>
+<hr>
+<h2 id="五-060-体验质变单应用容器-版本化即时快照与-ai-副驾驶">五、0.6.0 体验质变：单应用容器、版本化即时快照与 AI 副驾驶</h2>
+<p>如果说底层二进制与 Metal 栈决定了 S2Arm 的性能下限，那么 <code>0.6.0</code> 在“玩家工程体验”上的打磨，则真正让它从极客玩具蜕变为日常可用的工具：</p>
+<ol>
+<li><strong>全库收编进单一 <code>S2Arm.app</code> + 手机端免电脑自签</strong>：<br>
+从此无需为每款游戏单独签名安装占坑。玩家只需装一次 <code>S2Arm.app</code>，所有游戏作为独立资源包推送进统一游戏库。不仅支持 Mac（Xcode / Apple ID）与 Windows（内置 <strong>Impactor</strong> 与 <strong>apple-codesign</strong> / <strong>plumesign</strong>）图形化推送，还内置了纯手机端自签闭环（<code>ios/cert_import.m</code>）：支持在设置中导入 <code>.p12</code> 证书、通过 <code>sidestore://certificate</code> 一键从 SideStore 拉取证书，或直接把 <code>.p12</code> 拖入 App 的“放这里导入”目录即可自动认领签名，甚至把 <strong>AltServer for Windows 中自带的 minizip 1.01e 对 2 GiB 有符号 <code>long</code> 与 4 GiB 单条目上限的远古 ZIP32 限制</strong> 都做了专门的字节级适配（<code>pack/app_bundle.py</code>）。</li>
+<li><strong>随时冻结的 <code>.s2arm</code> 便携包与跨越 App 版本的即时快照（<code>◉</code>）</strong>：
+<ul>
+<li><strong><code>.s2arm</code> + <code>.img</code> 零拷贝导出（<code>ios/game_export.m</code>）</strong>：为了不在手机里引入整套 zstd 压缩库增大体积，作者手写了仅 128 KB 块长的 <strong>RFC 8878 Raw_Block 流式 zstd 封装器</strong> 配合 <code>XXH64</code> 校验打包 <code>.s2arm</code> 元数据与程序，而数 GB 的 <code>.img</code> 镜像则直接利用同卷硬链接或 APFS <code>clonefile</code> 瞬间导出，换机或重装 App 时直接 AirDrop 导入即可。</li>
+<li><strong>字段级自适应快照（<code>snapfmt.h</code> &amp; <code>nvn_snap.inc</code>）</strong>：游戏中点击右上角 <code>◉</code> 即可瞬间保存现场。最令我惊叹的是它的跨版本兼容性：不仅宿主表采用带字段 ID 与长度的自描述 <code>'S'</code>/<code>'R'</code>/<code>'E'</code> 记录格式，针对那些直接按 <code>sizeof</code> 整块转储的 C 结构体，S2Arm 巧用 Clang 的 <code>__builtin_dump_struct</code> 编译期反射生成 <strong>结构布局指纹与字段偏移表（<code>SNAP_FP_DUMP_</code>）</strong>。哪怕玩家升级了新版 S2Arm 导致内部结构体增删字段或整数扩宽，恢复旧快照时引擎也能自动按字段路径无损迁移数据，并将显存里的 <code>NvPkg</code> 预排布贴图与 <code>far.c</code> 远端页一并精准还原。</li>
+</ul>
+</li>
+<li><strong>把操作权交给 AI 的 <code>s2armctl</code> 与自愈技能树</strong>：<br>
+Mac 与 Windows 启动器均暴露了 <code>s2armctl</code> 控制端（<code>s2armctl start</code> / <code>next --json</code> / <code>diag export</code>）。仓库自带了面向玩家 AI 助手的 <code>s2arm-operator</code> 技能规范以及面向开发者排障的 <code>player-game-triage</code>、<code>s2arm-rootfix</code> 技能书——AI 可以一步步看着启动器窗口推进导入、编译和装机，仅在需要点系统弹窗、输 Apple ID 密码或手机点击信任时交回给人类；遇到疑难杂症则一键导出脱敏诊断包，形成从玩家反馈到提交 PR 修复的工程闭环。</li>
+</ol>
+<hr>
+<h2 id="六-个人审计小结与实战建议">六、个人审计小结与实战建议</h2>
+<p>通盘拆解完 <code>jhaizhou-ops/S2Arm</code> 的源码、构建脚本与上万行《坑记录》后，我对这个项目的工程完成度给予极高评价。它证明了在“同构指令集（AArch64 -&gt; Apple Silicon）”的前提下，<strong>静态 AOT 改写 + 同步 HLE 服务 + 直连 Metal 后端</strong> 完全能够走出一条超越传统模拟器的低功耗、合规免越狱之路。</p>
+<p>如果你准备亲自上手体验或基于它进行二次开发，结合源码实测情况给出三条务实建议：</p>
+<ul>
+<li><strong>首次冷构建耐心以“着色器数量”而非游戏体积估算</strong>：在 16 GB 内存的 M3 MacBook Air 上，23.5 GB 的《暗黑破坏神 III》（1,222 支着色器）全冷构建仅需 <strong>6.4 分钟</strong>，而 17.5 GB 却拥有 <strong>26,999 支着色器</strong> 的开放世界大作则需要 <strong>34 分钟</strong>。Windows 玩家目前若未配置 Metal 开发者工具链，推送时则会先沿用旧着色器路径并在设备端按需补齐。</li>
+<li><strong>善用高内存机型与 iOS 18+ / 26 特性</strong>：虽然 <code>vawin.c</code> 的 32 MiB 溢出机制极大地保护了小内存设备不被强杀，但 Switch 2 大作或高画质开放世界场景依然在 8 GB+ 内存的 iPhone 15 Pro / 16 / 17 系列以及搭载 Metal 4 的 iOS 26 设备（可解锁 <code>MTL4FX</code> 队列内补帧）上才能发挥完整实力。</li>
+<li><strong>遇到特定作品（如《暗黑破坏神 II：狱火重生》）优先走下游深度路由</strong>：S2Arm 在 <code>pack/downstream/schemes.json</code> 中内置了官方识别机制，检测到特定程序号时会自动提示玩家切换至如 <code>d2r-mobile</code> 这类专为单作深度重构的下游方案，避免在通用层卡死在开场验证环节。</li>
+</ul>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>S2Arm 官方主页</strong>：<a href="https://s2arm.com">s2arm.com</a></li>
+<li><strong>GitHub 官方开源仓库</strong>：<a href="https://github.com/jhaizhou-ops/S2Arm">jhaizhou-ops/S2Arm (Apache-2.0)</a></li>
+<li><strong>规模化实测与基准证据文档</strong>：<a href="https://github.com/jhaizhou-ops/S2Arm/blob/main/docs/validation/EVIDENCE.md">S2Arm Evidence (<code>docs/validation/EVIDENCE.md</code>)</a></li>
+<li><strong>C11 静态二进制改写器文档</strong>：<a href="https://github.com/jhaizhou-ops/S2Arm/blob/main/runtime/rewriter/README.md">runtime/rewriter/README.md</a></li>
+<li><strong>直连 Metal 架构与双轨设计文档</strong>：<a href="https://github.com/jhaizhou-ops/S2Arm/blob/main/docs/%E8%AE%BE%E8%AE%A1_%E7%9B%B4%E8%BF%9E%E6%9E%B6%E6%9E%84.md">docs/设计_直连架构.md</a> · <a href="https://github.com/jhaizhou-ops/S2Arm/blob/main/docs/%E8%AE%BE%E8%AE%A1_%E5%B8%A7%E7%BA%A7%E8%B0%83%E5%BA%A6.md">docs/设计_帧级调度.md</a></li>
+<li><strong>AI 操控协议与技能说明</strong>：<a href="https://github.com/jhaizhou-ops/S2Arm/blob/main/launchers/macos/skill/s2arm-operator/SKILL.md">s2arm-operator SKILL.md</a></li>
+<li><strong>核心上游与致谢生态项目</strong>：<a href="https://github.com/jhaizhou-ops/d2r-mobile">jhaizhou-ops/d2r-mobile</a> · <a href="https://github.com/seedds/nxnative">seedds/nxnative</a> · <a href="https://github.com/LNPANDY/NX2Apple">LNPANDY/NX2Apple</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-%E5%85%A8%E5%B1%80%E6%8B%93%E6%89%91%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9B%B6-jit-%E7%9B%B4%E8%BF%9E-metal-%E5%8D%95%E5%BA%94%E7%94%A8%E5%AE%B9%E5%99%A8%E8%83%BD%E8%B5%B0%E9%80%9A">一、全局拓扑：为什么“零 JIT + 直连 Metal + 单应用容器”能走通？</a></li>
+<li><a href="#%E4%BA%8C-%E9%9B%B6-jit-%E9%9D%99%E6%80%81%E4%BA%8C%E8%BF%9B%E5%88%B6%E6%94%B9%E5%86%99%E5%8F%8C%E8%A1%A5%E4%B8%81%E5%B2%9B-%E8%BF%9C%E8%B7%B3%E9%99%B7%E9%98%B1%E4%B8%8E-m-%E7%B3%BB%E5%88%97%E5%86%85%E5%AD%98%E5%BA%8F%E4%BF%AE%E8%A1%A5">二、零 JIT 静态二进制改写：双补丁岛、远跳陷阱与 M 系列内存序修补</a>
+<ul>
+<li><a href="#1-128-mib-%E5%B0%84%E7%A8%8B%E7%A0%B4%E5%B1%80%E5%8F%8C%E8%A1%A5%E4%B8%81%E5%B2%9B%E4%B8%8E-brk-0xa000-%E8%BF%9C%E8%B7%B3">1. ±128 MiB 射程破局：双补丁岛与 <code>brk #0xA000</code> 远跳</a></li>
+<li><a href="#2-apple-silicon-%E6%BF%80%E8%BF%9B%E4%B9%B1%E5%BA%8F%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B%E7%9A%84%E8%87%AA%E5%8A%A8%E5%8C%96%E5%8A%A0%E9%94%81">2. Apple Silicon 激进乱序内存模型的自动化“加锁”</a></li>
+<li><a href="#3-%E4%BB%A3%E7%A0%81%E6%AE%B5%E5%86%85%E5%B5%8C%E6%95%B0%E6%8D%AE%E9%97%AD%E5%8C%85%E8%BF%87%E6%BB%A4108">3. 代码段内嵌数据闭包过滤（<code>#108</code>）</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-%E9%A9%AF%E6%9C%8D-ios-63-gib-%E5%9C%B0%E5%9D%80%E5%A4%A9%E8%8A%B1%E6%9D%BF%E4%B8%8E-8-gb-%E5%86%85%E5%AD%98%E5%BC%BA%E6%9D%80vawinc-%E4%B8%8E-farc">三、驯服 iOS 63 GiB 地址天花板与 8 GB 内存强杀：<code>vawin.c</code> 与 <code>far.c</code></a>
+<ul>
+<li><a href="#1-sdk_sainit-%E5%88%86%E9%85%8D%E5%99%A8%E5%8E%8B%E7%BC%A9%E9%97%B8%E4%B8%8E-farc-2-mib-%E8%BF%9C%E7%AB%AF%E5%BD%B1%E5%AD%90%E7%9B%AE%E5%BD%95">1. <code>sdk_sainit</code> 分配器压缩闸与 <code>far.c</code> 2 MiB 远端影子目录</a></li>
+<li><a href="#2-%E4%BB%8E%E5%86%99%E7%88%86%E9%97%AA%E5%AD%98-223-gb%E5%88%B0-32-mib-%E5%8A%A8%E6%80%81%E6%BA%A2%E5%87%BA%E6%96%87%E4%BB%B6%E5%90%8E%E5%A4%87vawinc">2. 从“写爆闪存 223 GB”到 32 MiB 动态溢出文件后备（<code>vawin.c</code>）</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E9%9B%B6%E5%88%86%E9%85%8D%E5%90%8C%E6%AD%A5%E6%9C%8D%E5%8A%A1%E5%AE%BF%E4%B8%BB%E4%B8%8E%E7%9B%B4%E8%BF%9E-metal-34-%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF">四、零分配同步服务宿主与直连 Metal 3/4 渲染管线</a>
+<ul>
+<li><a href="#1-%E5%90%8C%E7%BA%BF%E7%A8%8B%E7%9B%B4%E8%B0%83%E4%B8%8E%E9%9B%B6%E5%AD%97%E8%8A%82%E5%88%86%E9%85%8D%E7%9A%84-c-%E6%9C%8D%E5%8A%A1%E5%B1%82services">1. 同线程直调与“零字节分配”的 C# 服务层（<code>services/</code>）</a></li>
+<li><a href="#2-%E7%A6%BB%E7%BA%BF%E7%9D%80%E8%89%B2%E5%99%A8%E5%85%A8%E9%87%8F%E7%83%98%E7%84%99%E4%B8%8E-falcom-pkg-%E6%8B%86%E5%8C%85%E5%A5%87%E8%BF%B9">2. 离线着色器全量烘焙与 Falcom <code>.pkg</code> 拆包奇迹</a></li>
+<li><a href="#3-%E5%B8%A7%E7%BA%A7-pass-%E8%B0%83%E5%BA%A6%E4%B8%8E-metalfx-%E9%98%9F%E5%88%97%E5%86%85%E8%A1%A5%E5%B8%A7">3. 帧级 Pass 调度与 MetalFX 队列内补帧</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%94-060-%E4%BD%93%E9%AA%8C%E8%B4%A8%E5%8F%98%E5%8D%95%E5%BA%94%E7%94%A8%E5%AE%B9%E5%99%A8-%E7%89%88%E6%9C%AC%E5%8C%96%E5%8D%B3%E6%97%B6%E5%BF%AB%E7%85%A7%E4%B8%8E-ai-%E5%89%AF%E9%A9%BE%E9%A9%B6">五、0.6.0 体验质变：单应用容器、版本化即时快照与 AI 副驾驶</a></li>
+<li><a href="#%E5%85%AD-%E4%B8%AA%E4%BA%BA%E5%AE%A1%E8%AE%A1%E5%B0%8F%E7%BB%93%E4%B8%8E%E5%AE%9E%E6%88%98%E5%BB%BA%E8%AE%AE">六、个人审计小结与实战建议</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/claude-code-subagents-architecture-and-internals/">
+              <h3 class="post-title">
+                从 15,000 Token 预算到 /subtask 缓存复用：剖析 Claude Code Subagents 的隔离调度与安全护栏
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+
+      // 架构图与插图原生灯箱放大模式 (Diagram Zoom Lightbox)
+      function initDiagramZoom() {
+        const postImages = document.querySelectorAll(".post-content img");
+        if (postImages.length === 0) return;
+
+        // 构建灯箱 DOM 结构
+        const overlay = document.createElement("div");
+        overlay.className = "diagram-zoom-overlay";
+        overlay.innerHTML = `
+          <div class="diagram-zoom-hint">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>滚轮缩放 · 拖拽平移 · 双击切换 · ESC退出</span>
+          </div>
+          <button class="diagram-zoom-close" title="关闭 (ESC)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+          <div class="diagram-zoom-stage">
+            <img class="diagram-zoom-img" src="" alt="Zoomed diagram" draggable="false" />
+          </div>
+          <div class="diagram-zoom-toolbar">
+            <button class="diagram-zoom-btn btn-zoom-out" title="缩小 (-)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <span class="diagram-zoom-info">100%</span>
+            <button class="diagram-zoom-btn btn-zoom-in" title="放大 (+)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-reset" title="重置适应 (0)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-open-raw" title="在新标签页查看高清原图">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </button>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const stage = overlay.querySelector(".diagram-zoom-stage");
+        const zoomImg = overlay.querySelector(".diagram-zoom-img");
+        const scaleInfo = overlay.querySelector(".diagram-zoom-info");
+        const closeBtn = overlay.querySelector(".diagram-zoom-close");
+        const zoomInBtn = overlay.querySelector(".btn-zoom-in");
+        const zoomOutBtn = overlay.querySelector(".btn-zoom-out");
+        const resetBtn = overlay.querySelector(".btn-reset");
+        const rawBtn = overlay.querySelector(".btn-open-raw");
+
+        let currentScale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let origTx = 0;
+        let origTy = 0;
+        let currentRawSrc = "";
+
+        function updateTransform() {
+          zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
+          scaleInfo.textContent = Math.round(currentScale * 100) + "%";
+          if (currentScale > 1) {
+            stage.classList.add("can-drag");
+          } else {
+            stage.classList.remove("can-drag");
+          }
+        }
+
+        function openModal(src, alt) {
+          currentRawSrc = src;
+          zoomImg.src = src;
+          zoomImg.alt = alt || "Diagram";
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+          overlay.classList.add("active");
+          document.body.style.overflow = "hidden";
+        }
+
+        function closeModal() {
+          overlay.classList.remove("active");
+          document.body.style.overflow = "";
+          setTimeout(() => {
+            zoomImg.src = "";
+          }, 250);
+        }
+
+        // 为正文图片绑定点击事件
+        postImages.forEach(img => {
+          img.setAttribute("title", "点击放大查看高清全景图");
+          img.addEventListener("click", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal(img.currentSrc || img.src, img.alt);
+          });
+        });
+
+        // 按钮事件
+        closeBtn.addEventListener("click", closeModal);
+        zoomInBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.min(currentScale * 1.25, 5);
+          updateTransform();
+        });
+        zoomOutBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.max(currentScale * 0.8, 0.4);
+          updateTransform();
+        });
+        resetBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+        });
+        rawBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          if (currentRawSrc) window.open(currentRawSrc, "_blank");
+        });
+
+        // 鼠标滚轮缩放
+        stage.addEventListener("wheel", e => {
+          e.preventDefault();
+          const factor = e.deltaY < 0 ? 1.15 : 0.85;
+          currentScale = Math.min(Math.max(currentScale * factor, 0.4), 5);
+          updateTransform();
+        }, { passive: false });
+
+        // 双击在 1x 与 2x 间切换
+        stage.addEventListener("dblclick", e => {
+          e.preventDefault();
+          if (currentScale > 1.2) {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+          } else {
+            currentScale = 2;
+          }
+          updateTransform();
+        });
+
+        // 拖拽平移
+        stage.addEventListener("mousedown", e => {
+          if (e.target === closeBtn || e.target.closest(".diagram-zoom-toolbar")) return;
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          origTx = translateX;
+          origTy = translateY;
+          stage.classList.add("dragging");
+        });
+
+        window.addEventListener("mousemove", e => {
+          if (!isDragging) return;
+          translateX = origTx + (e.clientX - startX);
+          translateY = origTy + (e.clientY - startY);
+          updateTransform();
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (isDragging) {
+            isDragging = false;
+            stage.classList.remove("dragging");
+          }
+        });
+
+        // 点击背景遮罩关闭（非拖拽位移触发）
+        stage.addEventListener("click", e => {
+          if (e.target === stage && Math.abs(translateX - origTx) < 5 && Math.abs(translateY - origTy) < 5) {
+            closeModal();
+          }
+        });
+
+        // 键盘快捷键监听
+        window.addEventListener("keydown", e => {
+          if (!overlay.classList.contains("active")) return;
+          if (e.key === "Escape") {
+            closeModal();
+          } else if (e.key === "+" || e.key === "=") {
+            currentScale = Math.min(currentScale * 1.25, 5);
+            updateTransform();
+          } else if (e.key === "-" || e.key === "_") {
+            currentScale = Math.max(currentScale * 0.8, 0.4);
+            updateTransform();
+          } else if (e.key === "0") {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+            updateTransform();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initDiagramZoom);
+      } else {
+        initDiagramZoom();
+      }
+    </script>
+  </body>
+</html>

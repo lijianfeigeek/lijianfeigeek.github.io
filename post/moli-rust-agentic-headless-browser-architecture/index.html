@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>当无头浏览器不再为肉眼渲染屏幕：深入 Moli 的 Rust 结构优先、按需布局与 WebMCP 架构 | lijianfei.com</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="msvalidate.01" content="368D23465AB7E6548008C3BE1F5998B0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="shortcut icon" href="https://lijianfei.com/favicon.ico?v=1795745888143">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://lijianfei.com/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="当无头浏览器不再为肉眼渲染屏幕：深入 Moli 的 Rust 结构优先、按需布局与 WebMCP 架构 | lijianfei.com - Atom Feed" href="https://lijianfei.com/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+<script id="chatway" async="true" src="https://cdn.chatway.app/widget.js?id=laNLrbQJYsup"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5152652314157130"
+     crossorigin="anonymous">
+</script>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "m0j4678d23");
+</script>
+     
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-74398720-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-74398720-1');
+</script>
+
+
+    <link rel="canonical" href="https://lijianfei.com/post/moli-rust-agentic-headless-browser-architecture/">
+    <meta name="description" content="在大模型与自主智能体（AI Agent）重塑软件交互边界的今天，传统浏览器的架构正面临一次根本性的错配。我长期在抓取与自动化管线中用到的 Chromium，本质上是一台为了人类视网膜以 60Hz 甚至 120Hz 连续输出像素的“重装渲染复..." />
+    <meta name="keywords" content="无头浏览器,浏览器架构,WebMCP,性能优化,AI Agent,Rust" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="lijianfei.com">
+    <meta property="og:title" content="当无头浏览器不再为肉眼渲染屏幕：深入 Moli 的 Rust 结构优先、按需布局与 WebMCP 架构">
+    <meta property="og:description" content="在大模型与自主智能体（AI Agent）重塑软件交互边界的今天，传统浏览器的架构正面临一次根本性的错配。我长期在抓取与自动化管线中用到的 Chromium，本质上是一台为了人类视网膜以 60Hz 甚至 120Hz 连续输出像素的“重装渲染复...">
+    <meta property="og:url" content="https://lijianfei.com/post/moli-rust-agentic-headless-browser-architecture/">
+    <meta property="og:image" content="https://lijianfei.com/post-images/moli-rust-agentic-headless-browser-architecture.png"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="675">
+    <meta property="article:published_time" content="2026-11-02T13:00:00.000Z">
+    <meta property="article:author" content="李剑飞 (Jeffery Li)">
+    
+    <meta property="article:tag" content="无头浏览器">
+    
+    <meta property="article:tag" content="浏览器架构">
+    
+    <meta property="article:tag" content="WebMCP">
+    
+    <meta property="article:tag" content="性能优化">
+    
+    <meta property="article:tag" content="AI Agent">
+    
+    <meta property="article:tag" content="Rust">
+    
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@lijianfei_com">
+    <meta name="twitter:creator" content="@lijianfei_com">
+    <meta name="twitter:title" content="当无头浏览器不再为肉眼渲染屏幕：深入 Moli 的 Rust 结构优先、按需布局与 WebMCP 架构">
+    <meta name="twitter:description" content="在大模型与自主智能体（AI Agent）重塑软件交互边界的今天，传统浏览器的架构正面临一次根本性的错配。我长期在抓取与自动化管线中用到的 Chromium，本质上是一台为了人类视网膜以 60Hz 甚至 120Hz 连续输出像素的“重装渲染复...">
+    <meta name="twitter:image" content="https://lijianfei.com/post-images/moli-rust-agentic-headless-browser-architecture.png">
+
+    <!-- JSON-LD Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "当无头浏览器不再为肉眼渲染屏幕：深入 Moli 的 Rust 结构优先、按需布局与 WebMCP 架构",
+      "description": "在大模型与自主智能体（AI Agent）重塑软件交互边界的今天，传统浏览器的架构正面临一次根本性的错配。我长期在抓取与自动化管线中用到的 Chromium，本质上是一台为了人类视网膜以 60Hz 甚至 120Hz 连续输出像素的“重装渲染复...",
+      "image": "https://lijianfei.com/post-images/moli-rust-agentic-headless-browser-architecture.png",
+      "datePublished": "2026-11-02T13:00:00.000Z",
+      "dateModified": "2026-11-02T13:00:00.000Z",
+      "author": {
+        "@type": "Person",
+        "name": "李剑飞 (Jeffery Li)",
+        "url": "https://lijianfei.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "lijianfei.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://lijianfei.com/favicon.ico"
+        }
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://lijianfei.com/post/moli-rust-agentic-headless-browser-architecture/"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://lijianfei.com/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "无头浏览器",
+          "item": "https://lijianfei.com/tag/wu-tou-liu-lan-qi/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "当无头浏览器不再为肉眼渲染屏幕：深入 Moli 的 Rust 结构优先、按需布局与 WebMCP 架构",
+          "item": "https://lijianfei.com/post/moli-rust-agentic-headless-browser-architecture/"
+        }
+      ]
+    }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="https://cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js"></script>
+    <style>
+      .mermaid {
+        text-align: center;
+        margin: 24px auto;
+        overflow-x: auto;
+        background-color: #fafbfc;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+      }
+      .mermaid[data-processed="true"] {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+      }
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+      }
+      .katex-block {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        padding: 4px 0 !important;
+        margin: 1.2em 0 !important;
+        box-sizing: border-box !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .katex-block .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        text-align: center;
+      }
+      /* GitHub-style Markdown Alerts */
+      .post-content blockquote.markdown-alert {
+        position: relative !important;
+        padding: 12px 18px !important;
+        margin: 20px 0 !important;
+        color: #24292f !important;
+        border-left: 4px solid #d0d7de !important;
+        border-radius: 6px !important;
+        background-color: #f6f8fa !important;
+        font-size: 0.95em !important;
+        line-height: 1.65 !important;
+      }
+      .post-content blockquote.markdown-alert:before {
+        display: none !important;
+        content: "" !important;
+      }
+      .post-content blockquote.markdown-alert p {
+        margin: 6px 0 !important;
+        color: #334155 !important;
+      }
+      .post-content blockquote.markdown-alert p:last-child {
+        margin-bottom: 0 !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+      }
+      .post-content blockquote.markdown-alert .markdown-alert-title svg {
+        width: 16px !important;
+        height: 16px !important;
+        flex-shrink: 0 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note {
+        border-left-color: #0969da !important;
+        background-color: #f0f7ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-note .markdown-alert-title {
+        color: #0969da !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip {
+        border-left-color: #1a7f37 !important;
+        background-color: #f6fbf7 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-tip .markdown-alert-title {
+        color: #1a7f37 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important {
+        border-left-color: #8250df !important;
+        background-color: #fbf9ff !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-important .markdown-alert-title {
+        color: #8250df !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning {
+        border-left-color: #9a6700 !important;
+        background-color: #fffbf2 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-warning .markdown-alert-title {
+        color: #9a6700 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution {
+        border-left-color: #d1242f !important;
+        background-color: #fff5f5 !important;
+      }
+      .post-content blockquote.markdown-alert.markdown-alert-caution .markdown-alert-title {
+        color: #d1242f !important;
+      }
+      .post-content blockquote.markdown-alert h3,
+      .post-content blockquote.markdown-alert h4 {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        color: inherit !important;
+      }
+      .post-content blockquote.markdown-alert ul,
+      .post-content blockquote.markdown-alert ol {
+        padding-left: 24px !important;
+        margin: 8px 0 !important;
+      }
+      .post-content blockquote.markdown-alert li {
+        margin: 4px 0 !important;
+      }
+      /* 容错修复：防止任务列表项重复渲染或裸露未解析标签 */
+      .post-content .task-list-item strong + .task-list-item-label,
+      .post-content .task-list-item em + .task-list-item-label,
+      .post-content .task-list-item code + .task-list-item-label {
+        display: none !important;
+      }
+      /* Diagram & Image Zoom Lightbox Modal */
+      .post-content img {
+        cursor: zoom-in !important;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
+      }
+      .post-content img:hover {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+      }
+      .diagram-zoom-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        background: rgba(15, 23, 42, 0.82);
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .diagram-zoom-overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+      .diagram-zoom-stage {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+        cursor: grab;
+      }
+      .diagram-zoom-stage.dragging {
+        cursor: grabbing;
+      }
+      .diagram-zoom-img {
+        max-width: 92vw;
+        max-height: 86vh;
+        object-fit: contain;
+        transform-origin: center center;
+        transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+        border-radius: 8px;
+        background-color: #ffffff;
+      }
+      .diagram-zoom-toolbar {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.95);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        padding: 6px 14px;
+        border-radius: 30px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.06);
+        z-index: 10;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .diagram-zoom-btn {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #1e293b;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+        font-size: 14px;
+        padding: 0;
+      }
+      .diagram-zoom-btn:hover {
+        background: #f1f5f9;
+        color: #0284c7;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-btn:active {
+        transform: scale(0.95);
+      }
+      .diagram-zoom-info {
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+        min-width: 46px;
+        text-align: center;
+      }
+      .diagram-zoom-close {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.92);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1e293b;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+        transition: all 0.15s ease;
+        z-index: 10;
+      }
+      .diagram-zoom-close:hover {
+        background: #ffffff;
+        color: #e11d48;
+        transform: scale(1.08);
+      }
+      .diagram-zoom-hint {
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 12px;
+        font-weight: 500;
+        pointer-events: none;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://lijianfei.com">
+  <img class="avatar" src="https://lijianfei.com/images/avatar.png?v=1795745888143" alt="">
+  </a>
+  <h1 class="site-title">
+    lijianfei.com
+  </h1>
+  <p class="site-description">
+    思危，思退，思变。<br>
+追求进步，不求完美。<br>
+做好小事，熬过难事，静成大事。<br>
+语以泄败，事以密成，沉得住气，静得下心。
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于我
+        </a>
+      
+    
+      
+        <a href="https://github.com/lijianfeigeek" class="menu" target="_blank">
+          Github
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+
+  <div class="gh-contrib-card">
+    <div class="gh-contrib-top">
+      <div class="gh-contrib-info">
+        <a href="https://github.com/lijianfeigeek" target="_blank" rel="noopener" class="gh-contrib-user">
+          <i class="ri-github-fill"></i>
+          <span id="gh-contrib-count">2,964</span>
+          <span id="gh-contrib-label">contributions in the last year</span>
+        </a>
+      </div>
+      <div class="gh-contrib-tabs">
+        <button type="button" class="gh-tab active" data-view="global">GitHub 个人全貌</button>
+        <button type="button" class="gh-tab" data-view="site">博客仓库提交</button>
+      </div>
+    </div>
+    <div class="gh-contrib-graph-wrapper">
+      <div id="gh-contrib-graph" class="gh-contrib-graph">
+        <svg viewBox="0 0 725 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <g class="months"><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text><text x="30" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Sep</text><text x="82" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Oct</text><text x="134" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Nov</text><text x="199" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Dec</text><text x="251" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jan</text><text x="316" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Feb</text><text x="368" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Mar</text><text x="420" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Apr</text><text x="472" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">May</text><text x="537" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jun</text><text x="589" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Jul</text><text x="641" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">Aug</text></g>
+  <g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="5" y="42">Mon</text>
+    <text x="5" y="68">Wed</text>
+    <text x="5" y="94">Fri</text>
+  </g>
+  <g class="cells"><rect class="gh-contrib-cell" data-date="2025-08-31" data-count="8" x="30" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-01" data-count="7" x="30" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-02" data-count="11" x="30" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-03" data-count="0" x="30" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-04" data-count="13" x="30" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-05" data-count="0" x="30" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-06" data-count="5" x="30" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-07" data-count="5" x="43" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-08" data-count="24" x="43" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-09" data-count="19" x="43" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-10" data-count="24" x="43" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-09-11" data-count="2" x="43" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-12" data-count="2" x="43" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-13" data-count="0" x="43" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-14" data-count="0" x="56" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-15" data-count="3" x="56" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-16" data-count="1" x="56" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-17" data-count="0" x="56" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-18" data-count="0" x="56" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-19" data-count="0" x="56" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-20" data-count="0" x="56" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-21" data-count="0" x="69" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-22" data-count="0" x="69" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-23" data-count="0" x="69" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-24" data-count="0" x="69" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-25" data-count="0" x="69" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-26" data-count="0" x="69" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-27" data-count="10" x="69" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-09-28" data-count="0" x="82" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-29" data-count="0" x="82" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-09-30" data-count="0" x="82" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-01" data-count="37" x="82" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2025-10-02" data-count="18" x="82" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2025-10-03" data-count="1" x="82" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-04" data-count="5" x="82" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-05" data-count="1" x="95" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-06" data-count="0" x="95" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-07" data-count="0" x="95" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-08" data-count="0" x="95" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-09" data-count="0" x="95" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-10" data-count="0" x="95" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-11" data-count="0" x="95" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-12" data-count="0" x="108" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-13" data-count="0" x="108" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-14" data-count="0" x="108" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-15" data-count="0" x="108" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-16" data-count="0" x="108" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-17" data-count="0" x="108" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-18" data-count="0" x="108" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-19" data-count="0" x="121" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-20" data-count="0" x="121" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-21" data-count="0" x="121" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-22" data-count="3" x="121" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-10-23" data-count="0" x="121" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-24" data-count="0" x="121" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-25" data-count="0" x="121" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-26" data-count="0" x="134" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-27" data-count="0" x="134" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-28" data-count="0" x="134" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-29" data-count="0" x="134" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-30" data-count="0" x="134" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-10-31" data-count="0" x="134" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-01" data-count="0" x="134" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-02" data-count="0" x="147" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-03" data-count="0" x="147" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-04" data-count="9" x="147" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-05" data-count="2" x="147" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2025-11-06" data-count="0" x="147" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-07" data-count="0" x="147" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-08" data-count="0" x="147" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-09" data-count="0" x="160" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-10" data-count="0" x="160" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-11" data-count="0" x="160" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-12" data-count="0" x="160" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-13" data-count="0" x="160" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-14" data-count="0" x="160" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-15" data-count="0" x="160" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-16" data-count="0" x="173" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-17" data-count="0" x="173" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-18" data-count="0" x="173" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-19" data-count="0" x="173" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-20" data-count="0" x="173" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-21" data-count="0" x="173" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-22" data-count="0" x="173" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-23" data-count="0" x="186" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-24" data-count="0" x="186" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-25" data-count="0" x="186" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-26" data-count="0" x="186" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-27" data-count="0" x="186" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-28" data-count="0" x="186" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-29" data-count="0" x="186" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-11-30" data-count="0" x="199" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-01" data-count="0" x="199" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-02" data-count="0" x="199" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-03" data-count="0" x="199" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-04" data-count="0" x="199" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-05" data-count="0" x="199" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-06" data-count="0" x="199" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-07" data-count="0" x="212" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-08" data-count="0" x="212" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-09" data-count="0" x="212" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-10" data-count="0" x="212" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-11" data-count="0" x="212" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-12" data-count="0" x="212" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-13" data-count="0" x="212" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-14" data-count="0" x="225" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-15" data-count="0" x="225" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-16" data-count="0" x="225" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-17" data-count="0" x="225" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-18" data-count="0" x="225" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-19" data-count="0" x="225" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-20" data-count="0" x="225" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-21" data-count="0" x="238" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-22" data-count="0" x="238" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-23" data-count="0" x="238" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-24" data-count="0" x="238" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-25" data-count="0" x="238" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-26" data-count="0" x="238" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-27" data-count="0" x="238" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-28" data-count="0" x="251" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-29" data-count="0" x="251" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-30" data-count="0" x="251" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2025-12-31" data-count="0" x="251" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-01" data-count="0" x="251" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-02" data-count="0" x="251" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-03" data-count="0" x="251" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-04" data-count="0" x="264" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-05" data-count="0" x="264" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-06" data-count="0" x="264" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-07" data-count="0" x="264" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-08" data-count="0" x="264" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-09" data-count="0" x="264" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-10" data-count="0" x="264" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-11" data-count="0" x="277" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-12" data-count="0" x="277" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-13" data-count="0" x="277" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-14" data-count="0" x="277" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-15" data-count="0" x="277" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-16" data-count="0" x="277" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-17" data-count="0" x="277" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-18" data-count="0" x="290" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-19" data-count="0" x="290" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-20" data-count="0" x="290" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-21" data-count="0" x="290" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-22" data-count="0" x="290" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-23" data-count="0" x="290" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-24" data-count="0" x="290" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-25" data-count="0" x="303" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-26" data-count="0" x="303" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-27" data-count="0" x="303" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-28" data-count="0" x="303" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-29" data-count="0" x="303" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-30" data-count="0" x="303" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-01-31" data-count="0" x="303" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-01" data-count="0" x="316" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-02" data-count="4" x="316" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-02-03" data-count="0" x="316" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-04" data-count="0" x="316" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-05" data-count="0" x="316" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-06" data-count="0" x="316" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-07" data-count="0" x="316" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-08" data-count="0" x="329" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-09" data-count="0" x="329" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-10" data-count="0" x="329" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-11" data-count="0" x="329" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-12" data-count="0" x="329" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-13" data-count="0" x="329" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-14" data-count="0" x="329" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-15" data-count="0" x="342" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-16" data-count="0" x="342" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-17" data-count="0" x="342" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-18" data-count="0" x="342" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-19" data-count="0" x="342" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-20" data-count="0" x="342" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-21" data-count="0" x="342" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-22" data-count="0" x="355" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-23" data-count="0" x="355" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-24" data-count="0" x="355" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-25" data-count="0" x="355" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-26" data-count="0" x="355" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-27" data-count="0" x="355" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-02-28" data-count="0" x="355" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-01" data-count="0" x="368" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-02" data-count="0" x="368" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-03" data-count="0" x="368" y="46" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-04" data-count="0" x="368" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-05" data-count="0" x="368" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-06" data-count="0" x="368" y="85" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-07" data-count="0" x="368" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-08" data-count="0" x="381" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-09" data-count="0" x="381" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-10" data-count="4" x="381" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-11" data-count="0" x="381" y="59" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-12" data-count="0" x="381" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-13" data-count="8" x="381" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-14" data-count="0" x="381" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-15" data-count="0" x="394" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-16" data-count="0" x="394" y="33" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-17" data-count="1" x="394" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-18" data-count="2" x="394" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-19" data-count="0" x="394" y="72" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-20" data-count="9" x="394" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-21" data-count="0" x="394" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-03-22" data-count="3" x="407" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-23" data-count="20" x="407" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-24" data-count="8" x="407" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-25" data-count="9" x="407" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-26" data-count="18" x="407" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-27" data-count="17" x="407" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-03-28" data-count="4" x="407" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-29" data-count="10" x="420" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-30" data-count="9" x="420" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-03-31" data-count="9" x="420" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-01" data-count="14" x="420" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-02" data-count="12" x="420" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-03" data-count="7" x="420" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-04" data-count="8" x="420" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-05" data-count="0" x="433" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-06" data-count="20" x="433" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-07" data-count="11" x="433" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-08" data-count="5" x="433" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-09" data-count="12" x="433" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-10" data-count="9" x="433" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-11" data-count="10" x="433" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-12" data-count="0" x="446" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-04-13" data-count="4" x="446" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-14" data-count="8" x="446" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-15" data-count="6" x="446" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-16" data-count="21" x="446" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-17" data-count="11" x="446" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-18" data-count="11" x="446" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-19" data-count="11" x="459" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-20" data-count="2" x="459" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-21" data-count="11" x="459" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-22" data-count="9" x="459" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-23" data-count="1" x="459" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-24" data-count="8" x="459" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-25" data-count="4" x="459" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-26" data-count="11" x="472" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-27" data-count="13" x="472" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-28" data-count="16" x="472" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-04-29" data-count="6" x="472" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-04-30" data-count="4" x="472" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-01" data-count="18" x="472" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-02" data-count="9" x="472" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-03" data-count="27" x="485" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-04" data-count="11" x="485" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-05" data-count="13" x="485" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-06" data-count="13" x="485" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-07" data-count="15" x="485" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-08" data-count="34" x="485" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-09" data-count="10" x="485" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-10" data-count="1" x="498" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-11" data-count="16" x="498" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-12" data-count="22" x="498" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-13" data-count="22" x="498" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-14" data-count="21" x="498" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-15" data-count="16" x="498" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-16" data-count="30" x="498" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-17" data-count="20" x="511" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-18" data-count="34" x="511" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-19" data-count="11" x="511" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-20" data-count="23" x="511" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-21" data-count="44" x="511" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-05-22" data-count="19" x="511" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-23" data-count="0" x="511" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-24" data-count="0" x="524" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-25" data-count="26" x="524" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-26" data-count="23" x="524" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-27" data-count="17" x="524" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-05-28" data-count="2" x="524" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-05-29" data-count="29" x="524" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-05-30" data-count="0" x="524" y="98" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-05-31" data-count="0" x="537" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-06-01" data-count="5" x="537" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-02" data-count="11" x="537" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-03" data-count="8" x="537" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-04" data-count="18" x="537" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-05" data-count="18" x="537" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-06" data-count="9" x="537" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-07" data-count="3" x="550" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-08" data-count="15" x="550" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-09" data-count="19" x="550" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-10" data-count="19" x="550" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-11" data-count="28" x="550" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-12" data-count="13" x="550" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-13" data-count="17" x="550" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-14" data-count="28" x="563" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-15" data-count="20" x="563" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-16" data-count="18" x="563" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-17" data-count="13" x="563" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-18" data-count="14" x="563" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-19" data-count="12" x="563" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-20" data-count="7" x="563" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-21" data-count="23" x="576" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-22" data-count="19" x="576" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-23" data-count="15" x="576" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-24" data-count="31" x="576" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-06-25" data-count="13" x="576" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-26" data-count="18" x="576" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-27" data-count="14" x="576" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-28" data-count="23" x="589" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-06-29" data-count="7" x="589" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-06-30" data-count="5" x="589" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-01" data-count="16" x="589" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-02" data-count="11" x="589" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-03" data-count="13" x="589" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-04" data-count="16" x="589" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-05" data-count="4" x="602" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-06" data-count="14" x="602" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-07" data-count="6" x="602" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-08" data-count="2" x="602" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-09" data-count="28" x="602" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-10" data-count="11" x="602" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-11" data-count="22" x="602" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-12" data-count="4" x="615" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-13" data-count="28" x="615" y="33" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-14" data-count="18" x="615" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-15" data-count="16" x="615" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-16" data-count="30" x="615" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-17" data-count="17" x="615" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-18" data-count="8" x="615" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-19" data-count="12" x="628" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-20" data-count="9" x="628" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-21" data-count="13" x="628" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-22" data-count="33" x="628" y="59" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-07-23" data-count="15" x="628" y="72" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-24" data-count="14" x="628" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-07-25" data-count="10" x="628" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-26" data-count="4" x="641" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-27" data-count="10" x="641" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-28" data-count="2" x="641" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-07-29" data-count="50" x="641" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-30" data-count="47" x="641" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-07-31" data-count="7" x="641" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-01" data-count="12" x="641" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-02" data-count="13" x="654" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-03" data-count="4" x="654" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-04" data-count="44" x="654" y="46" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-05" data-count="15" x="654" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-06" data-count="27" x="654" y="72" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-07" data-count="15" x="654" y="85" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-08" data-count="22" x="654" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-09" data-count="33" x="667" y="20" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-10" data-count="9" x="667" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-11" data-count="3" x="667" y="46" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-12" data-count="22" x="667" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-13" data-count="69" x="667" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-14" data-count="92" x="667" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-15" data-count="33" x="667" y="98" width="10" height="10" rx="2" ry="2" fill="#30a14e"/><rect class="gh-contrib-cell" data-date="2026-08-16" data-count="19" x="680" y="20" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-17" data-count="26" x="680" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-18" data-count="21" x="680" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-19" data-count="12" x="680" y="59" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-20" data-count="9" x="680" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-21" data-count="69" x="680" y="85" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-08-22" data-count="13" x="680" y="98" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-23" data-count="0" x="693" y="20" width="10" height="10" rx="2" ry="2" fill="#ebedf0"/><rect class="gh-contrib-cell" data-date="2026-08-24" data-count="3" x="693" y="33" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-25" data-count="23" x="693" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-26" data-count="26" x="693" y="59" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-27" data-count="4" x="693" y="72" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-28" data-count="9" x="693" y="85" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-29" data-count="25" x="693" y="98" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-08-30" data-count="12" x="706" y="20" width="10" height="10" rx="2" ry="2" fill="#9be9a8"/><rect class="gh-contrib-cell" data-date="2026-08-31" data-count="16" x="706" y="33" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-01" data-count="22" x="706" y="46" width="10" height="10" rx="2" ry="2" fill="#40c463"/><rect class="gh-contrib-cell" data-date="2026-09-02" data-count="52" x="706" y="59" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-03" data-count="67" x="706" y="72" width="10" height="10" rx="2" ry="2" fill="#216e39"/><rect class="gh-contrib-cell" data-date="2026-09-04" data-count="34" x="706" y="85" width="10" height="10" rx="2" ry="2" fill="#30a14e"/></g>
+</svg>
+      </div>
+      <div id="gh-contrib-tooltip" class="gh-contrib-tooltip"></div>
+    </div>
+    <div class="gh-contrib-footer">
+      <span class="gh-legend-label">Less</span>
+      <span class="gh-legend-item" style="background:#ebedf0"></span>
+      <span class="gh-legend-item" style="background:#9be9a8"></span>
+      <span class="gh-legend-item" style="background:#40c463"></span>
+      <span class="gh-legend-item" style="background:#30a14e"></span>
+      <span class="gh-legend-item" style="background:#216e39"></span>
+      <span class="gh-legend-label">More</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.gh-contrib-card {
+  max-width: 740px;
+  margin: 16px auto 0;
+  padding: 14px 18px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+.gh-contrib-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gh-contrib-info a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.gh-contrib-info a:hover {
+  color: #0969da;
+}
+.gh-contrib-info i {
+  font-size: 16px;
+}
+.gh-contrib-info #gh-contrib-count {
+  font-weight: 700;
+  color: #1a7f37;
+}
+.gh-contrib-tabs {
+  display: inline-flex;
+  background: #f6f8fa;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+}
+.gh-tab {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57606a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.gh-tab:hover {
+  color: #24292f;
+}
+.gh-tab.active {
+  background: #ffffff;
+  color: #24292f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.gh-contrib-graph-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.gh-contrib-graph {
+  min-width: 680px;
+}
+.gh-contrib-graph svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gh-contrib-cell {
+  cursor: pointer;
+  transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+.gh-contrib-cell:hover {
+  stroke: #1f2328;
+  stroke-width: 1px;
+}
+.gh-contrib-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #656d76;
+}
+.gh-legend-item {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.gh-legend-label {
+  margin: 0 4px;
+}
+.gh-contrib-tooltip {
+  position: absolute;
+  display: none;
+  background: #24292f;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 100;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.gh-contrib-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #24292f transparent transparent transparent;
+}
+@media (max-width: 600px) {
+  .gh-contrib-card {
+    padding: 10px 12px;
+    margin: 12px 10px 0;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const username = "lijianfeigeek";
+  const repo = "lijianfeigeek/Gridea";
+  const colors = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
+  let globalData = null;
+  let siteData = null;
+  let currentView = 'global';
+
+  const countEl = document.getElementById('gh-contrib-count');
+  const labelEl = document.getElementById('gh-contrib-label');
+  const graphEl = document.getElementById('gh-contrib-graph');
+  const tooltipEl = document.getElementById('gh-contrib-tooltip');
+  const tabs = document.querySelectorAll('.gh-tab');
+
+  function bindTooltipEvents() {
+    if (!graphEl || !tooltipEl) return;
+    const cells = graphEl.querySelectorAll('.gh-contrib-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', (e) => {
+        const date = cell.getAttribute('data-date');
+        const count = cell.getAttribute('data-count') || 0;
+        tooltipEl.textContent = count + ' contribution' + (count == 1 ? '' : 's') + ' on ' + date;
+        tooltipEl.style.display = 'block';
+        const rect = cell.getBoundingClientRect();
+        const parentRect = graphEl.parentElement.getBoundingClientRect();
+        tooltipEl.style.left = (rect.left - parentRect.left + rect.width / 2) + 'px';
+        tooltipEl.style.top = (rect.top - parentRect.top) + 'px';
+      });
+      cell.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none';
+      });
+    });
+  }
+
+  function renderSvg(contributions) {
+    if (!contributions || !contributions.length || !graphEl) return;
+    let rects = [];
+    let months = [];
+    let lastMonth = null;
+    let col = 0;
+
+    for (let i = 0; i < contributions.length; i++) {
+      const item = contributions[i];
+      const parts = item.date.split('-');
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const day = dt.getDay(); // 0 = Sun
+      if (i > 0 && day === 0) col++;
+
+      const x = 30 + col * 13;
+      const y = 20 + day * 13;
+      const color = colors[Math.min(item.level || 0, 4)];
+      rects.push('<rect class="gh-contrib-cell" data-date="' + item.date + '" data-count="' + (item.count || 0) + '" x="' + x + '" y="' + y + '" width="10" height="10" rx="2" ry="2" fill="' + color + '"/>');
+
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const m = monthNames[dt.getMonth()];
+      if (m !== lastMonth && col < 52) {
+        lastMonth = m;
+        months.push('<text x="' + x + '" y="12" font-size="10" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' + m + '</text>');
+      }
+    }
+
+    const totalWidth = 30 + (col + 1) * 13 + 6;
+    graphEl.innerHTML = '<svg viewBox="0 0 ' + totalWidth + ' 125" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">' +
+      '<g class="months">' + months.join('') + '</g>' +
+      '<g class="days" font-size="9" fill="#656d76" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">' +
+        '<text x="5" y="42">Mon</text>' +
+        '<text x="5" y="68">Wed</text>' +
+        '<text x="5" y="94">Fri</text>' +
+      '</g>' +
+      '<g class="cells">' + rects.join('') + '</g>' +
+    '</svg>';
+
+    bindTooltipEvents();
+  }
+
+  async function loadGlobal() {
+    const cached = localStorage.getItem('gh_contribs_' + username);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 3600000 && parsed.data) {
+          globalData = parsed.data;
+          if (currentView === 'global') updateView('global');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('https://github-contributions-api.jogruber.de/v4/' + username + '?y=last');
+      if (res.ok) {
+        const data = await res.json();
+        globalData = data;
+        localStorage.setItem('gh_contribs_' + username, JSON.stringify({ timestamp: Date.now(), data }));
+        if (currentView === 'global') updateView('global');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh GitHub contributions:', err);
+    }
+  }
+
+  async function loadSite() {
+    if (siteData) return;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/commits?per_page=100');
+      if (res.ok) {
+        const commits = await res.json();
+        const counts = {};
+        commits.forEach(c => {
+          if (c.commit && c.commit.author && c.commit.author.date) {
+            const d = c.commit.author.date.slice(0, 10);
+            counts[d] = (counts[d] || 0) + 1;
+          }
+        });
+
+        if (globalData && globalData.contributions) {
+          siteData = {
+            total: commits.length,
+            contributions: globalData.contributions.map(item => {
+              const c = counts[item.date] || 0;
+              let lvl = 0;
+              if (c >= 10) lvl = 4;
+              else if (c >= 5) lvl = 3;
+              else if (c >= 2) lvl = 2;
+              else if (c >= 1) lvl = 1;
+              return { date: item.date, count: c, level: lvl };
+            })
+          };
+          if (currentView === 'site') updateView('site');
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load repo commits:', e);
+    }
+  }
+
+  function updateView(view) {
+    currentView = view;
+    tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-view') === view));
+    if (view === 'global') {
+      if (globalData) {
+        const total = (globalData.total && globalData.total.lastYear) || 2964;
+        countEl.textContent = total.toLocaleString();
+        labelEl.textContent = 'contributions in the last year';
+        renderSvg(globalData.contributions);
+      } else {
+        countEl.textContent = '2,964';
+        labelEl.textContent = 'contributions in the last year';
+      }
+    } else {
+      if (!siteData) {
+        countEl.textContent = '...';
+        labelEl.textContent = 'commits in ' + repo;
+        loadSite();
+      } else {
+        countEl.textContent = siteData.total.toLocaleString();
+        labelEl.textContent = 'recent commits in ' + repo;
+        renderSvg(siteData.contributions);
+      }
+    }
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.getAttribute('data-view');
+      updateView(target);
+    });
+  });
+
+  // Initial event binding for pre-rendered SVG
+  bindTooltipEvents();
+  loadGlobal();
+})();
+</script>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              当无头浏览器不再为肉眼渲染屏幕：深入 Moli 的 Rust 结构优先、按需布局与 WebMCP 架构
+            </h2>
+            <div class="post-info">
+              <span>
+                2026-11-02
+              </span>
+              <span>
+                26 min read
+              </span>
+              
+                <a href="https://lijianfei.com/tag/wu-tou-liu-lan-qi/" class="post-tag">
+                  # 无头浏览器
+                </a>
+              
+                <a href="https://lijianfei.com/tag/liu-lan-qi-jia-gou/" class="post-tag">
+                  # 浏览器架构
+                </a>
+              
+                <a href="https://lijianfei.com/tag/webmcp/" class="post-tag">
+                  # WebMCP
+                </a>
+              
+                <a href="https://lijianfei.com/tag/xing-neng-you-hua/" class="post-tag">
+                  # 性能优化
+                </a>
+              
+                <a href="https://lijianfei.com/tag/ai-agent/" class="post-tag">
+                  # AI Agent
+                </a>
+              
+                <a href="https://lijianfei.com/tag/rust/" class="post-tag">
+                  # Rust
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://lijianfei.com/post-images/moli-rust-agentic-headless-browser-architecture.png" alt="当无头浏览器不再为肉眼渲染屏幕：深入 Moli 的 Rust 结构优先、按需布局与 WebMCP 架构" fetchpriority="high">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content">
+                <p>在大模型与自主智能体（AI Agent）重塑软件交互边界的今天，传统浏览器的架构正面临一次根本性的错配。我长期在抓取与自动化管线中用到的 Chromium，本质上是一台为了人类视网膜以 60Hz 甚至 120Hz 连续输出像素的“重装渲染复合体”；然而，当操作网页的主体从碳基生物变成硅基智能体时，持续维护多级图层树、分块光栅化与 GPU 合成链路的庞大开销，反而成了吞噬算力与内存的最大瓶颈。</p>
+<p>在 GitHub 开源的 <strong><a href="https://github.com/lexmount/moli">lexmount/moli</a></strong> 给出了一个彻底脱离 Chromium 封装的独立答案：它用纯 Rust 从零搭建起一套面向智能体的生产级无头浏览器内核，并贯彻 <strong>“结构优先，按需生成像素”（Structure first. Pixels on demand）</strong> 的核心哲学。在这篇重构升级的深度拆解中，我将基于截至 2026 年 11 月中旬的主干源码（<code>v1.1.26</code>，commit <code>d64eb41</code>），穿行于 Moli 横跨 <strong>102 个 Workspace Crate</strong>、共计 5,149 个 Rust 源文件（不含 <code>vendor/</code>）的庞大代码库，逐层剖析它的架构跃迁、五层有界资源治理栈、直接跑在活体 DOM 上的 <code>html2md</code> 与原生 ARIA 语义树、零脏写 <code>WebMCP</code> 表单编译器以及基于 RFC 9421 的智能体请求签名机制。</p>
+<!-- more -->
+<blockquote>
+<p>[!NOTE] 源码审计基线与重构升级说明<br>
+本文最初发布于 2026 年 11 月 2 日，并于 2026 年 11 月 18 日结合 <code>lexmount/moli</code> 最新主干源码（版本 <code>1.1.26</code>，commit <code>d64eb41</code>）完成了深度重构与图表升级。文中所有 Crate 数量、内存上限常量、分配器参数与测试数据均直接取自仓库 <code>Cargo.toml</code>、核心 Crate 源码及 <code>docs/README.zh-CN.md</code> 公布的基准数据集，不含任何猜测或未核验的衍生数字。</p>
+</blockquote>
+<hr>
+<h2 id="一-结构性错配与架构跃迁从-11-进程合成到单进程内核">一、结构性错配与架构跃迁：从 11 进程合成到单进程内核</h2>
+<p>在过去构建网页萃取、RAG 检索流水线与端到端 Agent 评测环境时，我反复撞上一堵令人窒息的资源高墙：<strong>为什么仅仅为了执行一段 React 水合脚本并提取页面正文，我就必须在后台拉起一个动辄占用 697 MiB 内存的 Chromium 实例？</strong></p>
+<p>翻开传统无头 Chromium 的进程模型，问题根源一目了然：</p>
+<ol>
+<li><strong>永久性视觉状态维护</strong>：无论调用方是否需要截图，Blink 都会构建并持续维护完整的 <code>RenderTree</code>、分块光栅化（Tiling）、损伤区域图（Damage Map）与跨进程 GPU 合成管道；</li>
+<li><strong>重型多进程隔离开销</strong>：一次普通会话通常衍生出 <strong>11 个系统进程与 123 个并发线程</strong>，建立 CDP（Chrome DevTools Protocol）连接的中位冷启动耗时高达 <strong>169.37 ms</strong>；</li>
+<li><strong>跨进程序列化折损</strong>：为了拿到干净文本，外部自动化脚本往往先经 CDP 拉出巨型 <code>outerHTML</code> 字符串，再在 Node.js 里用 JSDOM 和 Readability 重新建树清洗，徒增内存拷贝与 GC 停顿。</li>
+</ol>
+<p>Moli（<code>MIT OR Apache-2.0</code> 双协议开源）没有去魔改 Chromium，也没有像部分极简玩具引擎那样靠牺牲 Web 标准换取低内存。我在仓库根目录 <code>Cargo.toml</code>（采用 Cargo <code>resolver = &quot;3&quot;</code>）中看到，它把 <strong>102 个高内聚的 Rust Crate</strong> 组织进同一套单进程运行时，直接嵌入真实 V8 与 Mozilla Servo 基础设施：</p>
+<div style="overflow-x: auto; margin: 24px auto;">
+  <img src="/post-images/moli-architecture-delta.svg" alt="Moli 与传统 Chromium 多进程渲染栈的架构差异对比" style="width: 100%; height: auto; display: block; border-radius: 8px;" />
+</div>
+<p>通过审计 <code>Cargo.toml</code> 的 <code>[patch.crates-io]</code> 与本地依赖清单，我梳理出 Moli 内核的底层技术拼图：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">核心子系统</th>
+<th style="text-align:left">底层选型与打补丁依赖</th>
+<th style="text-align:left">在 Moli 单进程内核中的职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>JS 执行引擎</strong></td>
+<td style="text-align:left"><code>vendor/v8-152.2.0</code> + <code>deno_v8-0.3.0</code></td>
+<td style="text-align:left">原生完整 V8 运行时，100% 支撑现代 ES 规范、微任务队列、Worker 与 Wasm</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>HTML 与 CSS 解析</strong></td>
+<td style="text-align:left"><code>html5ever</code> / <code>xml5ever</code> + Mozilla <code>stylo</code></td>
+<td style="text-align:left">流式 HTML 解析与高性能并行 CSS 层叠计算，通过 <code>moli-dom</code> 维护原生 DOM 树</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>WebIDL 与原生绑定</strong></td>
+<td style="text-align:left"><code>moli-webapi</code> + <code>moli-renderer-v8</code> + <code>moli-dom</code></td>
+<td style="text-align:left">为 DOM、CSSOM、IndexedDB、OPFS、WebCrypto、Streams 等提供直接的 V8 原生绑定</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>按需几何布局</strong></td>
+<td style="text-align:left"><code>moli-layout</code> + <code>taffy</code> + <code>parley</code> + <code>fontique</code></td>
+<td style="text-align:left">默认完全跳过；仅在显式请求时计算 Flexbox/Grid 与文本排版，随后冻结并丢弃工作树</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>瞬态矢量光栅</strong></td>
+<td style="text-align:left"><code>moli-paint</code> + <code>vello_common</code> / <code>glifo</code> + <code>usvg</code> + <code>subsetter</code></td>
+<td style="text-align:left">基于 CPU 的单帧截图与带字体子集化的 PDF 输出，绝不保留持续显示的位图缓冲</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>网络与加密通信</strong></td>
+<td style="text-align:left"><code>moli-fetch</code> + <code>curl-rust</code> + <code>rust-openssl</code>（共享 AWS-LC 0.46）</td>
+<td style="text-align:left">工业级 HTTP/2、连接池、TLS 硬件加速、Cookie 持久化与 RFC 9421 签名</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>多协议服务端</strong></td>
+<td style="text-align:left"><code>moli-protocol-server</code> + <code>axum</code>（WebSocket）</td>
+<td style="text-align:left">单端口同进程同时托管 <strong>CDP、WebDriver Classic 与 WebDriver BiDi</strong>，零外部驱动进程</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>[!IMPORTANT] 为什么 <code>moli-renderer-v8</code> 与 <code>moli-protocol</code> 体积庞大？<br>
+在对全库 5,149 个非 <code>vendor/</code> 的 <code>.rs</code> 文件做静态行统计时，我注意到 <code>moli-renderer-v8</code>（3,137 个文件、135.7 万行）与 <code>moli-protocol</code>（606 个文件、50.6 万行）占据了全库代码量的主力。顺着源码目录查下去，这并非冗余堆砌，而是因为 Moli 实打实地为 V8 导出了海量精确对齐浏览器的 WebIDL 原生接口面（<code>context_bootstrap/</code> 下的构造器、事件与原型桥接）以及完整的 CDP / WebDriver 协议定义类型——这也是它能在高难度现代 SPA 网页上远超一般轻量级引擎、直逼 Chrome 兼容度的根本底座。</p>
+</blockquote>
+<hr>
+<h2 id="二-把内存压进-92-mibmoli-五层有界资源治理栈">二、把内存压进 92 MiB：Moli 五层有界资源治理栈</h2>
+<p>很多无头引擎在跑通单页 Demo 时表现轻量，一旦投入高并发抓取或长时间运行复杂单页应用，内存就会像脱缰野马一样线性飙升。审计 Moli 源码时，最让我拍案叫绝的是它在系统工程层面的<strong>强约束有界设计（Bounded Governance）</strong>：从 Tokio 线程池、底层 C/Rust 内存分配器，到布局快照上限、光栅化缓冲区乃至磁盘图像停泊，每一层都有写死在常量里的物理护栏。</p>
+<div style="overflow-x: auto; margin: 24px auto;">
+  <img src="/post-images/moli-ondemand-memory-layers.svg" alt="把内存压进 92 MiB：Moli 五层有界资源治理堆栈" style="width: 100%; height: auto; display: block; border-radius: 8px;" />
+</div>
+<h3 id="1-l1-协议与并发层双池线程硬封顶与-actionwindow-动作压缩">1. L1 协议与并发层：双池线程硬封顶与 <code>ActionWindow</code> 动作压缩</h3>
+<p>在云原生容器环境下，许多多核宿主机（如 32 核或 64 核节点）会让基于 Tokio 的应用默认拉起数十个工作线程与更大的 <code>spawn_blocking</code> 池，仅线程栈与调度开销就能拖垮单实例密度。我在 <code>moli-protocol-server/src/runtime_thread_budget.rs</code> 中看到了极其克制的双边界控制：</p>
+<pre><code class="language-rust">// 摘自 moli-protocol-server/src/runtime_thread_budget.rs
+const MAX_TOKIO_RUNTIME_THREADS: usize = 4;
+
+/// Returns the product limit for both Tokio async and blocking workers.
+pub fn tokio_runtime_thread_budget() -&gt; usize {
+    std::thread::available_parallelism()
+        .map(tokio_runtime_thread_budget_for_parallelism)
+        .unwrap_or(1)
+}
+</code></pre>
+<p>Moli 刻意将异步工作线程与阻塞线程池<strong>双双限制在最多 4 个线程</strong>（<code>available_parallelism().min(4)</code>）。与此同时，在交互高频触发的场景下，独立 Crate <strong><code>moli-action-window</code></strong> 充当了一道无定时器的动作批处理阀门：宿主通过 <code>ActionWindow::push</code> 接收连续的点击或滚动指令，把密集滚动语义合并为紧凑的 <code>ScrollRun</code>，直到遇到截图等“读屏障（Read Barrier）”才触发 <code>ActionWindow::flush</code> 统一提交一次状态更新，从源头上杜绝无意义的重复观察者回调与布局刷新。</p>
+<h3 id="2-l2-内存分配域partitionalloc-与激进归还脏页的-jemalloc">2. L2 内存分配域：<code>PartitionAlloc</code> 与激进归还脏页的 <code>jemalloc</code></h3>
+<p>浏览器引擎内部同时存在 Rust 对象与 V8 / <code>libcurl</code> / OpenSSL 等大量 C/C++ 原生堆分配。如果只用 <code>#[global_allocator]</code> 替换 Rust 分配器，底层原生库依然会走系统默认的 <code>libc malloc</code>，产生碎片化的双分配域问题。</p>
+<p>在 <code>moli/Cargo.toml</code> 与 <code>moli/src/allocator.rs</code> 中，Moli 采取了一套精妙的双模策略：</p>
+<ul>
+<li>在官方发布指针压缩 <code>rusty_v8</code> 归档的平台（如 Linux x86_64 gnu 与 macOS x86_64/aarch64），Moli 直接复用 V8 自带的 <strong><code>PartitionAlloc</code> shim</strong>；</li>
+<li>在其余非 Windows 平台上，Moli 启用 <code>tikv-jemalloc-sys</code> 的 <code>override_allocator_on_supported_platforms</code> 特性，导出无前缀的全局 <code>malloc</code> / <code>free</code> 符号，把 Rust 与所有 C/C++ 底层库收拢进同一个分配域，并注入了一组为低驻留内存极度优化的配置文件：</li>
+</ul>
+<pre><code class="language-rust">// 摘自 moli/src/allocator.rs
+const MALLOC_CONF: &amp;[u8] =
+    b&quot;abort_conf:true,narenas:1,tcache_max:1024,dirty_decay_ms:250,muzzy_decay_ms:0\0&quot;;
+</code></pre>
+<p>单 Arena（<code>narenas:1</code>）、极小线程缓存（<code>tcache_max:1024</code>）、禁用 Muzzy 延迟回收（<code>muzzy_decay_ms:0</code>），且脏页在 <strong>250 毫秒</strong>内立即退还给操作系统！源码注释里还坦诚注明：这套参数是以多次确定性 DOM 与完整 Spider Bench A/B 实验标定出来的，牺牲了极端吞吐峰值以换取短生命周期页面内存的迅速回落。</p>
+<h3 id="3-l3-双轨布局隔离layoutpolicymock-与-frozenlayouttree-的-256-mib-熔断线">3. L3 双轨布局隔离：<code>LayoutPolicy::Mock</code> 与 <code>FrozenLayoutTree</code> 的 256 MiB 熔断线</h3>
+<p>这是 Moli 之所以能把 90% 智能体抓取开销打掉的核心开关。我在 <code>moli-core/src/config/mod.rs</code> 中看到，默认配置下 <code>BrowserConfig</code> 使用的是 <strong><code>LayoutPolicy::Mock</code></strong>——它直接返回确定性的、格式兼容的几何结构，<strong>完全不唤醒 <code>moli-layout</code>、Taffy 或 Parley</strong>。</p>
+<p>只有当用户显式传入 <code>--layout</code> 参数，将其切换为 <code>LayoutPolicy::OnDemand</code> 并发起坐标查询、命中测试（Hit-test）或截图请求时，引擎才会调用 <code>moli-layout</code> 执行一次单发式计算（<code>build_layout_pass</code>）：</p>
+<pre><code class="language-rust">// 摘自 moli-layout/src/lib.rs 与 moli-layout/src/layout_tree/tree.rs
+pub(crate) const LAYOUT_SUBPIXELS_PER_CSS_PIXEL: f32 = 64.0;
+
+pub const MAX_RETAINED_LAYOUT_BOXES: usize = 1_000_000;
+pub const MAX_RETAINED_LAYOUT_FRAGMENTS: usize = 4_000_000;
+pub const MAX_RETAINED_LAYOUT_TREE_BYTES: usize = 256 * 1024 * 1024;
+</code></pre>
+<p>这套“一次成型、算完即毁”的生命周期极其干净：</p>
+<ol>
+<li><strong>精度对齐 Blink</strong>：采用每 CSS 像素 64 个固定子像素（<code>LAYOUT_SUBPIXELS_PER_CSS_PIXEL = 64.0</code>），确保盒模型数值与 Chrome 的 <code>LayoutUnit</code> 完全对齐；</li>
+<li><strong>只读切片借用</strong>：<code>moli-layout</code> 对活体 DOM 与 V8 运行时一无所知，仅通过适配器短暂借用标准化的样式视图；</li>
+<li><strong>单棵冻结树上限熔断</strong>：计算结束只产出一棵与 DOM 彻底解耦的不可变 <strong><code>FrozenLayoutTree</code></strong>（全进程仅保留最新一棵，硬顶上限 <strong>100 万盒 / 400 万文本分片 / 256 MiB</strong>），随后所有的工作树、Taffy 求解器缓存与 Parley 排版状态在函数返回的一刻全部 <code>Drop</code> 销毁。</li>
+</ol>
+<h3 id="4-l4-瞬态光栅化与-l5-磁盘停泊parkableimage">4. L4 瞬态光栅化与 L5 磁盘停泊（<code>ParkableImage</code>）</h3>
+<p>在视觉渲染最后一公里，<code>moli-paint/src/raster/mod.rs</code> 同样设下了 <strong><code>MAX_TRANSIENT_RASTER_BYTES = 256 MiB</code></strong>（<code>256 * 1024 * 1024</code>）的瞬态显存保护线，利用 <code>vello_cpu</code> 单帧光栅化或基于 <code>glifo</code> + <code>subsetter</code> 生成带字体子集的 PDF；DevTools 屏幕串流（Screencast）也仅仅在订阅端对比一个不透明的 <code>generation</code> 元数据令牌，画面没变绝不产帧，更不存在保留式显示列表。</p>
+<p>更进一步，为了防范网页大图撑爆堆内存，Moli 还借鉴了 Blink 的设计，独立实现了 <strong><code>moli-parkable-image</code> + <code>moli-disk-pool</code></strong>。已下载完成的编码图像在空闲超过阈值后，会被换出（Park）到磁盘的 <code>DiskPool</code> 区间中并释放内存；当后续渲染确实需要读取像素时同步唤回（Unpark），并在读者释放宽限期后无需二次写入磁盘即可再次丢弃内存副本。同时，默认状态下图片、字体、音视频与文本轨道等可选子资源全部处于关闭状态，必须显式通过 <code>--image</code>、<code>--font</code> 或 <code>--resource</code> 开关按需放行。</p>
+<hr>
+<h2 id="三-直接跑在活体-dom-上的双引擎html2md-栈机与原生-aria-语义树">三、直接跑在活体 DOM 上的双引擎：<code>html2md</code> 栈机与原生 ARIA 语义树</h2>
+<p>传统抓取工具之所以慢且易漏，很大程度是因为“浏览器里一份 DOM，外部进程里又解析一遍 HTML”。Moli 把正文提取与可访问性投影全部做成了<strong>零拷贝的原生 Rust 内核模块</strong>。</p>
+<h3 id="1-moli-html2md泛型-dom-显式栈机与-spa-巨型-json-剪枝">1. <code>moli-html2md</code>：泛型 <code>Dom</code> 显式栈机与 SPA 巨型 JSON 剪枝</h3>
+<p>打开 <code>moli-html2md/src/converter.rs</code> 与 <code>machine.rs</code>，会发现它通过极简的 <code>D: Dom + ?Sized</code> trait 直接以只读借用方式遍历活体 DOM 树，完全绕过了 <code>outerHTML</code> 序列化与跨进程拷贝。为了防止现代前端页面动辄数百层的 <code>&lt;div&gt;</code> 嵌套引发 Rust 线程调用栈溢出（Stack Overflow），<code>machine.rs</code> 使用 <strong>显式状态栈机</strong>（Explicit Stack）替代了系统递归，把 DOM 深度完全转化为可控的堆内存切片。</p>
+<p>在实战中，我最痛恨的“Token 刺客”莫过于 Next.js 或 Nuxt 页面塞在隐藏节点里的巨幅序列化 JSON（例如 <code>__NEXT_DATA__</code>）。<code>moli-html2md/src/visibility.rs</code> 里一段仅 30 行的启发式剪枝代码，精准地解决了这个痛点：</p>
+<pre><code class="language-rust">// 摘自 moli-html2md/src/visibility.rs
+/// A hidden leaf containing a serialized page-state object is not reader text.
+/// Keep other hidden subtrees: inactive tabs and collapsed details can contain
+/// the page's primary data and belong in a structural content dump.
+pub(crate) fn nonrendered_serialized_state&lt;D: Dom + ?Sized&gt;(dom: &amp;D, node: D::NodeId) -&gt; bool {
+    if !matches!(dom.node_kind(node), NodeKind::Element(_)) {
+        return false;
+    }
+    let hidden = dom.attribute(node, &quot;hidden&quot;).is_some()
+        || dom
+            .attribute(node, &quot;style&quot;)
+            .is_some_and(inline_display_none);
+    if !hidden {
+        return false;
+    }
+    let mut children = dom.children(node);
+    let Some(child) = children.next() else {
+        return false;
+    };
+    if children.next().is_some() {
+        return false;
+    }
+    let NodeKind::Text(text) = dom.node_kind(child) else {
+        return false;
+    };
+    let trimmed = text.trim();
+    trimmed.len() &gt;= 512
+        &amp;&amp; ((trimmed.starts_with('{') &amp;&amp; trimmed.ends_with('}'))
+            || (trimmed.starts_with('[') &amp;&amp; trimmed.ends_with(']')))
+}
+</code></pre>
+<p>这个判别逻辑体现了一线工程经验的克制：<strong>只有当元素显式隐藏（<code>hidden</code> 或内联 <code>display: none</code>，且正确处理了 CSS <code>!important</code> 优先级覆盖），并且唯一文本子节点是长度 ≥ 512 字节的 <code>{...}</code> 或 <code>[...]</code> 载荷时，才将其识别为序列化状态对象剔除</strong>；而折叠在 <code>&lt;details&gt;</code> 内部或处于非激活 Tab 里的普通知识文本，依然会被完整保留给大模型消费。</p>
+<h3 id="2-纯-rust-wai-aria-语义树moli-domsrcaccessibility">2. 纯 Rust WAI-ARIA 语义树（<code>moli-dom/src/accessibility/</code>）</h3>
+<p>相比单纯的 Markdown 文本，操作型智能体（Action Agent）往往更需要知道“页面上有哪些可交互控件、各自的角色与名称是什么”。在 <code>moli-dom/src/accessibility/</code> 目录下（包含 <code>ax_roles.rs</code>、<code>ax_properties.rs</code>、<code>ax_projection.rs</code>、<code>ax_tree.rs</code> 等 9 个模块），Moli 原生实现了一整套不依赖 Chromium 的 <strong>WAI-ARIA 无障碍语义树引擎</strong>。</p>
+<p>通过近期的提交记录（截至 2026 年 11 月 18 日）也能看出作者在该模块上的高频打磨：包括遵循全局 ARIA 角色冲突规范、解析 <code>&lt;section&gt;</code> 地标与 HTML 编辑宿主（Editing Hosts）、以及在 URL 边界处准确推导原生链接角色与目标地址。通过 CLI 一句 <code>moli fetch --dump semantic_tree_text</code>，就能直接拿到比完整 HTML 紧凑数个数量级的结构化交互视图。</p>
+<hr>
+<h2 id="四-告别视觉瞎点webmcp-表单编译器与-rfc-9421-请求签名">四、告别视觉瞎点：WebMCP 表单编译器与 RFC 9421 请求签名</h2>
+<p>多模态大模型兴起后，业界流行过一阵“截图 + 预测 <code>(x, y)</code> 像素坐标点击”的方案。但在真实企业表单里，屏幕缩放、弹窗遮挡或滚动偏移随时会让坐标偏移；而依赖手写 CSS 选择器的老办法又极易在前端发版哈希变化后雪崩。</p>
+<p>Moli 选择了一条更底层的协议级解法：<strong>原生集成 <code>moli-webmcp</code> 与 <code>moli-web-bot-auth</code></strong>，把网页交互变成“带类型安全契约与加密身份凭证的确定性工具调用”。</p>
+<div style="overflow-x: auto; margin: 24px auto;">
+  <img src="/post-images/moli-webmcp-state-lifecycle.svg" alt="Moli WebMCP 表单工具化与 RFC 9421 请求签名跨泳道全链路" style="width: 100%; height: auto; display: block; border-radius: 8px;" />
+</div>
+<h3 id="1-原子化零脏写表单填充契约moli-webmcp">1. 原子化“零脏写”表单填充契约（<code>moli-webmcp</code>）</h3>
+<p>我在 <code>moli-webmcp/src/lib.rs</code> 和 <code>plan.rs</code> 中读到了这套极其严谨的防御式设计：</p>
+<ul>
+<li><strong>严格工具命名校验</strong>：<code>is_valid_tool_name()</code> 直接对齐 Chromium 共享规范，强制要求工具名非空、长度 ≤ 128 且仅包含 ASCII 字母、数字及 <code>_- .</code>；</li>
+<li><strong>DOM 级契约编译</strong>：<code>input_schema()</code> 自动沿着活体 DOM 树推导 <code>&lt;form&gt;</code> 内控件的 <code>&lt;label&gt;</code> 归属关系、物理顺序与 HTML5 原生约束（<code>required</code>、<code>min</code>、<code>max</code>、<code>step</code>、<code>pattern</code>），编译出标准的 JSON Schema；</li>
+<li><strong>全量预校验，错一即拒（Atomic Fill Plan）</strong>：最让我赞赏的是 <code>prepare_fill()</code> 的实现——它先以只读借用（<code>&amp;DomHost</code>）遍历整份入参，将所有控件更新动作校验并编译为 <code>Vec&lt;Fill&gt;</code>（涵盖 <code>Value</code>、<code>Checked</code>、<code>Select</code> 与 <code>Checkable</code> 枚举变体）。<strong>只要其中任意一个参数名未知或选项非法，整个 <code>prepare_fill()</code> 会立即返回 <code>None</code> 拒绝整份计划，绝不在 DOM 上留下半途而废的脏状态！</strong> 只有全量校验通过，引擎才会按顺序原子写入并精确派发 JS <code>input</code> 与 <code>change</code> 事件，最终经 <code>navigation_result()</code> 返回结构化导航回执。</li>
+</ul>
+<h3 id="2-原生-rfc-9421-http-消息签名moli-web-bot-auth">2. 原生 RFC 9421 HTTP 消息签名（<code>moli-web-bot-auth</code>）</h3>
+<p>在真实互联网反爬与合规审计日趋严格的背景下，AI 智能体如何向目标站点或自有风控网关自证“我是受信任的合法自动化代理”？Moli 独立维护了 <code>moli-web-bot-auth</code> Crate，基于 <strong>RFC 9421 HTTP Message Signatures</strong> 标准在 <code>moli-fetch</code> 底层直接提供请求级 Ed25519 密码学签名：</p>
+<pre><code class="language-rust">// 摘自 moli-web-bot-auth/src/signer.rs
+const SIGNATURE_LABEL: &amp;str = &quot;sig1&quot;;
+const SIGNATURE_TTL_SECS: u64 = 60;
+const NONCE_BYTES: usize = 64;
+</code></pre>
+<p>配置好私钥 PEM 与 <code>signature_agent_origin</code> 后，每次出站请求都会借助 <code>moli_crypto::fill_secure_random</code> 生成 64 字节高熵 Nonce，附带 60 秒有效期的 <code>sig1</code> 签名头。这让智能体既能穿行于现代风控体系，也能为企业内部接口提供可溯源的身份审计链路。</p>
+<hr>
+<h2 id="五-全维基准评测430-个真实网站与-1308-项自动化任务实测">五、全维基准评测：430 个真实网站与 1,308 项自动化任务实测</h2>
+<p>脱离量化评测谈架构设计都是空中楼阁。我核对了 Lexmount 在 <code>docs/README.zh-CN.md</code>、<code>Webstone</code> 与 <code>Lexbench-Headless-Browser</code> 公开的所有实测账本，Moli 在“网页抓取正确率”、“正文提取得分”、“自动化任务覆盖度”与“资源开销”四个维度上的对比数据非常震撼。</p>
+<h3 id="1-真实网站抓取对决lexbench-web-fetch430-道任务">1. 真实网站抓取对决（LexBench-Web-Fetch，430 道任务）</h3>
+<p>该数据集不仅要求返回 HTTP 200，更校验页面执行完前端脚本后提取的内容是否真实有效。五个无头引擎的横向分布如下：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">引擎方案</th>
+<th style="text-align:center">总通过率（/ 430）</th>
+<th style="text-align:center">静态网页 / 100</th>
+<th style="text-align:center">反爬网站 / 100</th>
+<th style="text-align:center">热门网站 / 100</th>
+<th style="text-align:center">动态网站 / 100</th>
+<th style="text-align:center">文档与媒体 / 30</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Moli</strong></td>
+<td style="text-align:center"><strong>386 / 430（89.8%）</strong></td>
+<td style="text-align:center">97</td>
+<td style="text-align:center"><strong>88</strong></td>
+<td style="text-align:center"><strong>91</strong></td>
+<td style="text-align:center"><strong>90</strong></td>
+<td style="text-align:center"><strong>20</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Chromium</strong></td>
+<td style="text-align:center">234 / 430（54.4%）</td>
+<td style="text-align:center"><strong>99</strong></td>
+<td style="text-align:center">5</td>
+<td style="text-align:center">58</td>
+<td style="text-align:center">58</td>
+<td style="text-align:center">14</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Lightpanda</strong></td>
+<td style="text-align:center">228 / 430（53.0%）</td>
+<td style="text-align:center">92</td>
+<td style="text-align:center">37</td>
+<td style="text-align:center">38</td>
+<td style="text-align:center">44</td>
+<td style="text-align:center">17</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Obscura</strong></td>
+<td style="text-align:center">223 / 430（51.9%）</td>
+<td style="text-align:center">94</td>
+<td style="text-align:center">16</td>
+<td style="text-align:center">53</td>
+<td style="text-align:center">43</td>
+<td style="text-align:center">17</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Kitesurf</strong></td>
+<td style="text-align:center">192 / 430（44.7%）</td>
+<td style="text-align:center">90</td>
+<td style="text-align:center">10</td>
+<td style="text-align:center">40</td>
+<td style="text-align:center">41</td>
+<td style="text-align:center">11</td>
+</tr>
+</tbody>
+</table>
+<p>在这份实测里，最引人注目的无疑是 <strong>反爬网站</strong>（88/100 对 5/100）与 <strong>动态/热门网站</strong>（90+/100 对 58/100）的巨大断层优势——原生内嵌 <code>curl-rust</code> + AWS-LC TLS 指纹栈与结构优先的快速水合收敛，让 Moli 在真实复杂站点上的可用率高出传统 Headless Chromium 整整 35 个百分点。而在另一项 <strong>192 个中外主流公开 URL 混合抓取</strong>实测中，Moli 以 <strong>73 MiB</strong> 的中位 RSS 内存和 <strong>1.43 秒</strong>的中位耗时拿下了 103 个有效页面（成功率 53.6%），以不到十分之一的内存开销微幅反超了 Chrome Headless（101 个页面、52.6%，但消耗高达 <strong>773 MiB</strong> 内存）。</p>
+<h3 id="2-正文抽取质量webmainbench545-份网页快照">2. 正文抽取质量（WebMainBench，545 份网页快照）</h3>
+<p>对照人工标注评估 Markdown/正文抽取质量时，Moli 拿下了五引擎综合第一，尤其在技术博客与文档最看重的代码块提取上展现出碾压级表现：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">引擎方案</th>
+<th style="text-align:center">生成正文</th>
+<th style="text-align:center">综合得分</th>
+<th style="text-align:center">全文得分</th>
+<th style="text-align:center">代码提取</th>
+<th style="text-align:center">公式提取</th>
+<th style="text-align:center">表格内容</th>
+<th style="text-align:center">表格结构</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Moli</strong></td>
+<td style="text-align:center">545 / 545</td>
+<td style="text-align:center"><strong>39.27%</strong></td>
+<td style="text-align:center">40.73%</td>
+<td style="text-align:center"><strong>91.06%</strong></td>
+<td style="text-align:center">28.20%</td>
+<td style="text-align:center">22.62%</td>
+<td style="text-align:center">13.75%</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Lightpanda</strong></td>
+<td style="text-align:center">545 / 545</td>
+<td style="text-align:center">35.00%</td>
+<td style="text-align:center">41.52%</td>
+<td style="text-align:center">84.71%</td>
+<td style="text-align:center">12.97%</td>
+<td style="text-align:center">21.81%</td>
+<td style="text-align:center"><strong>14.00%</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Kitesurf</strong></td>
+<td style="text-align:center">524 / 545</td>
+<td style="text-align:center">33.43%</td>
+<td style="text-align:center">36.99%</td>
+<td style="text-align:center">80.70%</td>
+<td style="text-align:center">19.32%</td>
+<td style="text-align:center">18.25%</td>
+<td style="text-align:center">11.87%</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Obscura</strong></td>
+<td style="text-align:center">543 / 545</td>
+<td style="text-align:center">31.03%</td>
+<td style="text-align:center"><strong>41.88%</strong></td>
+<td style="text-align:center">81.82%</td>
+<td style="text-align:center"><strong>31.39%</strong></td>
+<td style="text-align:center">0.03%</td>
+<td style="text-align:center">0.00%</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Chromium</strong></td>
+<td style="text-align:center">545 / 545</td>
+<td style="text-align:center">27.02%</td>
+<td style="text-align:center">39.40%</td>
+<td style="text-align:center">35.86%</td>
+<td style="text-align:center">21.12%</td>
+<td style="text-align:center"><strong>25.01%</strong></td>
+<td style="text-align:center">13.73%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3-浏览器自动化通过率与资源开销lexbench-headless-browser-wpt">3. 浏览器自动化通过率与资源开销（Lexbench-Headless-Browser &amp; WPT）</h3>
+<p>在涵盖裸 CDP、Playwright、Puppeteer、Selenium 与 Web 平台语义的 <strong>1,308 道可比自动化任务</strong>中，以及四个本地引擎共同完成的 <strong>557 道资源开销对照任务</strong>中，数据同样极具参考价值：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">性能与兼容维度</th>
+<th style="text-align:center">Google Chrome</th>
+<th style="text-align:center">Moli</th>
+<th style="text-align:center">Kitesurf（远程 k=1）</th>
+<th style="text-align:center">Lightpanda</th>
+<th style="text-align:center">Obscura</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>1,308 项自动化通过数 / 成功率</strong></td>
+<td style="text-align:center">1,306 / <strong>99.85%</strong></td>
+<td style="text-align:center"><strong>1,071 / 81.88%</strong></td>
+<td style="text-align:center">812 / 62.08%</td>
+<td style="text-align:center">697 / 53.29%</td>
+<td style="text-align:center">587 / 44.88%</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>557 项单题 CPU 耗时中位数</strong></td>
+<td style="text-align:center">687.0 ms</td>
+<td style="text-align:center"><strong>100.6 ms（仅 Chrome 15%）</strong></td>
+<td style="text-align:center">—</td>
+<td style="text-align:center">78.2 ms</td>
+<td style="text-align:center">89.4 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>557 项单题内存峰值中位数 (RSS)</strong></td>
+<td style="text-align:center">697.0 MiB</td>
+<td style="text-align:center"><strong>92.0 MiB（仅 Chrome 13%）</strong></td>
+<td style="text-align:center">—</td>
+<td style="text-align:center">34.0 MiB</td>
+<td style="text-align:center">39.0 MiB</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>智能体回合 CDP 就绪耗时</strong></td>
+<td style="text-align:center">169.37 ms</td>
+<td style="text-align:center"><strong>34.85 ms（提速 4.8x）</strong></td>
+<td style="text-align:center">—</td>
+<td style="text-align:center">—</td>
+<td style="text-align:center">—</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>智能体回合 PSS 峰值 / 进程线程</strong></td>
+<td style="text-align:center">348.82 MiB · 11 / 123</td>
+<td style="text-align:center"><strong>102.46 MiB · 1 / 24</strong></td>
+<td style="text-align:center">—</td>
+<td style="text-align:center">—</td>
+<td style="text-align:center">—</td>
+</tr>
+</tbody>
+</table>
+<p>此外，在面向智能体浏览器能力边界的选定 WPT（Web Platform Tests）测试集中，Moli 一次完整运行已经通过了 <strong>161.2 万项（1.612M）测试</strong>。</p>
+<hr>
+<h2 id="六-极速上手cli-抓取与三协议统一自动化端点">六、极速上手：CLI 抓取与三协议统一自动化端点</h2>
+<p>在工程实践中接入 Moli 几乎没有迁移成本。无论我需要为本地编程智能体挂载命令行抓取 Skill，还是接管原有的 Playwright 并发集群，都可以直接通过预编译二进制完成部署。</p>
+<h3 id="1-一键安装与双模式-cli-抓取">1. 一键安装与双模式 CLI 抓取</h3>
+<p>在 macOS 或 Linux 上安装最新预编译版：</p>
+<pre><code class="language-sh">curl --proto '=https' --tlsv1.2 -fsSL \
+  https://github.com/lexmount/moli/releases/latest/download/moli-installer.sh | sh
+</code></pre>
+<p>日常纯语义抓取时，保持默认的 <code>LayoutPolicy::Mock</code> 即可享受到零布局开销的极速输出；只有在需要截图、PDF 或真实坐标时才加上 <code>--layout</code>：</p>
+<pre><code class="language-bash"># 1. DOM-first 零布局开销模式：直接导出干净 Markdown 或紧凑 ARIA 语义树
+moli fetch --dump markdown --wait done https://example.com
+moli fetch --dump semantic_tree_text --wait-selector body https://example.com
+
+# 2. 按需启用真实 Taffy/Parley 布局与 Vello CPU 单帧光栅化
+moli fetch --layout --dump screenshot https://example.com &gt; page.png
+moli fetch --layout --dump screenshot_full https://example.com &gt; full-page.png
+moli fetch --layout --dump pdf https://example.com &gt; page.pdf
+</code></pre>
+<h3 id="2-单端口服务同时兼容-playwright-webdriver">2. 单端口服务同时兼容 Playwright / WebDriver</h3>
+<p>启动 <code>moli serve</code> 后，同一个服务端口会由 <code>moli-protocol-server</code> 同时对外提供 <strong>CDP、WebDriver Classic 与 WebDriver BiDi</strong>，彻底省去维护 ChromeDriver 或 geckodriver 版本的麻烦：</p>
+<pre><code class="language-bash"># 基础 DOM 优先服务端（高并发抓取最优）
+moli serve --port 9222
+
+# 若自动化脚本需要调用坐标点击、boundingBox 或截图，显式加上 --layout（按需拉取可选资源可加 --resource）
+moli serve --port 9222 --layout
+</code></pre>
+<p>在 Playwright 中，只需把原本的 <code>chromium.launch()</code> 替换为 <code>connectOverCDP</code>，即可把单台 4 核 8G 云主机原本只能承载数个实例的并发规模成倍拉高：</p>
+<pre><code class="language-javascript">import { chromium } from &quot;playwright&quot;;
+
+const browser = await chromium.connectOverCDP(&quot;http://127.0.0.1:9222&quot;);
+const context = browser.contexts()[0];
+const page = context.pages()[0] ?? await context.newPage();
+
+await page.goto(&quot;https://example.com&quot;);
+console.log(await page.locator(&quot;body&quot;).innerText());
+
+await browser.close();
+</code></pre>
+<hr>
+<h2 id="七-工程权衡与客观边界">七、工程权衡与客观边界</h2>
+<p>审视任何基础软件架构时，看清它“明确不做什么”往往比看清它“能做什么”更重要。结合代码实现与官方范围声明，在选型 Moli 前必须清楚以下四条硬边界：</p>
+<ol>
+<li><strong>刻意放弃持续光栅与高保真 GPU 管线</strong>：Moli 不提供 GUI 窗口，没有 GPU 合成器与多帧保留式显示列表，也不承诺与 Chrome 像素级完全一致的 Canvas / WebGL / 音视频播放效果。如果你的核心诉求是测试游戏着色器或逐帧校验复杂 CSS 3D 动效，Chromium 依然不可替代；</li>
+<li><strong>默认 <code>Mock</code> 布局的语义前提</strong>：不加 <code>--layout</code> 时，<code>moli-core</code> 返回的是格式兼容的占位几何，这意味着依赖真实像素尺寸的 <code>getBoundingClientRect()</code> 或基于元素可见面积的断言必须显式开启 <code>--layout</code>；</li>
+<li><strong>诚实的 Fail-Fast 报错哲学</strong>：很多极简无头工具遇到未实现的协议指令会静默返回伪造成功响应，导致智能体产生幻觉。<strong>Moli 选择严格诚实原则——任何不支持的协议路径直接明确报错</strong>（例如目前环境模拟仅支持 <code>offline</code> 状态切换，而 CPU 降频、网络丢包与带宽节流请求会在修改任何状态前整体拒绝）；</li>
+<li><strong>单次冻结树的缓存行为</strong>：在 <code>--layout</code> 模式下，普通几何读取会复用最近一次冻结的 <code>FrozenLayoutTree</code>（截图操作则会强制重建替换）。当页面通过 JS 发生高频动态重排时，需要结合交互操作或重新触发截图/刷新边界来更新冻结快照。</li>
+</ol>
+<hr>
+<h2 id="八-总结">八、总结</h2>
+<p>从最初的版本一路追踪到如今 102 个 Crate 协同运转的 <code>v1.1.26</code>，<code>Moli</code> 最打动我的不是某个单一炫技算法，而是它在工程哲学上始终如一的克制与清醒：</p>
+<ul>
+<li>用 <strong>原生 <code>moli-dom</code> + Servo <code>stylo</code> + V8 152.2</strong> 守住现代 Web 运行时兼容性的下限；</li>
+<li>用 <strong>双轨 <code>LayoutPolicy</code>、单棵 256 MiB 熔断 <code>FrozenLayoutTree</code>、4 线程 Tokio 封顶、激进 <code>jemalloc</code> 衰减与 <code>ParkableImage</code> 磁盘停泊</strong> 死死锁住内存与算力的上限；</li>
+<li>用 <strong>零拷贝 <code>html2md</code> 栈机、原生 ARIA 语义树、<code>prepare_fill</code> 原子校验式 WebMCP 与 RFC 9421 签名</strong> 直接打通大模型与网页之间的语义高速路。</li>
+</ul>
+<p>当无头浏览器不再为人类肉眼服务，这套以“结构”为第一性原理重建的 Rust 内核，无疑已经为下一代高密度智能体基础设施指明了最具确定性的演进方向。</p>
+<hr>
+<h2 id="原文链接与参考资料">原文链接与参考资料</h2>
+<ul>
+<li><strong>项目主仓库</strong>：<a href="https://github.com/lexmount/moli">lexmount/moli on GitHub</a></li>
+<li><strong>官方多语言文档</strong>：<a href="https://github.com/lexmount/moli/blob/main/docs/README.zh-CN.md">Moli Documentation（简体中文）</a></li>
+<li><strong>Web Fetch 基准评测报告</strong>：<a href="https://browser.lexmount.com/blog/webfetch-benchmark">LexBench Web-Fetch Benchmark Report</a></li>
+<li><strong>Webstone 复现评测框架</strong>：<a href="https://github.com/lexmount/webstone">lexmount/webstone on GitHub</a></li>
+<li><strong>LexBench-Web-Fetch 数据集</strong>：<a href="https://huggingface.co/datasets/Lexmount/LexBench-Web-Fetch/tree/v1.0.0">Lexmount/LexBench-Web-Fetch on HuggingFace</a></li>
+<li><strong>自动化基准测试仓库</strong>：<a href="https://github.com/lexmount/Lexbench-Headless-Browser">lexmount/Lexbench-Headless-Browser on GitHub</a></li>
+<li><strong>WebMainBench 正文提取数据集</strong>：<a href="https://github.com/lexmount/WebMainBench/tree/lex-main">lexmount/WebMainBench on GitHub</a></li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%80-%E7%BB%93%E6%9E%84%E6%80%A7%E9%94%99%E9%85%8D%E4%B8%8E%E6%9E%B6%E6%9E%84%E8%B7%83%E8%BF%81%E4%BB%8E-11-%E8%BF%9B%E7%A8%8B%E5%90%88%E6%88%90%E5%88%B0%E5%8D%95%E8%BF%9B%E7%A8%8B%E5%86%85%E6%A0%B8">一、结构性错配与架构跃迁：从 11 进程合成到单进程内核</a></li>
+<li><a href="#%E4%BA%8C-%E6%8A%8A%E5%86%85%E5%AD%98%E5%8E%8B%E8%BF%9B-92-mibmoli-%E4%BA%94%E5%B1%82%E6%9C%89%E7%95%8C%E8%B5%84%E6%BA%90%E6%B2%BB%E7%90%86%E6%A0%88">二、把内存压进 92 MiB：Moli 五层有界资源治理栈</a>
+<ul>
+<li><a href="#1-l1-%E5%8D%8F%E8%AE%AE%E4%B8%8E%E5%B9%B6%E5%8F%91%E5%B1%82%E5%8F%8C%E6%B1%A0%E7%BA%BF%E7%A8%8B%E7%A1%AC%E5%B0%81%E9%A1%B6%E4%B8%8E-actionwindow-%E5%8A%A8%E4%BD%9C%E5%8E%8B%E7%BC%A9">1. L1 协议与并发层：双池线程硬封顶与 <code>ActionWindow</code> 动作压缩</a></li>
+<li><a href="#2-l2-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%9F%9Fpartitionalloc-%E4%B8%8E%E6%BF%80%E8%BF%9B%E5%BD%92%E8%BF%98%E8%84%8F%E9%A1%B5%E7%9A%84-jemalloc">2. L2 内存分配域：<code>PartitionAlloc</code> 与激进归还脏页的 <code>jemalloc</code></a></li>
+<li><a href="#3-l3-%E5%8F%8C%E8%BD%A8%E5%B8%83%E5%B1%80%E9%9A%94%E7%A6%BBlayoutpolicymock-%E4%B8%8E-frozenlayouttree-%E7%9A%84-256-mib-%E7%86%94%E6%96%AD%E7%BA%BF">3. L3 双轨布局隔离：<code>LayoutPolicy::Mock</code> 与 <code>FrozenLayoutTree</code> 的 256 MiB 熔断线</a></li>
+<li><a href="#4-l4-%E7%9E%AC%E6%80%81%E5%85%89%E6%A0%85%E5%8C%96%E4%B8%8E-l5-%E7%A3%81%E7%9B%98%E5%81%9C%E6%B3%8Aparkableimage">4. L4 瞬态光栅化与 L5 磁盘停泊（<code>ParkableImage</code>）</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%89-%E7%9B%B4%E6%8E%A5%E8%B7%91%E5%9C%A8%E6%B4%BB%E4%BD%93-dom-%E4%B8%8A%E7%9A%84%E5%8F%8C%E5%BC%95%E6%93%8Ehtml2md-%E6%A0%88%E6%9C%BA%E4%B8%8E%E5%8E%9F%E7%94%9F-aria-%E8%AF%AD%E4%B9%89%E6%A0%91">三、直接跑在活体 DOM 上的双引擎：<code>html2md</code> 栈机与原生 ARIA 语义树</a>
+<ul>
+<li><a href="#1-moli-html2md%E6%B3%9B%E5%9E%8B-dom-%E6%98%BE%E5%BC%8F%E6%A0%88%E6%9C%BA%E4%B8%8E-spa-%E5%B7%A8%E5%9E%8B-json-%E5%89%AA%E6%9E%9D">1. <code>moli-html2md</code>：泛型 <code>Dom</code> 显式栈机与 SPA 巨型 JSON 剪枝</a></li>
+<li><a href="#2-%E7%BA%AF-rust-wai-aria-%E8%AF%AD%E4%B9%89%E6%A0%91moli-domsrcaccessibility">2. 纯 Rust WAI-ARIA 语义树（<code>moli-dom/src/accessibility/</code>）</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9B%9B-%E5%91%8A%E5%88%AB%E8%A7%86%E8%A7%89%E7%9E%8E%E7%82%B9webmcp-%E8%A1%A8%E5%8D%95%E7%BC%96%E8%AF%91%E5%99%A8%E4%B8%8E-rfc-9421-%E8%AF%B7%E6%B1%82%E7%AD%BE%E5%90%8D">四、告别视觉瞎点：WebMCP 表单编译器与 RFC 9421 请求签名</a>
+<ul>
+<li><a href="#1-%E5%8E%9F%E5%AD%90%E5%8C%96%E9%9B%B6%E8%84%8F%E5%86%99%E8%A1%A8%E5%8D%95%E5%A1%AB%E5%85%85%E5%A5%91%E7%BA%A6moli-webmcp">1. 原子化“零脏写”表单填充契约（<code>moli-webmcp</code>）</a></li>
+<li><a href="#2-%E5%8E%9F%E7%94%9F-rfc-9421-http-%E6%B6%88%E6%81%AF%E7%AD%BE%E5%90%8Dmoli-web-bot-auth">2. 原生 RFC 9421 HTTP 消息签名（<code>moli-web-bot-auth</code>）</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%94-%E5%85%A8%E7%BB%B4%E5%9F%BA%E5%87%86%E8%AF%84%E6%B5%8B430-%E4%B8%AA%E7%9C%9F%E5%AE%9E%E7%BD%91%E7%AB%99%E4%B8%8E-1308-%E9%A1%B9%E8%87%AA%E5%8A%A8%E5%8C%96%E4%BB%BB%E5%8A%A1%E5%AE%9E%E6%B5%8B">五、全维基准评测：430 个真实网站与 1,308 项自动化任务实测</a>
+<ul>
+<li><a href="#1-%E7%9C%9F%E5%AE%9E%E7%BD%91%E7%AB%99%E6%8A%93%E5%8F%96%E5%AF%B9%E5%86%B3lexbench-web-fetch430-%E9%81%93%E4%BB%BB%E5%8A%A1">1. 真实网站抓取对决（LexBench-Web-Fetch，430 道任务）</a></li>
+<li><a href="#2-%E6%AD%A3%E6%96%87%E6%8A%BD%E5%8F%96%E8%B4%A8%E9%87%8Fwebmainbench545-%E4%BB%BD%E7%BD%91%E9%A1%B5%E5%BF%AB%E7%85%A7">2. 正文抽取质量（WebMainBench，545 份网页快照）</a></li>
+<li><a href="#3-%E6%B5%8F%E8%A7%88%E5%99%A8%E8%87%AA%E5%8A%A8%E5%8C%96%E9%80%9A%E8%BF%87%E7%8E%87%E4%B8%8E%E8%B5%84%E6%BA%90%E5%BC%80%E9%94%80lexbench-headless-browser-wpt">3. 浏览器自动化通过率与资源开销（Lexbench-Headless-Browser &amp; WPT）</a></li>
+</ul>
+</li>
+<li><a href="#%E5%85%AD-%E6%9E%81%E9%80%9F%E4%B8%8A%E6%89%8Bcli-%E6%8A%93%E5%8F%96%E4%B8%8E%E4%B8%89%E5%8D%8F%E8%AE%AE%E7%BB%9F%E4%B8%80%E8%87%AA%E5%8A%A8%E5%8C%96%E7%AB%AF%E7%82%B9">六、极速上手：CLI 抓取与三协议统一自动化端点</a>
+<ul>
+<li><a href="#1-%E4%B8%80%E9%94%AE%E5%AE%89%E8%A3%85%E4%B8%8E%E5%8F%8C%E6%A8%A1%E5%BC%8F-cli-%E6%8A%93%E5%8F%96">1. 一键安装与双模式 CLI 抓取</a></li>
+<li><a href="#2-%E5%8D%95%E7%AB%AF%E5%8F%A3%E6%9C%8D%E5%8A%A1%E5%90%8C%E6%97%B6%E5%85%BC%E5%AE%B9-playwright-webdriver">2. 单端口服务同时兼容 Playwright / WebDriver</a></li>
+</ul>
+</li>
+<li><a href="#%E4%B8%83-%E5%B7%A5%E7%A8%8B%E6%9D%83%E8%A1%A1%E4%B8%8E%E5%AE%A2%E8%A7%82%E8%BE%B9%E7%95%8C">七、工程权衡与客观边界</a></li>
+<li><a href="#%E5%85%AB-%E6%80%BB%E7%BB%93">八、总结</a></li>
+<li><a href="#%E5%8E%9F%E6%96%87%E9%93%BE%E6%8E%A5%E4%B8%8E%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">原文链接与参考资料</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://lijianfei.com/post/phongent-cross-platform-multi-device-agent-fleet-architecture/">
+              <h3 class="post-title">
+                从单机自律到机群协同：phongent 跨平台多设备 Agent 调度网格、低延迟虚拟屏与会话路由架构
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://lijianfei.com/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      function initMermaid() {
+        const mermaidElements = document.querySelectorAll("pre code.language-mermaid");
+        if (mermaidElements.length > 0) {
+          const containers = [];
+          mermaidElements.forEach((el) => {
+            const pre = el.parentElement;
+            let code = el.textContent;
+            // 自动容错清洗 Mermaid 语法转义噪音（如非法转义引号、HTML 实体分号截断、subgraph 格式异常、边标签未加双引号等）
+            code = code.replace(/\\"/g, '"')
+                       .replace(/&lt;/g, '<')
+                       .replace(/&gt;/g, '>')
+                       .replace(/&amp;/g, '&')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[\\?"/g, 'subgraph $1 ["')
+                       .replace(/subgraph\s+([A-Za-z0-9_]+)\[/g, 'subgraph $1 [')
+                       .replace(/\[\\?"/g, '["')
+                       .replace(/\\?"]/g, '"]')
+                       .replace(/-\.->\|/g, '-->|')
+                       .replace(/((?:--[->]|==>)\s*)\|([^|\n]+)\|/g, (m, arrow, label) => `${arrow}|${label.replace(/[()\/\\"'\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim()}|`);
+            const container = document.createElement("div");
+            container.className = "mermaid";
+            container.textContent = code;
+            pre.parentNode.replaceChild(container, pre);
+            containers.push(container);
+          });
+
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
+          script.onload = async function () {
+            mermaid.initialize({
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+              xyChart: {
+                width: 900,
+                height: 420,
+                xAxis: {
+                  labelFontSize: 13,
+                  labelPadding: 8
+                },
+                yAxis: {
+                  labelFontSize: 13
+                }
+              },
+              themeVariables: {
+                xyChart: {
+                  plotColorPalette: '#3b82f6, #10b981, #f59e0b, #8b5cf6, #ef4444'
+                }
+              }
+            });
+            try {
+              await mermaid.run({ nodes: containers, suppressErrors: true });
+            } catch (err) {
+              console.error("Mermaid run error:", err);
+            }
+          };
+          document.body.appendChild(script);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initMermaid);
+      } else {
+        initMermaid();
+      }
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+      function initAlerts() {
+        const blockquotes = document.querySelectorAll(".post-content blockquote");
+        const alertTypes = {
+          NOTE: { title: "Note", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' },
+          TIP: { title: "Tip", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.18.213-.362.43-.542.681-.207.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6.5 15h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"></path></svg>' },
+          IMPORTANT: { title: "Important", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          WARNING: { title: "Warning", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>' },
+          CAUTION: { title: "Caution", icon: '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6c0 .199-.079.389-.22.53l-4.25 4.25a.749.749 0 0 1-.53.22H5a.749.749 0 0 1-.53-.22L.22 11.75A.749.749 0 0 1 0 11.22v-6c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>' }
+        };
+
+        blockquotes.forEach(bq => {
+          const firstP = bq.querySelector("p");
+          if (!firstP) return;
+          const match = firstP.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([^\n<]*)(?:\s*<br\s*\/?>)?/i);
+          if (match) {
+            const type = match[1].toUpperCase();
+            const customTitle = match[2].trim();
+            const config = alertTypes[type];
+            if (!config) return;
+
+            firstP.innerHTML = firstP.innerHTML.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\n<]*(?:\s*<br\s*\/?>)?\s*/i, "");
+            if (firstP.innerHTML.trim() === "") {
+              firstP.remove();
+            }
+            bq.classList.add("markdown-alert", "markdown-alert-" + type.toLowerCase());
+
+            const header = document.createElement("div");
+            header.className = "markdown-alert-title";
+            const displayTitle = customTitle ? customTitle : config.title;
+            header.innerHTML = config.icon + "<span>" + displayTitle + "</span>";
+            bq.insertBefore(header, bq.firstChild);
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAlerts);
+      } else {
+        initAlerts();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const postImages = document.querySelectorAll(".post-content img");
+        postImages.forEach(function (img) {
+          if (!img.getAttribute("loading")) {
+            img.setAttribute("loading", "lazy");
+          }
+          if (!img.getAttribute("decoding")) {
+            img.setAttribute("decoding", "async");
+          }
+        });
+      });
+
+      function fixTaskLists() {
+        document.querySelectorAll('.post-content .task-list-item').forEach(function (item) {
+          const label = item.querySelector('.task-list-item-label');
+          if (label && label.previousElementSibling && label.previousElementSibling.tagName !== 'INPUT') {
+            label.remove();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fixTaskLists);
+      } else {
+        fixTaskLists();
+      }
+
+      // 架构图与插图原生灯箱放大模式 (Diagram Zoom Lightbox)
+      function initDiagramZoom() {
+        const postImages = document.querySelectorAll(".post-content img");
+        if (postImages.length === 0) return;
+
+        // 构建灯箱 DOM 结构
+        const overlay = document.createElement("div");
+        overlay.className = "diagram-zoom-overlay";
+        overlay.innerHTML = `
+          <div class="diagram-zoom-hint">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>滚轮缩放 · 拖拽平移 · 双击切换 · ESC退出</span>
+          </div>
+          <button class="diagram-zoom-close" title="关闭 (ESC)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+          <div class="diagram-zoom-stage">
+            <img class="diagram-zoom-img" src="" alt="Zoomed diagram" draggable="false" />
+          </div>
+          <div class="diagram-zoom-toolbar">
+            <button class="diagram-zoom-btn btn-zoom-out" title="缩小 (-)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <span class="diagram-zoom-info">100%</span>
+            <button class="diagram-zoom-btn btn-zoom-in" title="放大 (+)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-reset" title="重置适应 (0)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            </button>
+            <button class="diagram-zoom-btn btn-open-raw" title="在新标签页查看高清原图">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </button>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const stage = overlay.querySelector(".diagram-zoom-stage");
+        const zoomImg = overlay.querySelector(".diagram-zoom-img");
+        const scaleInfo = overlay.querySelector(".diagram-zoom-info");
+        const closeBtn = overlay.querySelector(".diagram-zoom-close");
+        const zoomInBtn = overlay.querySelector(".btn-zoom-in");
+        const zoomOutBtn = overlay.querySelector(".btn-zoom-out");
+        const resetBtn = overlay.querySelector(".btn-reset");
+        const rawBtn = overlay.querySelector(".btn-open-raw");
+
+        let currentScale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let origTx = 0;
+        let origTy = 0;
+        let currentRawSrc = "";
+
+        function updateTransform() {
+          zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
+          scaleInfo.textContent = Math.round(currentScale * 100) + "%";
+          if (currentScale > 1) {
+            stage.classList.add("can-drag");
+          } else {
+            stage.classList.remove("can-drag");
+          }
+        }
+
+        function openModal(src, alt) {
+          currentRawSrc = src;
+          zoomImg.src = src;
+          zoomImg.alt = alt || "Diagram";
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+          overlay.classList.add("active");
+          document.body.style.overflow = "hidden";
+        }
+
+        function closeModal() {
+          overlay.classList.remove("active");
+          document.body.style.overflow = "";
+          setTimeout(() => {
+            zoomImg.src = "";
+          }, 250);
+        }
+
+        // 为正文图片绑定点击事件
+        postImages.forEach(img => {
+          img.setAttribute("title", "点击放大查看高清全景图");
+          img.addEventListener("click", e => {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal(img.currentSrc || img.src, img.alt);
+          });
+        });
+
+        // 按钮事件
+        closeBtn.addEventListener("click", closeModal);
+        zoomInBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.min(currentScale * 1.25, 5);
+          updateTransform();
+        });
+        zoomOutBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = Math.max(currentScale * 0.8, 0.4);
+          updateTransform();
+        });
+        resetBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          currentScale = 1;
+          translateX = 0;
+          translateY = 0;
+          updateTransform();
+        });
+        rawBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          if (currentRawSrc) window.open(currentRawSrc, "_blank");
+        });
+
+        // 鼠标滚轮缩放
+        stage.addEventListener("wheel", e => {
+          e.preventDefault();
+          const factor = e.deltaY < 0 ? 1.15 : 0.85;
+          currentScale = Math.min(Math.max(currentScale * factor, 0.4), 5);
+          updateTransform();
+        }, { passive: false });
+
+        // 双击在 1x 与 2x 间切换
+        stage.addEventListener("dblclick", e => {
+          e.preventDefault();
+          if (currentScale > 1.2) {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+          } else {
+            currentScale = 2;
+          }
+          updateTransform();
+        });
+
+        // 拖拽平移
+        stage.addEventListener("mousedown", e => {
+          if (e.target === closeBtn || e.target.closest(".diagram-zoom-toolbar")) return;
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          origTx = translateX;
+          origTy = translateY;
+          stage.classList.add("dragging");
+        });
+
+        window.addEventListener("mousemove", e => {
+          if (!isDragging) return;
+          translateX = origTx + (e.clientX - startX);
+          translateY = origTy + (e.clientY - startY);
+          updateTransform();
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (isDragging) {
+            isDragging = false;
+            stage.classList.remove("dragging");
+          }
+        });
+
+        // 点击背景遮罩关闭（非拖拽位移触发）
+        stage.addEventListener("click", e => {
+          if (e.target === stage && Math.abs(translateX - origTx) < 5 && Math.abs(translateY - origTy) < 5) {
+            closeModal();
+          }
+        });
+
+        // 键盘快捷键监听
+        window.addEventListener("keydown", e => {
+          if (!overlay.classList.contains("active")) return;
+          if (e.key === "Escape") {
+            closeModal();
+          } else if (e.key === "+" || e.key === "=") {
+            currentScale = Math.min(currentScale * 1.25, 5);
+            updateTransform();
+          } else if (e.key === "-" || e.key === "_") {
+            currentScale = Math.max(currentScale * 0.8, 0.4);
+            updateTransform();
+          } else if (e.key === "0") {
+            currentScale = 1;
+            translateX = 0;
+            translateY = 0;
+            updateTransform();
+          }
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initDiagramZoom);
+      } else {
+        initDiagramZoom();
+      }
+    </script>
+  </body>
+</html>

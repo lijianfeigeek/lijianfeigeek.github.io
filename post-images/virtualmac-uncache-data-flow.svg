@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540" role="img" aria-labelledby="vmipad-df-title vmipad-df-desc" style="background:#ffffff; font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <title id="vmipad-df-title">arm64e dyld_shared_cache 逆向提取与跨代 Mach-O 重织流水线</title>
+  <desc id="vmipad-df-desc">展示 VirtualMacOniPad 如何通过 dyldex、ipsw-a2sb、uncache.py 与 stamp_ios.py 将 macOS 共享缓存中的系统框架重建为可在 iPadOS 14 至 16.3.1 加载的 arm64e 动态库。</desc>
+  <defs>
+    <marker id="vmdf-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+    </marker>
+    <marker id="vmdf-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#e11d48"/>
+    </marker>
+    <marker id="vmdf-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#0284c7"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="540" fill="#ffffff"/>
+
+  <!-- Header -->
+  <g transform="translate(40, 20)">
+    <rect x="0" y="0" width="880" height="52" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="20" y="24" font-size="17" font-weight="700" fill="#0f172a">arm64e dyld_shared_cache 逆向提取与 Mach-O 重织流水线</text>
+    <text x="20" y="42" font-size="11" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b">DYLDEX + IPSW-A2SB + UNCACHE.PY (1,684 LOC) + STAMP_IOS.PY + CROSS-OS BINARY PATCHES</text>
+    <text x="860" y="32" font-size="11" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#0284c7" font-weight="600" text-anchor="end">TYPE: DATA FLOW</text>
+  </g>
+
+  <!-- Grid Background & Alternating Lanes -->
+  <g transform="translate(40, 88)">
+    <!-- Step Header Bar -->
+    <rect x="0" y="0" width="880" height="36" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+    <line x1="136" y1="0" x2="136" y2="372" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- Lane Backgrounds -->
+    <rect x="0" y="36" width="880" height="84" fill="#ffffff"/>
+    <rect x="0" y="120" width="880" height="84" fill="#f8fafc"/>
+    <rect x="0" y="204" width="880" height="84" fill="#ffffff"/>
+    <rect x="0" y="288" width="880" height="84" fill="#f8fafc"/>
+
+    <!-- Lane Dividers -->
+    <line x1="0" y1="36" x2="880" y2="36" stroke="#cbd5e1" stroke-width="1"/>
+    <line x1="0" y1="120" x2="880" y2="120" stroke="#e2e8f0" stroke-width="0.9"/>
+    <line x1="0" y1="204" x2="880" y2="204" stroke="#e2e8f0" stroke-width="0.9"/>
+    <line x1="0" y1="288" x2="880" y2="288" stroke="#e2e8f0" stroke-width="0.9"/>
+    <line x1="0" y1="372" x2="880" y2="372" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- Step Chips (5 steps, each 148px wide starting at x=136) -->
+    <g transform="translate(136, 0)">
+      <rect x="34" y="6" width="80" height="22" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="74" y="21" font-size="10" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#475569" text-anchor="middle">01 EXTRACT</text>
+    </g>
+    <g transform="translate(284, 0)">
+      <rect x="34" y="6" width="80" height="22" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="74" y="21" font-size="10" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#475569" text-anchor="middle">02 RESOLVE</text>
+    </g>
+    <g transform="translate(432, 0)">
+      <rect x="30" y="6" width="88" height="22" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="74" y="21" font-size="10" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#475569" text-anchor="middle">03 LOCALIZE</text>
+    </g>
+    <g transform="translate(580, 0)">
+      <rect x="32" y="6" width="84" height="22" rx="4" fill="#fff1f2" stroke="#e11d48" stroke-width="1"/>
+      <text x="74" y="21" font-size="10" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#be123c" text-anchor="middle">04 REWEAVE</text>
+    </g>
+    <g transform="translate(728, 0)">
+      <rect x="30" y="6" width="88" height="22" rx="4" fill="#e0f2fe" stroke="#0284c7" stroke-width="0.9"/>
+      <text x="74" y="21" font-size="10" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#0369a1" text-anchor="middle">05 STAMP/FIX</text>
+    </g>
+
+    <!-- Lane Labels -->
+    <g transform="translate(0, 36)">
+      <text x="68" y="38" font-size="11" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#0f172a" text-anchor="middle">MACOS DSC</text>
+      <text x="68" y="54" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" text-anchor="middle">22D68 CACHE</text>
+    </g>
+    <g transform="translate(0, 120)">
+      <text x="68" y="38" font-size="11" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#0f172a" text-anchor="middle">OBJC POOL</text>
+      <text x="68" y="54" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" text-anchor="middle">METADATAS</text>
+    </g>
+    <g transform="translate(0, 204)">
+      <text x="68" y="38" font-size="11" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#be123c" text-anchor="middle">FIXUP WEAVE</text>
+      <text x="68" y="54" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#be123c" text-anchor="middle">ARM64E PAC</text>
+    </g>
+    <g transform="translate(0, 288)">
+      <text x="68" y="38" font-size="11" font-family="ui-monospace,Menlo,Monaco,monospace" font-weight="700" fill="#0369a1" text-anchor="middle">IPADOS ABI</text>
+      <text x="68" y="54" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" text-anchor="middle">14 / 15 / 16</text>
+    </g>
+  </g>
+
+  <!-- Orthogonal Connectors (drawn BEFORE boxes; absolute coordinates = 40 + grid_local) -->
+  <!-- Grid origin is (40, 88). Step centers: S0=250, S1=398, S2=546, S3=694, S4=842. Lane mids: L0=166, L1=250, L2=334, L3=418 -->
+  <g>
+    <!-- S0(L0) right (315, 166) -> S1(L0) left (333, 166) -->
+    <line x1="315" y1="166" x2="333" y2="166" stroke="#4f5d75" stroke-width="1.4" marker-end="url(#vmdf-arrow)"/>
+
+    <!-- S1(L0) bottom (398, 198) -> down to y=250 -> right to S2(L1) left (481, 250) -->
+    <path d="M 398 198 L 398 242 Q 398 250 406 250 L 481 250" fill="none" stroke="#4f5d75" stroke-width="1.4" marker-end="url(#vmdf-arrow)"/>
+
+    <!-- S2(L1) bottom-right (566, 282) -> down to y=334 -> right to S3(L2) left (629, 334) -->
+    <path d="M 566 282 L 566 326 Q 566 334 574 334 L 629 334" fill="none" stroke="#e11d48" stroke-width="1.6" marker-end="url(#vmdf-arrow-accent)"/>
+
+    <!-- S2(L1) bottom-left (526, 282) -> straight down to S2(L3) top (526, 386) -->
+    <line x1="526" y1="282" x2="526" y2="386" stroke="#4f5d75" stroke-width="1.4" stroke-dasharray="4,3" marker-end="url(#vmdf-arrow)"/>
+
+    <!-- S3(L2) bottom (694, 366) -> down to y=406 -> right to S4(L3) left (777, 406) -->
+    <path d="M 694 366 L 694 398 Q 694 406 702 406 L 777 406" fill="none" stroke="#0284c7" stroke-width="1.5" marker-end="url(#vmdf-arrow-link)"/>
+
+    <!-- S2(L3) right (611, 430) -> straight right to S4(L3) left (777, 430) -->
+    <line x1="611" y1="430" x2="777" y2="430" stroke="#4f5d75" stroke-width="1.4" stroke-dasharray="4,3" marker-end="url(#vmdf-arrow)"/>
+
+    <!-- Connector Labels with opaque masks and 6-10px margin -->
+    <rect x="342" y="218" width="48" height="14" rx="2" fill="#f8fafc"/>
+    <text x="366" y="228" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#475569" text-anchor="middle">A2S MAP</text>
+
+    <rect x="466" y="324" width="52" height="14" rx="2" fill="#f8fafc"/>
+    <text x="492" y="334" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#475569" text-anchor="middle">14/15 ABI</text>
+
+    <rect x="650" y="408" width="66" height="14" rx="2" fill="#f8fafc"/>
+    <text x="683" y="418" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#475569" text-anchor="middle">COMPAT PATH</text>
+  </g>
+
+  <!-- Nodes (each in isolated <g transform="translate(X, Y)">) -->
+  <!-- Node 1: (L0, S0) -->
+  <g transform="translate(185, 134)">
+    <rect x="0" y="0" width="130" height="64" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.1"/>
+    <text x="65" y="22" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">dyldex 剥离抽出</text>
+    <text x="65" y="39" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#475569" text-anchor="middle">有损 raw Mach-O</text>
+    <text x="65" y="54" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" text-anchor="middle">22D68 DSC → raw</text>
+  </g>
+
+  <!-- Node 2: (L0, S1) -->
+  <g transform="translate(333, 134)">
+    <rect x="0" y="0" width="130" height="64" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.1"/>
+    <text x="65" y="22" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">ipsw-a2sb 解析</text>
+    <text x="65" y="39" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#475569" text-anchor="middle">slide_info_v3 分离</text>
+    <text x="65" y="54" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" text-anchor="middle">批量 0xADDR → 符号</text>
+  </g>
+
+  <!-- Node 3: (L1, S2) -->
+  <g transform="translate(481, 218)">
+    <rect x="0" y="0" width="130" height="64" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.1"/>
+    <text x="65" y="22" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">ObjC 局部化修复</text>
+    <text x="65" y="39" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#475569" text-anchor="middle">__OBJC_RO selref</text>
+    <text x="65" y="54" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" text-anchor="middle">清 preopt + 协议重定位</text>
+  </g>
+
+  <!-- Node 4: (L2, S3) FOCAL -->
+  <g transform="translate(629, 302)">
+    <rect x="0" y="0" width="130" height="64" rx="6" fill="#fff1f2" stroke="#e11d48" stroke-width="1.5"/>
+    <text x="65" y="22" font-size="12" font-weight="700" fill="#be123c" text-anchor="middle">arm64e 链式重织</text>
+    <text x="65" y="39" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#be123c" text-anchor="middle">AUTH_GOT + PAC 保留</text>
+    <text x="65" y="54" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#9f1239" text-anchor="middle">LC_DYLD_CHAINED_FIXUPS</text>
+  </g>
+
+  <!-- Node 5: (L3, S2) -->
+  <g transform="translate(481, 386)">
+    <rect x="0" y="0" width="130" height="64" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.1"/>
+    <text x="65" y="22" font-size="12" font-weight="700" fill="#0f172a" text-anchor="middle">跨代 ABI 降级补丁</text>
+    <text x="65" y="39" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#475569" text-anchor="middle">15: 剥离 DA 0x61F8</text>
+    <text x="65" y="54" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" text-anchor="middle">14: Big Sur HV14 外壳</text>
+  </g>
+
+  <!-- Node 6: (L3, S4) -->
+  <g transform="translate(777, 386)">
+    <rect x="0" y="0" width="130" height="64" rx="6" fill="#f0f9ff" stroke="#0284c7" stroke-width="1.3"/>
+    <text x="65" y="22" font-size="12" font-weight="700" fill="#0369a1" text-anchor="middle">改写 iOS 与 VMM 外科</text>
+    <text x="65" y="39" font-size="9" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#0369a1" text-anchor="middle">stamp_ios + codesign</text>
+    <text x="65" y="54" font-size="8" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#475569" text-anchor="middle">0x154F20 / 0x179DF0</text>
+  </g>
+
+  <!-- Legend Strip -->
+  <g transform="translate(40, 480)">
+    <line x1="0" y1="0" x2="880" y2="0" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="0" y="24" font-size="10" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" font-weight="700">LEGEND</text>
+    <rect x="76" y="13" width="14" height="14" rx="3" fill="#fff1f2" stroke="#e11d48" stroke-width="1.2"/>
+    <text x="98" y="24" font-size="11" fill="#334155">uncache.py 链式指针重建核心</text>
+    <rect x="290" y="13" width="14" height="14" rx="3" fill="#f0f9ff" stroke="#0284c7" stroke-width="1.2"/>
+    <text x="312" y="24" font-size="11" fill="#334155">可执行产物与定点指令外科</text>
+    <line x1="488" y1="20" x2="520" y2="20" stroke="#4f5d75" stroke-width="1.4" stroke-dasharray="4,3"/>
+    <text x="528" y="24" font-size="11" fill="#334155">iPadOS 14/15 兼容分支</text>
+    <text x="880" y="24" font-size="10" font-family="ui-monospace,Menlo,Monaco,monospace" fill="#64748b" text-anchor="end">SOURCE: uncache.py &amp; dyld_a2sb.go</text>
+  </g>
+</svg>

@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg data-diagram="architecture-delta" viewBox="0 0 1120 660" width="1120" height="660" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="s2arm-delta-title s2arm-delta-desc" id="s2arm-architecture-delta-root">
+  <title id="s2arm-delta-title">从单款模拟到 S2Arm 0.6.0 统一容器直连拓扑演进</title>
+  <desc id="s2arm-delta-desc">对比传统单款独立包与动态 GPU 模拟架构，展示 S2Arm 0.6.0 在单一应用容器、双补丁岛静态改写、NVN/NVN2 直连 Metal、分块溢出内存与版本化字段快照上的结构性重构。</desc>
+  <defs>
+      <style>#s2arm-architecture-delta-root { --color-paper:   #f8fafc;
+      --color-ink:     #0f172a;
+      --color-muted:   #475569;
+      --color-soft:    #64748b;
+      --color-accent:  #bf4520;
+      --color-link:    #2e5aa8;
+      --font-sans:     'Geist', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif', 'PingFang SC', serif;
+      --font-mono:     'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Monaco, monospace; }
+      #s2arm-architecture-delta-root { font-family: var(--font-sans); color: var(--color-ink); }
+      #s2arm-architecture-delta-root .diagram-container { width: 100%; overflow-x: auto; }
+      @media print {
+#s2arm-architecture-delta-root .diagram-container { overflow-x: visible; }
+}</style>
+    <marker id="s2arm-architecture-delta-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+    </marker>
+    <marker id="s2arm-architecture-delta-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+    </marker>
+    <marker id="s2arm-architecture-delta-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+    </marker>
+  </defs>
+
+  <rect width="1120" height="660" fill="#f8fafc"/>
+
+  <!-- Header -->
+  <g transform="translate(24, 16)">
+    <text x="0" y="24" font-size="18" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif">架构演进对照：传统模拟 / 0.5 单款模式 vs S2Arm 0.6.0 统一容器直连</text>
+    <text x="0" y="42" font-size="9" fill="#64748b" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.06em">BEFORE: PER-GAME IPA + GPU EMULATION  ·  AFTER: UNIFIED S2ARM.APP + DIRECT METAL + SNAPSHOTS</text>
+  </g>
+
+  <!-- Panel Headers -->
+  <text x="24" y="80" font-size="9" font-weight="600" fill="#475569" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">BEFORE · 传统模拟与 0.5 单款模式</text>
+  <text x="388" y="80" font-size="9" font-weight="600" fill="#bf4520" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">CHANGES LEDGER · 核心拓扑变更</text>
+  <text x="760" y="80" font-size="9" font-weight="600" fill="#2e5aa8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">AFTER · S2ARM 0.6.0 直连统一架构</text>
+
+  <!-- BEFORE SNAPSHOT -->
+  <g data-snapshot="before" data-grid="336 496 4" transform="translate(24 92)">
+    <rect x="0" y="0" width="336" height="496" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- Relationships (drawn before nodes) -->
+    <path data-kind="relationship" data-object-id="R1" data-status="unchanged" data-signature="launch-flow" data-from="C1" data-to="C2"
+          d="M 168 72 L 168 92" fill="none" stroke="#475569" stroke-width="1" marker-end="url(#s2arm-architecture-delta-arrow)"/>
+    <path data-kind="relationship" data-object-id="R2" data-status="rewired" data-signature="gfx-submit" data-from="C2" data-to="C3"
+          d="M 168 152 L 168 172" fill="none" stroke="#475569" stroke-width="1" marker-end="url(#s2arm-architecture-delta-arrow)"/>
+    <path data-kind="relationship" data-object-id="R3" data-status="unchanged" data-signature="shader-supply" data-from="C3" data-to="C4"
+          d="M 168 232 L 168 252" fill="none" stroke="#475569" stroke-width="1" marker-end="url(#s2arm-architecture-delta-arrow)"/>
+    <path data-kind="relationship" data-object-id="R4" data-status="unchanged" data-signature="mem-backing" data-from="C2" data-to="C5"
+          d="M 316 124 L 324 124 Q 328 124 328 132 L 328 356 Q 328 364 320 364 L 316 364" fill="none" stroke="#475569" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#s2arm-architecture-delta-arrow)"/>
+    <path data-kind="relationship" data-object-id="R5" data-status="removed" data-signature="save-point" data-from="C1" data-to="C6"
+          d="M 20 44 L 12 44 Q 8 44 8 52 L 8 440 Q 8 448 16 448 L 20 448" fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#s2arm-architecture-delta-arrow)"/>
+
+    <!-- Components -->
+    <g data-kind="component" data-object-id="C1" data-status="changed" data-signature="app-shell:per-game-ipa" transform="translate(20 12)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#475569" stroke-width="1"/>
+      <rect x="8" y="8" width="24" height="14" rx="2" fill="#e2e8f0"/>
+      <text x="20" y="18" font-size="8" font-weight="600" fill="#475569" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">C1</text>
+      <text x="40" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">一游一包独立 IPA</text>
+      <text x="12" y="42" font-size="10" fill="#475569" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">占满免费 Apple ID 3 个应用槽位；续签繁琐</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C2" data-status="changed" data-signature="cpu-exec:jit-or-interp" transform="translate(20 92)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#475569" stroke-width="1"/>
+      <rect x="8" y="8" width="24" height="14" rx="2" fill="#e2e8f0"/>
+      <text x="20" y="18" font-size="8" font-weight="600" fill="#475569" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">C2</text>
+      <text x="40" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">JIT 动态编译 / 解释器兜底</text>
+      <text x="12" y="42" font-size="10" fill="#475569" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">受 iOS W^X 封杀，无调试器即崩溃或降速</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C3" data-status="changed" data-signature="gfx-path:gpu-emulation" transform="translate(20 172)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#475569" stroke-width="1"/>
+      <rect x="8" y="8" width="24" height="14" rx="2" fill="#e2e8f0"/>
+      <text x="20" y="18" font-size="8" font-weight="600" fill="#475569" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">C3</text>
+      <text x="40" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">Switch GPU 全量模拟管线</text>
+      <text x="12" y="42" font-size="10" fill="#475569" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">nvdrv -&gt; IRenderer -&gt; Metal · 实测 2.67 W</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C4" data-status="changed" data-signature="shaders:runtime-compile" transform="translate(20 252)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#475569" stroke-width="1"/>
+      <rect x="8" y="8" width="24" height="14" rx="2" fill="#e2e8f0"/>
+      <text x="20" y="18" font-size="8" font-weight="600" fill="#475569" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">C4</text>
+      <text x="40" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">真机首遇实时编译着色器</text>
+      <text x="12" y="42" font-size="10" fill="#475569" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">进新场景掉帧 ~180ms/管线；.pkg 未拆包</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C5" data-status="changed" data-signature="mem:whole-map-shared" transform="translate(20 332)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#475569" stroke-width="1"/>
+      <rect x="8" y="8" width="24" height="14" rx="2" fill="#e2e8f0"/>
+      <text x="20" y="18" font-size="8" font-weight="600" fill="#475569" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">C5</text>
+      <text x="40" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">整段 MAP_SHARED 文件后备</text>
+      <text x="12" y="42" font-size="10" fill="#475569" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">iPad Pro M2 30 分钟强写闪存 189–223 GB</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C6" data-status="removed" data-signature="save:game-only-checkpoint" transform="translate(20 416)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#64748b" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="8" y="8" width="24" height="14" rx="2" fill="#e2e8f0"/>
+      <text x="20" y="18" font-size="8" font-weight="600" fill="#64748b" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">C6</text>
+      <text x="40" y="20" font-size="12" font-weight="600" fill="#475569" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">- 仅限游戏内置存档点</text>
+      <text x="12" y="42" font-size="10" fill="#64748b" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">无法随时冻结现场；更新 App 即失效</text>
+    </g>
+  </g>
+
+  <!-- CENTER CHANGES LEDGER -->
+  <g transform="translate(384, 92)">
+    <rect x="0" y="0" width="352" height="496" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+
+    <text data-change="CHANGED" data-target="C1" x="16" y="34" font-size="11" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">
+      <tspan font-weight="700" fill="#2e5aa8">CHANGED C1</tspan>
+      <tspan x="16" dy="16" font-size="10.5" fill="#334155">多游戏独立包 -&gt; 单一 S2Arm.app 容器 + .s2arm 便携包</tspan>
+    </text>
+    <line x1="16" y1="68" x2="336" y2="68" stroke="#e2e8f0" stroke-width="0.8"/>
+
+    <text data-change="CHANGED" data-target="C2" x="16" y="92" font-size="11" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">
+      <tspan font-weight="700" fill="#2e5aa8">CHANGED C2</tspan>
+      <tspan x="16" dy="16" font-size="10.5" fill="#334155">动态 JIT -&gt; C11 双补丁岛静态改写 + acquire/release 屏障</tspan>
+    </text>
+    <line x1="16" y1="126" x2="336" y2="126" stroke="#e2e8f0" stroke-width="0.8"/>
+
+    <text data-change="CHANGED" data-target="C3" x="16" y="150" font-size="11" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">
+      <tspan font-weight="700" fill="#2e5aa8">CHANGED C3</tspan>
+      <tspan x="16" dy="16" font-size="10.5" fill="#334155">GPU 模拟 -&gt; NVN/NVN2 直译 Metal (2.67 W -&gt; 1.89 W)</tspan>
+    </text>
+    <line x1="16" y1="184" x2="336" y2="184" stroke="#e2e8f0" stroke-width="0.8"/>
+
+    <text data-change="REWIRED" data-target="R2" x="16" y="208" font-size="11" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">
+      <tspan font-weight="700" fill="#475569">REWIRED R2</tspan>
+      <tspan x="16" dy="16" font-size="10.5" fill="#334155">接管 nvnBootstrapLoader，异常自动退回通用模式</tspan>
+    </text>
+    <line x1="16" y1="242" x2="336" y2="242" stroke="#e2e8f0" stroke-width="0.8"/>
+
+    <text data-change="CHANGED" data-target="C4" x="16" y="266" font-size="11" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">
+      <tspan font-weight="700" fill="#2e5aa8">CHANGED C4</tspan>
+      <tspan x="16" dy="16" font-size="10.5" fill="#334155">真机现编 -&gt; 离线拆包预编译 (26,531 失效着色器全通)</tspan>
+    </text>
+    <line x1="16" y1="300" x2="336" y2="300" stroke="#e2e8f0" stroke-width="0.8"/>
+
+    <text data-change="CHANGED" data-target="C5" x="16" y="324" font-size="11" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">
+      <tspan font-weight="700" fill="#2e5aa8">CHANGED C5</tspan>
+      <tspan x="16" dy="16" font-size="10.5" fill="#334155">整段写盘 -&gt; 32 MiB 溢出预算 + far.c 2 MiB 影子目录</tspan>
+    </text>
+    <line x1="16" y1="358" x2="336" y2="358" stroke="#e2e8f0" stroke-width="0.8"/>
+
+    <text data-change="REMOVED" data-target="C6" x="16" y="382" font-size="11" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">
+      <tspan font-weight="700" fill="#64748b">REMOVED C6</tspan>
+      <tspan x="16" dy="16" font-size="10.5" fill="#334155">淘汰纯依赖游戏内存档点的单一存读档流程</tspan>
+    </text>
+    <line x1="16" y1="416" x2="336" y2="416" stroke="#e2e8f0" stroke-width="0.8"/>
+
+    <text data-change="ADDED" data-target="C7" x="16" y="440" font-size="11" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">
+      <tspan font-weight="700" fill="#bf4520">ADDED C7</tspan>
+      <tspan x="16" dy="16" font-size="10.5" fill="#334155">新增 snapfmt.h 版本化即时快照与 s2armctl AI 排障</tspan>
+    </text>
+  </g>
+
+  <!-- AFTER SNAPSHOT -->
+  <g data-snapshot="after" data-grid="336 496 4" transform="translate(760 92)">
+    <rect x="0" y="0" width="336" height="496" rx="8" fill="#ffffff" stroke="#2e5aa8" stroke-width="1.2"/>
+
+    <!-- Relationships -->
+    <path data-kind="relationship" data-object-id="R1" data-status="unchanged" data-signature="launch-flow" data-from="C1" data-to="C2"
+          d="M 168 72 L 168 92" fill="none" stroke="#475569" stroke-width="1" marker-end="url(#s2arm-architecture-delta-arrow)"/>
+    <path data-kind="relationship" data-object-id="R2" data-status="rewired" data-signature="direct-nvn-wire" data-from="C2" data-to="C3"
+          d="M 168 152 L 168 172" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#s2arm-architecture-delta-arrow-link)"/>
+    <path data-kind="relationship" data-object-id="R3" data-status="unchanged" data-signature="shader-supply" data-from="C3" data-to="C4"
+          d="M 168 232 L 168 252" fill="none" stroke="#475569" stroke-width="1" marker-end="url(#s2arm-architecture-delta-arrow)"/>
+    <path data-kind="relationship" data-object-id="R4" data-status="unchanged" data-signature="mem-backing" data-from="C2" data-to="C5"
+          d="M 316 124 L 324 124 Q 328 124 328 132 L 328 356 Q 328 364 320 364 L 316 364" fill="none" stroke="#475569" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#s2arm-architecture-delta-arrow)"/>
+    <path data-kind="relationship" data-object-id="R6" data-status="added" data-signature="snapshot-and-ai" data-from="C1" data-to="C7"
+          d="M 20 44 L 12 44 Q 8 44 8 52 L 8 440 Q 8 448 16 448 L 20 448" fill="none" stroke="#bf4520" stroke-width="1.2" marker-end="url(#s2arm-architecture-delta-arrow-accent)"/>
+
+    <!-- Components -->
+    <g data-kind="component" data-object-id="C1" data-status="changed" data-signature="app-shell:unified-s2arm" transform="translate(20 12)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#2e5aa8" stroke-width="1.2"/>
+      <rect x="8" y="8" width="28" height="14" rx="2" fill="#e0e7ff"/>
+      <text x="22" y="18" font-size="8" font-weight="600" fill="#2e5aa8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ΔC1</text>
+      <text x="44" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">统一 S2Arm.app + .s2arm 归档</text>
+      <text x="12" y="42" font-size="10" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">全库仅占 1 槽；支持手机端 .p12 自签与导出</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C2" data-status="changed" data-signature="cpu-exec:aot-dual-islands" transform="translate(20 92)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#2e5aa8" stroke-width="1.2"/>
+      <rect x="8" y="8" width="28" height="14" rx="2" fill="#e0e7ff"/>
+      <text x="22" y="18" font-size="8" font-weight="600" fill="#2e5aa8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ΔC2</text>
+      <text x="44" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">C11 双补丁岛 + 内存屏障注入</text>
+      <text x="12" y="42" font-size="10" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">±128 MiB 双岛/远跳 + ldaxr/stlxr 原生直跑</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C3" data-status="changed" data-signature="gfx-path:direct-metal-mtl4fx" transform="translate(20 172)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#2e5aa8" stroke-width="1.2"/>
+      <rect x="8" y="8" width="28" height="14" rx="2" fill="#e0e7ff"/>
+      <text x="22" y="18" font-size="8" font-weight="600" fill="#2e5aa8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ΔC3</text>
+      <text x="44" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">NVN/NVN2 直连 Metal 3/4 后端</text>
+      <text x="12" y="42" font-size="10" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">1.89 W 省电 30% · 队列内 MTL4FX 补帧</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C4" data-status="changed" data-signature="shaders:offline-prewarm-26531" transform="translate(20 252)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#2e5aa8" stroke-width="1.2"/>
+      <rect x="8" y="8" width="28" height="14" rx="2" fill="#e0e7ff"/>
+      <text x="22" y="18" font-size="8" font-weight="600" fill="#2e5aa8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ΔC4</text>
+      <text x="44" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">离线解包与全量预热管线</text>
+      <text x="12" y="42" font-size="10" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">拆解 Falcom .pkg；26,531 失效着色器全编译</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C5" data-status="changed" data-signature="mem:32m-overflow-far-shadow" transform="translate(20 332)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#f8fafc" stroke="#2e5aa8" stroke-width="1.2"/>
+      <rect x="8" y="8" width="28" height="14" rx="2" fill="#e0e7ff"/>
+      <text x="22" y="18" font-size="8" font-weight="600" fill="#2e5aa8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">ΔC5</text>
+      <text x="44" y="20" font-size="12" font-weight="600" fill="#0f172a" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">32 MiB 溢出预算 + 远端影子</text>
+      <text x="12" y="42" font-size="10" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">动态拟合可用内存；2 MiB 影子目录保 Switch 2</text>
+    </g>
+
+    <g data-kind="component" data-object-id="C7" data-status="added" data-signature="snap:versioned-fields-s2armctl" transform="translate(20 416)">
+      <rect data-role="bounds" x="0" y="0" width="296" height="60" rx="6" fill="#fff7f5" stroke="#bf4520" stroke-width="1.5"/>
+      <rect x="8" y="8" width="28" height="14" rx="2" fill="#fdebe6"/>
+      <text x="22" y="18" font-size="8" font-weight="600" fill="#bf4520" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">+C7</text>
+      <text x="44" y="20" font-size="12" font-weight="600" fill="#bf4520" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">+ 版本化即时快照与 s2armctl</text>
+      <text x="12" y="42" font-size="10" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">snapfmt 跨版自动布局迁移 · AI 操控与自愈</text>
+    </g>
+  </g>
+
+  <!-- Legend Strip -->
+  <g transform="translate(24, 608)">
+    <line x1="0" y1="0" x2="1072" y2="0" stroke="#cbd5e1" stroke-width="0.8"/>
+    <text x="0" y="24" font-size="8" font-weight="600" fill="#475569" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.12em">LEGEND</text>
+    <rect x="76" y="14" width="12" height="12" rx="2" fill="#f8fafc" stroke="#2e5aa8" stroke-width="1.2"/>
+    <text x="96" y="24" font-size="11" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">Δ CHANGED 语义重构组件</text>
+    <rect x="276" y="14" width="12" height="12" rx="2" fill="#fff7f5" stroke="#bf4520" stroke-width="1.2"/>
+    <text x="296" y="24" font-size="11" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">+ ADDED 新增核心能力</text>
+    <rect x="468" y="14" width="12" height="12" rx="2" fill="#f8fafc" stroke="#64748b" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="488" y="24" font-size="11" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">- REMOVED 淘汰路径</text>
+    <line x1="652" y1="20" x2="684" y2="20" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#s2arm-architecture-delta-arrow-link)"/>
+    <text x="692" y="24" font-size="11" fill="#334155" font-family="'Geist', 'PingFang SC', system-ui, sans-serif">REWIRED 直连重接路径</text>
+  </g>
+</svg>
