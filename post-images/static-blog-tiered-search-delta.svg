@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="552" viewBox="0 0 1000 552" role="img" aria-labelledby="sbd-title sbd-desc" id="sbd-delta-root" data-diagram="architecture-delta">
+  <title id="sbd-title">静态博客搜索与归档检索架构演进：单包阻塞与分页截断 vs 双层分级索引与 Web Worker 拓扑</title>
+  <desc id="sbd-desc">对比传统单文件 6.8MB 搜索插件及 100 篇归档分页截断问题，与重构后 L1 热索引加 L2 九分片 Web Worker 并行检索架构的拓扑变化清册。</desc>
+  <defs>
+    <pattern id="sbd-dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="0.85" fill="#94a3b8" opacity="0.22"/>
+    </pattern>
+    <marker id="sbd-arr-muted" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#64748b"/>
+    </marker>
+    <marker id="sbd-arr-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#0284c7"/>
+    </marker>
+    <marker id="sbd-arr-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="552" fill="#f8fafc"/>
+  <rect width="1000" height="552" fill="url(#sbd-dots)"/>
+  <rect x="16" y="16" width="968" height="520" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+
+  <g transform="translate(36, 32)">
+    <text x="0" y="14" font-family="'Geist Mono', 'SFMono-Regular', ui-monospace, monospace" font-size="9.5" letter-spacing="0.14em" fill="#64748b">TOPOLOGY DELTA · FROM MONOLITHIC PAYLOAD TO TIERED WORKER STREAMING</text>
+    <text x="0" y="40" font-family="'Instrument Serif', 'Noto Serif SC', Georgia, serif" font-size="20" font-weight="400" fill="#0f172a">拆掉 6.8MB 单包炸弹与 100 篇分页围墙：博客检索系统前后拓扑对比</text>
+  </g>
+
+  <!-- Panel Headers -->
+  <text x="36" y="96" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" letter-spacing="0.1em" fill="#475569">BEFORE · 传统单包搜索 + 归档分页隔离</text>
+  <text x="368" y="96" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" letter-spacing="0.1em" fill="#bf4520">CHANGES LEDGER · 核心架构变更清册</text>
+  <text x="668" y="96" font-family="'Geist Mono', ui-monospace, monospace" font-size="9.5" font-weight="600" letter-spacing="0.1em" fill="#0284c7">AFTER · 双层分级索引 + WORKER 协同</text>
+
+  <!-- BEFORE SNAPSHOT -->
+  <g data-snapshot="before" data-grid="296 384 4" transform="translate(36, 108)">
+    <rect x="0" y="0" width="296" height="384" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- Connectors before nodes -->
+    <path d="M 148 80 L 148 116" fill="none" stroke="#94a3b8" stroke-width="1.3" stroke-dasharray="5,4" marker-end="url(#sbd-arr-muted)"/>
+    <path d="M 148 184 L 148 216" fill="none" stroke="#94a3b8" stroke-width="1.3" stroke-dasharray="5,4" marker-end="url(#sbd-arr-muted)"/>
+
+    <rect x="92" y="90" width="112" height="16" rx="2" fill="#ffffff"/>
+    <text x="148" y="101" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" fill="#64748b">BLOCKING PARSE</text>
+
+    <!-- B1: Browser Main Thread UI -->
+    <g transform="translate(20, 16)">
+      <rect x="0" y="0" width="256" height="64" rx="6" fill="#f8fafc" stroke="#475569" stroke-width="1.1"/>
+      <text x="14" y="24" font-family="'Geist', 'PingFang SC', sans-serif" font-size="13" font-weight="600" fill="#0f172a">浏览器主线程输入框</text>
+      <text x="14" y="46" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#64748b">UI 渲染与全文正则遍历挤在同一线程</text>
+    </g>
+
+    <!-- B2: Monolithic search.json (REMOVED) -->
+    <g transform="translate(20, 120)">
+      <rect x="0" y="0" width="256" height="64" rx="6" fill="#fef2f2" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,4"/>
+      <rect x="188" y="8" width="58" height="16" rx="2" fill="#fee2e2"/>
+      <text x="217" y="19" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="600" fill="#b91c1c">− REMOVED</text>
+      <text x="14" y="26" font-family="'Geist', 'PingFang SC', sans-serif" font-size="13" font-weight="600" fill="#475569">单文件全量 search.json</text>
+      <text x="14" y="48" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#64748b">6.8MB 原文（含冗余 SVG 坐标与标签）</text>
+    </g>
+
+    <!-- B3: Paginated Archive DOM (CHANGED) -->
+    <g transform="translate(20, 220)">
+      <rect x="0" y="0" width="256" height="68" rx="6" fill="#fef2f2" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,4"/>
+      <text x="14" y="26" font-family="'Geist', 'PingFang SC', sans-serif" font-size="13" font-weight="600" fill="#475569">归档页静态分页 DOM (/archives/)</text>
+      <text x="14" y="46" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#64748b">archivesPageSize: 100 截断为 6 个独立页</text>
+      <text x="14" y="60" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" fill="#b91c1c">前端 DOM 筛选会漏掉 482 篇历史归档</text>
+    </g>
+
+    <!-- B4: Raw Markdown Repo -->
+    <g transform="translate(20, 308)">
+      <rect x="0" y="0" width="256" height="56" rx="6" fill="#f1f5f9" stroke="#64748b" stroke-width="1.1"/>
+      <text x="14" y="24" font-family="'Geist', 'PingFang SC', sans-serif" font-size="12.5" font-weight="600" fill="#0f172a">config/posts.json (582 篇 · 9.0MB)</text>
+      <text x="14" y="42" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" fill="#64748b">需依赖客户端手动触发全量 HTML 重渲染</text>
+    </g>
+  </g>
+
+  <!-- CENTER CHANGES LEDGER -->
+  <g transform="translate(360, 108)">
+    <rect x="0" y="0" width="280" height="384" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+
+    <g transform="translate(16, 16)">
+      <rect x="0" y="0" width="248" height="62" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="0.8"/>
+      <text x="12" y="19" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" font-weight="600" fill="#b91c1c">− REMOVED monolithic_search_json</text>
+      <text x="12" y="37" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11.5" fill="#334155">废弃 6.8MB 单文件全量包与 SVG 脏文本</text>
+      <text x="12" y="52" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" fill="#64748b">构建期剥离 &lt;svg&gt; 坐标，保留 alt 语义描述</text>
+    </g>
+
+    <g transform="translate(16, 90)">
+      <rect x="0" y="0" width="248" height="66" rx="4" fill="#fff7f5" stroke="#bf4520" stroke-width="1"/>
+      <text x="12" y="19" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" font-weight="600" fill="#bf4520">+ ADDED L1_meta + L2_worker_chunks</text>
+      <text x="12" y="37" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11.5" fill="#0f172a">拆分为 217KB 热索引 + 9 个正文分片</text>
+      <text x="12" y="54" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" fill="#475569">L1 含标题/标签/H2/摘要 · L2 后台 3 路流式扫</text>
+    </g>
+
+    <g transform="translate(16, 168)">
+      <rect x="0" y="0" width="248" height="62" rx="4" fill="#f0f9ff" stroke="#bae6fd" stroke-width="0.8"/>
+      <text x="12" y="19" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" font-weight="600" fill="#0369a1">Δ CHANGED archive_live_aggregator</text>
+      <text x="12" y="37" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11.5" fill="#0f172a">归档页支持跨分页原位按年份实时重排</text>
+      <text x="12" y="52" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" fill="#475569">输入即接管 100 篇分页，ESC 零损耗秒恢复</text>
+    </g>
+
+    <g transform="translate(16, 242)">
+      <rect x="0" y="0" width="248" height="62" rx="4" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="12" y="19" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" font-weight="600" fill="#334155">⇄ REWIRED Dual-Scope &amp; IME Guard</text>
+      <text x="12" y="37" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11.5" fill="#334155">一键切换「标题+全文」与「仅标题/标签」</text>
+      <text x="12" y="52" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" fill="#64748b">监听 compositionend，中文拼音过程零乱闪</text>
+    </g>
+
+    <g transform="translate(16, 316)">
+      <rect x="0" y="0" width="248" height="52" rx="4" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="12" y="19" font-family="'Geist Mono', ui-monospace, monospace" font-size="9" font-weight="600" fill="#059669">+ ADDED syncAssetsAndOutputHtml()</text>
+      <text x="12" y="37" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11" fill="#334155">自动补齐 1,471 个静态页引用与 ?v=hash 缓存控制</text>
+    </g>
+  </g>
+
+  <!-- AFTER SNAPSHOT -->
+  <g data-snapshot="after" data-grid="296 384 4" transform="translate(668, 108)">
+    <rect x="0" y="0" width="296" height="384" rx="8" fill="#ffffff" stroke="#0284c7" stroke-width="1.2"/>
+
+    <!-- Orthogonal Connectors drawn BEFORE boxes -->
+    <path d="M 88 80 L 88 120" fill="none" stroke="#bf4520" stroke-width="1.5" marker-end="url(#sbd-arr-accent)"/>
+    <path d="M 212 80 L 212 120" fill="none" stroke="#0284c7" stroke-width="1.4" marker-end="url(#sbd-arr-link)"/>
+    <path d="M 212 188 L 212 220" fill="none" stroke="#0284c7" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#sbd-arr-link)"/>
+    <path d="M 148 308 L 148 288" fill="none" stroke="#64748b" stroke-width="1.2" marker-end="url(#sbd-arr-muted)"/>
+
+    <rect x="34" y="92" width="108" height="15" rx="2" fill="#ffffff"/>
+    <text x="88" y="102" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="600" fill="#bf4520">&lt; 1MS RAM SCAN</text>
+    <rect x="162" y="92" width="100" height="15" rx="2" fill="#ffffff"/>
+    <text x="212" y="102" text-anchor="middle" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" fill="#0369a1">POSTMESSAGE</text>
+
+    <!-- A1: Dual UI Entry (⌘K Modal + Archive Inline) -->
+    <g transform="translate(16, 16)">
+      <rect x="0" y="0" width="264" height="64" rx="6" fill="#f0f9ff" stroke="#0284c7" stroke-width="1.3"/>
+      <text x="12" y="24" font-family="'Geist', 'PingFang SC', sans-serif" font-size="12.5" font-weight="600" fill="#0f172a">⌘K 全局搜索弹窗 + 归档原位筛选框</text>
+      <text x="12" y="46" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.8" fill="#0369a1">search.js · 6 级权重排序 · 跨年聚合视图</text>
+    </g>
+
+    <!-- A2 Left: L1 Hot Meta Index (FOCAL) -->
+    <g transform="translate(16, 120)">
+      <rect x="0" y="0" width="132" height="68" rx="6" fill="#fff7f5" stroke="#bf4520" stroke-width="1.5"/>
+      <text x="10" y="22" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" font-weight="600" fill="#bf4520">L1 · HOT META</text>
+      <text x="10" y="41" font-family="'Geist', 'PingFang SC', sans-serif" font-size="12" font-weight="600" fill="#0f172a">search-meta</text>
+      <text x="10" y="58" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" fill="#bf4520">217KB Gzip 预热</text>
+    </g>
+
+    <!-- A2 Right: Web Worker Engine -->
+    <g transform="translate(156, 120)">
+      <rect x="0" y="0" width="124" height="68" rx="6" fill="#f8fafc" stroke="#0284c7" stroke-width="1.2"/>
+      <text x="10" y="22" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" font-weight="600" fill="#0284c7">WORKER THREAD</text>
+      <text x="10" y="41" font-family="'Geist', 'PingFang SC', sans-serif" font-size="12" font-weight="600" fill="#0f172a">独立后台线程</text>
+      <text x="10" y="58" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" fill="#475569">reqId 抢占中断</text>
+    </g>
+
+    <!-- A3: L2 9 Full-text Chunks -->
+    <g transform="translate(16, 220)">
+      <rect x="0" y="0" width="264" height="68" rx="6" fill="#fff7f5" stroke="#bf4520" stroke-width="1.3"/>
+      <text x="12" y="24" font-family="'Geist', 'PingFang SC', sans-serif" font-size="12.5" font-weight="600" fill="#bf4520">L2 正文分片池 (chunk-0..8.json)</text>
+      <text x="12" y="44" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.8" fill="#334155">每片 70 篇 (~348KB Gzip) · 3 路并发流式拉取</text>
+      <text x="12" y="59" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.5" fill="#64748b">携带标题+标签前缀支持跨字段多词 AND 交集</text>
+    </g>
+
+    <!-- A4: Automated Build Pipeline -->
+    <g transform="translate(16, 308)">
+      <rect x="0" y="0" width="264" height="56" rx="6" fill="#f1f5f9" stroke="#475569" stroke-width="1.1"/>
+      <text x="12" y="24" font-family="'Geist', 'PingFang SC', sans-serif" font-size="12.5" font-weight="600" fill="#0f172a">deploy.sh 全自动构建推流 (0.4s)</text>
+      <text x="12" y="42" font-family="'Geist Mono', ui-monospace, monospace" font-size="8.8" fill="#475569">generate-search-index.js 幂等同步全站</text>
+    </g>
+  </g>
+
+  <!-- Bottom Legend -->
+  <line x1="36" y1="506" x2="964" y2="506" stroke="#e2e8f0" stroke-width="1"/>
+  <g transform="translate(36, 518)">
+    <rect x="0" y="0" width="12" height="12" rx="2" fill="#fff7f5" stroke="#bf4520" stroke-width="1.3"/>
+    <text x="18" y="10" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11" fill="#0f172a">核心增量层（L1 秒级热索引 + L2 九分片流式存储）</text>
+  </g>
+  <g transform="translate(368, 518)">
+    <rect x="0" y="0" width="12" height="12" rx="2" fill="#f0f9ff" stroke="#0284c7" stroke-width="1.2"/>
+    <text x="18" y="10" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11" fill="#0369a1">双线程无阻塞协同（主线程 UI + Web Worker）</text>
+  </g>
+  <g transform="translate(668, 518)">
+    <rect x="0" y="0" width="12" height="12" rx="2" fill="#fef2f2" stroke="#94a3b8" stroke-width="1.1" stroke-dasharray="3,2"/>
+    <text x="18" y="10" font-family="'Geist', 'PingFang SC', sans-serif" font-size="11" fill="#64748b">已移除单包阻塞与分页孤岛</text>
+  </g>
+</svg>
